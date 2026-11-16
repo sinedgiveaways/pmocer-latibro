@@ -201,7 +201,7 @@ def main():
     parser.add_argument('--smoke-test', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.smoke_test:
-        assert 'GameThread timed out waiting' in analyze_text(
+        assert 'Timeout evidence:' in analyze_text(
             'FATAL: svc #0x26 Break at sdk+0x1: abort\n'
             '  texts the abort\'s registers and stack point at:\n'
             '    sp+0x10 "GameThread timed out waiting for %s after %.02f secs"\n'
