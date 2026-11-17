@@ -8,8 +8,9 @@ Names looked for (case-insensitive): MKW, MarioKart, Mario Kart, MKWorld, mkw-re
 three-letter "mkw" counts only when no letter touches it, to avoid hits inside compressed data.
 
 In an executable each match names its PE section and file offset. The bare three letters "mkw" inside compressed image
-data (the IDAT chunks of an embedded PNG: the icon) or inside a section of machine code (.text: instruction bytes) are
-not text: they are listed apart and do not count. The longer names count everywhere.
+data (the IDAT chunks of an embedded PNG: the icon), inside a section of machine code (.text: instruction bytes) or in a
+table of addresses (at least 8 of the 16 bytes around it are above 0x7F) are not text: they are listed apart and do not
+count. The longer names count everywhere.
 
 Paths listed in the allow file (default tools/build/check_names.allow, globs relative to the scanned root) may keep the
 names: the licence texts, the third-party notices, the removal report and the one-shot migration data.
@@ -129,8 +130,12 @@ def scan(path: Path) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
             kind = ("utf-16" if wide else "utf-8") + (f" {place}" if place else "")
             image = bare and any(lo <= m.start() < hi for lo, hi in images)
             code = bare and code and not image
-            note = " png data" if image else " code bytes" if code else ""
-            (in_images if image or code else hits).append((kind + note, " ".join(snip.split())))
+            # A table of addresses or offsets (a debug or unwind section) holds "mkw" by chance: the bytes around it are
+            # mostly above 0x7F, which text in any section of this build never is.
+            around = data[max(0, m.start() - 8) : m.end() + 8]
+            table = bare and not wide and not image and not code and sum(b >= 0x80 for b in around) >= 8
+            note = " png data" if image else " code bytes" if code else " binary table" if table else ""
+            (in_images if image or code or table else hits).append((kind + note, " ".join(snip.split())))
     return hits, in_images
 
 
