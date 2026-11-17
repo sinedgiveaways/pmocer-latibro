@@ -10,6 +10,27 @@
 #include "kernel_int.h"
 #include "platform/platform.h"
 
+// ---- ORBITALS_DIAG_FENCE: each thread's last blocking wait, for the thread the abort finds running
+// The GameThread's own wait is the one the abort needs, and the dump reads it as running: the watchdog fires in its
+// wait loop. A thread keeps its last key, timeout and caller, so the dump can say what it waited on before.
+static void dg_begin(RtThread *t, unsigned k, uint64_t id, int64_t to, uint64_t lr) {
+    if (diag_fence_state <= 0 || !id) return;
+    t->dwk = k;
+    t->dwid = id;
+    t->dwto = to;
+    t->dwlr = lr;
+    t->dwend = 0;
+    t->dwbeg = plat_now_ns();
+    if (to >= 0) diag_fence_key_flag(k, id, 0);
+}
+
+static void dg_end(RtThread *t, uint32_t r) {
+    if (diag_fence_state <= 0 || !t->dwk || t->dwend) return;
+    t->dwend = plat_now_ns();
+    t->dwres = r;
+    if (r == R_TIMEOUT) diag_fence_key_flag(t->dwk, t->dwid, 1);
+}
+
 // ---- synchronization objects
 static int sig_obj(uint32_t h, int *bad) {   // 1 = signaled (holding G)
     unsigned i = h - 0x1000;
@@ -297,7 +318,9 @@ int kern_svc(Cpu *c, uint32_t imm) {
         }
         t->wobj = key;
         DIAG_KEY(DK_CV, key, 0);
+        dg_begin(t, DK_CV, key, (int64_t)x[3], c->x[30]);
         uint32_t r = block(t, W_CONDVAR, (int64_t)x[3]);   // on timeout user mode takes the lock itself
+        dg_end(t, r);
         unlock();
         x[0] = r;
         return 1;
@@ -345,7 +368,9 @@ int kern_svc(Cpu *c, uint32_t imm) {
         else {
             t->waddr = addr;
             t->wobj = addr;
+            dg_begin(t, DK_ADDR, addr, (int64_t)x[3], c->x[30]);
             r = addr_block(t, q, (int64_t)x[3]);
+            dg_end(t, r);
         }
         plat_mutex_unlock(q.m);
         x[0] = r;
@@ -470,11 +495,13 @@ int kern_svc(Cpu *c, uint32_t imm) {
                     if (!t->wev) t->wev = (uintptr_t)ev;
                 }
             g_sync_blocks++;
+            dg_begin(t, DK_EVENT, t->wev, left, c->x[30]);
             if (block(t, W_SYNC, left) == R_TIMEOUT) {
                 r = R_TIMEOUT;
                 break;
             }
         }
+        dg_end(t, r);
         unlock();
         x[0] = r;
         x[1] = idx >= 0 ? (uint64_t)idx : 0;

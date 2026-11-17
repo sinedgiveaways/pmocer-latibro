@@ -490,6 +490,17 @@ void kern_threads_dump(void) {
         uint64_t did = k == 2 ? t->wkey : k == 3 ? t->waddr : k == 4 ? t->wev : 0;
         char ks[200];
         if (dk && did && diag_fence_key_text(dk, did, ks, sizeof ks)) rt_logf("    diag-fence: waits on %s\n", ks);
+        if (t->dwk && diag_fence_key_text(t->dwk, t->dwid, ks, sizeof ks)) {
+            uint64_t now = plat_now_ns(), end = t->dwend;
+            char to[24], res[48];
+            if (t->dwto < 0) snprintf(to, sizeof to, "no timeout");
+            else snprintf(to, sizeof to, "timeout %.3f ms", (double)t->dwto / 1e6);
+            if (!end) snprintf(res, sizeof res, "still in it");
+            else snprintf(res, sizeof res, "ended %.3fs ago, %s", (double)(now - end) / 1e9,
+                          t->dwres == R_TIMEOUT ? "timed out" : "woken");
+            rt_logf("    diag-fence: last block on %s; %s; began %.3fs ago; %s; from %s\n", ks, to,
+                    (double)(now - t->dwbeg) / 1e9, res, ldr_describe(t->dwlr, d, sizeof d));
+        }
         rt_logf("    lr %s\n", ldr_describe(c->x[30], d, sizeof d));
         uint64_t fp = c->x[29];
         for (int f = 0; f < 12 && fp && !(fp & 7) && plat_mem_readable(fp, 16); f++) {

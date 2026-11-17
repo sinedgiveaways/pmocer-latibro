@@ -85,6 +85,10 @@ struct RtThread {
     int st;                    // S_* state since st_since
     uint64_t st_since, st_ns[S_N], nblk, npre, pre_since, cpu_last;
     uint64_t wev;              // ORBITALS_DIAG_FENCE: host pointer of the first event of the current WaitSynchronization
+    uint64_t dwid, dwbeg, dwend, dwlr;   // ORBITALS_DIAG_FENCE: the last blocking wait: key, began, ended (0: still in it), caller
+    int64_t dwto;              // its timeout in ns (< 0: none)
+    uint32_t dwres;            // its result
+    unsigned dwk;              // its key kind (DK_*), 0: none yet
     uint64_t wobj;             // what the current wait is on: owner handle, key, address or first handle
     uint32_t waker;            // the thread whose signal ended the last wait (0: a host thread or a timeout)
     uint64_t wake_at, grant_at;   // when a wait was signalled and a core granted, until the thread runs again

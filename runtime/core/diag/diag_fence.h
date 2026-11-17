@@ -39,6 +39,8 @@ void diag_fence_key(unsigned kind, uint64_t id, int signal);
 #define DIAG_KEY(kind, id, signal) \
     do { if (diag_fence_state) diag_fence_key((kind), (uint64_t)(id), (signal)); } while (0)
 // One line for a waiting thread (kernel_diag.c's thread dump): how often its key was waited on and signalled. 0: none.
+// flag 0: a wait with a timeout began on the key; 1: such a wait ended by timing out.
+void diag_fence_key_flag(unsigned kind, uint64_t id, int flag);
 int diag_fence_key_text(unsigned kind, uint64_t id, char *out, size_t cap);
 
 // A line of the counters and of the open waits, once every 5 s of the vsync thread's ticks (gfx_present.c).

@@ -109,7 +109,7 @@ void diag_fence_note(unsigned kind, uint64_t obj, uint64_t a, uint64_t b) {
 #define KEYS 8192
 #define KEY_PROBES 64
 typedef struct {
-    uint64_t key, waits, signals, last_wait_ns, last_sig_ns;
+    uint64_t key, waits, signals, last_wait_ns, last_sig_ns, timed, timeouts;
     uint32_t last_wait_by, last_sig_by;
 } KeyStat;
 static KeyStat keys[KEYS];
@@ -151,6 +151,12 @@ void diag_fence_key(unsigned kind, uint64_t id, int signal) {
     }
 }
 
+void diag_fence_key_flag(unsigned kind, uint64_t id, int flag) {
+    if (diag_fence_state <= 0) return;
+    KeyStat *s = key_slot(kind, id, 1);
+    if (s) __atomic_fetch_add(flag ? &s->timeouts : &s->timed, 1, __ATOMIC_RELAXED);
+}
+
 int diag_fence_key_text(unsigned kind, uint64_t id, char *out, size_t cap) {
     static const char *const kn[] = {"?", "condition variable key", "address", "event"};
     if (diag_fence_state <= 0 || kind >= sizeof kn / sizeof *kn) return 0;
@@ -168,6 +174,12 @@ int diag_fence_key_text(unsigned kind, uint64_t id, char *out, size_t cap) {
                  (double)(now - __atomic_load_n(&s->last_sig_ns, __ATOMIC_RELAXED)) / 1e9, who);
     } else
         snprintf(out + n, cap - (size_t)n, ", never signalled since the log began");
+    // A wait with a timeout wakes without a signal; these counts tell those wakes from signalled ones.
+    n = (int)strlen(out);
+    if ((size_t)n + 1 < cap)
+        snprintf(out + n, cap - (size_t)n, ", %llu timed, %llu timed out",
+                 (unsigned long long)__atomic_load_n(&s->timed, __ATOMIC_RELAXED),
+                 (unsigned long long)__atomic_load_n(&s->timeouts, __ATOMIC_RELAXED));
     return 1;
 }
 
