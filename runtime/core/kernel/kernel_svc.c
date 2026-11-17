@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "cfg.h"
+#include "diag_fence.h"
 #include "kernel_int.h"
 #include "platform/platform.h"
 
@@ -295,6 +296,7 @@ int kern_svc(Cpu *c, uint32_t imm) {
             t->wtag = (uint32_t)x[2];
         }
         t->wobj = key;
+        DIAG_KEY(DK_CV, key, 0);
         uint32_t r = block(t, W_CONDVAR, (int64_t)x[3]);   // on timeout user mode takes the lock itself
         unlock();
         x[0] = r;
@@ -303,6 +305,7 @@ int kern_svc(Cpu *c, uint32_t imm) {
     case 0x1D: {   // SignalProcessWideKey(x0 key, w1 count; <= 0 all)
         uint64_t key = x[0];
         int cnt = (int)x[1], n = 0;
+        DIAG_KEY(DK_CV, key, 1);
         lock();
         for (RtThread *w; (cnt <= 0 || n < cnt) && (w = pick(W_CONDVAR, key)); n++) lock_acquire_for(w, w->waddr, w->wtag);
         int left = 0;
@@ -327,6 +330,7 @@ int kern_svc(Cpu *c, uint32_t imm) {
             x[0] = R_INVALID_ENUM;
             return 1;
         }
+        DIAG_KEY(DK_ADDR, addr, 0);
         AddrQueue q = addr_queue(addr);
         plat_mutex_lock(q.m);
         uint32_t r, v = ld32(addr);
@@ -356,6 +360,7 @@ int kern_svc(Cpu *c, uint32_t imm) {
             x[0] = R_INVALID_ENUM;
             return 1;
         }
+        DIAG_KEY(DK_ADDR, addr, 1);
         AddrQueue q = addr_queue(addr);
         plat_mutex_lock(q.m);
         int nw = 0;
@@ -403,6 +408,7 @@ int kern_svc(Cpu *c, uint32_t imm) {
             r = imm == 0x17 && h_peek(h, O_THREAD) ? R_BAD_STATE : R_BAD_HANDLE;
             if (r == R_BAD_HANDLE) rt_log("kernel: event svc %#x: invalid handle %#x", imm, h);
         } else if (imm == 0x11) {
+            DIAG_KEY(DK_EVENT, (uintptr_t)e, 1);
             e->signaled = 1;
             wake_sync_waiters();
         } else if (imm == 0x17 && !e->signaled) {
@@ -455,6 +461,14 @@ int kern_svc(Cpu *c, uint32_t imm) {
                 left = ns - (int64_t)spent;
             }
             t->wobj = n ? hs[0] | (uint64_t)n << 32 : 0;
+            t->wev = 0;
+            if (diag_fence_state)
+                for (int i = 0; i < n; i++) {
+                    Event *ev = h_peek(hs[i], O_EVENT_R);
+                    if (!ev) continue;
+                    DIAG_KEY(DK_EVENT, (uintptr_t)ev, 0);
+                    if (!t->wev) t->wev = (uintptr_t)ev;
+                }
             g_sync_blocks++;
             if (block(t, W_SYNC, left) == R_TIMEOUT) {
                 r = R_TIMEOUT;

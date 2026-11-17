@@ -105,6 +105,72 @@ void diag_fence_note(unsigned kind, uint64_t obj, uint64_t a, uint64_t b) {
     plat_mutex_unlock(&open_lock);
 }
 
+// ---- guest-side keys: an open-addressing table of 8192 slots, a slot claimed by a compare-and-swap on its key
+#define KEYS 8192
+#define KEY_PROBES 64
+typedef struct {
+    uint64_t key, waits, signals, last_wait_ns, last_sig_ns;
+    uint32_t last_wait_by, last_sig_by;
+} KeyStat;
+static KeyStat keys[KEYS];
+static uint64_t keys_full;
+
+static KeyStat *key_slot(unsigned kind, uint64_t id, int create) {
+    uint64_t k = (id & ((1ull << 56) - 1)) | (uint64_t)kind << 56;
+    uint64_t h = (k * 0x9E3779B97F4A7C15ull) >> 51;   // 13 bits
+    for (int i = 0; i < KEY_PROBES; i++) {
+        KeyStat *s = &keys[(h + (uint64_t)i) % KEYS];
+        uint64_t cur = __atomic_load_n(&s->key, __ATOMIC_ACQUIRE);
+        if (cur == k) return s;
+        if (!cur) {
+            if (!create) return NULL;
+            uint64_t zero = 0;
+            if (__atomic_compare_exchange_n(&s->key, &zero, k, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE) || zero == k)
+                return s;
+        }
+    }
+    __atomic_fetch_add(&keys_full, 1, __ATOMIC_RELAXED);
+    return NULL;
+}
+
+void diag_fence_key(unsigned kind, uint64_t id, int signal) {
+    if (diag_fence_state < 0) init();
+    if (diag_fence_state <= 0) return;
+    KeyStat *s = key_slot(kind, id, 1);
+    if (!s) return;
+    uint64_t now = plat_now_ns();
+    uint32_t by = kern_current_handle();
+    if (signal) {
+        __atomic_fetch_add(&s->signals, 1, __ATOMIC_RELAXED);
+        __atomic_store_n(&s->last_sig_ns, now, __ATOMIC_RELAXED);
+        __atomic_store_n(&s->last_sig_by, by, __ATOMIC_RELAXED);
+    } else {
+        __atomic_fetch_add(&s->waits, 1, __ATOMIC_RELAXED);
+        __atomic_store_n(&s->last_wait_ns, now, __ATOMIC_RELAXED);
+        __atomic_store_n(&s->last_wait_by, by, __ATOMIC_RELAXED);
+    }
+}
+
+int diag_fence_key_text(unsigned kind, uint64_t id, char *out, size_t cap) {
+    static const char *const kn[] = {"?", "condition variable key", "address", "event"};
+    if (diag_fence_state <= 0 || kind >= sizeof kn / sizeof *kn) return 0;
+    const KeyStat *s = key_slot(kind, id, 0);
+    if (!s) return 0;
+    uint64_t now = plat_now_ns(), w = __atomic_load_n(&s->waits, __ATOMIC_RELAXED),
+             g = __atomic_load_n(&s->signals, __ATOMIC_RELAXED);
+    int n = snprintf(out, cap, "%s %#llx: %llu wait(s)", kn[kind], (unsigned long long)id, (unsigned long long)w);
+    if (n < 0 || (size_t)n >= cap) return 1;
+    if (g) {
+        char who[24];
+        if (s->last_sig_by) snprintf(who, sizeof who, "guest %#x", s->last_sig_by);
+        else snprintf(who, sizeof who, "a host thread");
+        snprintf(out + n, cap - (size_t)n, ", %llu signal(s), the last %.1fs ago by %s", (unsigned long long)g,
+                 (double)(now - __atomic_load_n(&s->last_sig_ns, __ATOMIC_RELAXED)) / 1e9, who);
+    } else
+        snprintf(out + n, cap - (size_t)n, ", never signalled since the log began");
+    return 1;
+}
+
 // The counters in one line: where the guest's work and the GPU's stand.
 static void state_line(char *out, size_t cap, uint64_t now) {
     const GfxBackend *be = gfx_backend();

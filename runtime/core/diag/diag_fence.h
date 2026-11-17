@@ -1,5 +1,6 @@
 // ORBITALS_DIAG_FENCE=1: a record of the waits and signals that can hold a frame back (diag_fence.c).
 #pragma once
+#include <stddef.h>
 #include <stdint.h>
 
 // Event kinds. *_WAIT, ACQUIRE and FINISH open a blocking wait that the matching *_END closes.
@@ -27,6 +28,18 @@ extern volatile int diag_fence_state;
 void diag_fence_note(unsigned kind, uint64_t obj, uint64_t a, uint64_t b);
 #define DIAG_FENCE(kind, obj, a, b) \
     do { if (diag_fence_state) diag_fence_note((kind), (uint64_t)(obj), (uint64_t)(a), (uint64_t)(b)); } while (0)
+
+// Guest-side waits and signals, by what they are on: the idle threads of an abort sit in these, not in the NVN layer.
+// DK_CV: the key of WaitProcessWideKeyAtomic / SignalProcessWideKey (svc 0x1C, 0x1D: nn::os events and condition
+// variables). DK_ADDR: the address of WaitForAddress / SignalToAddress (0x34, 0x35). DK_EVENT: the kernel event
+// (host pointer of the Event: its readable and writable handles differ) of WaitSynchronization / SignalEvent
+// (0x18, 0x11) and of the host's own signals (vsync, decoders). Per key: waits, signals, when and by whom last.
+enum { DK_CV = 1, DK_ADDR, DK_EVENT };
+void diag_fence_key(unsigned kind, uint64_t id, int signal);
+#define DIAG_KEY(kind, id, signal) \
+    do { if (diag_fence_state) diag_fence_key((kind), (uint64_t)(id), (signal)); } while (0)
+// One line for a waiting thread (kernel_diag.c's thread dump): how often its key was waited on and signalled. 0: none.
+int diag_fence_key_text(unsigned kind, uint64_t id, char *out, size_t cap);
 
 // A line of the counters and of the open waits, once every 5 s of the vsync thread's ticks (gfx_present.c).
 void diag_fence_heartbeat(uint64_t tick);

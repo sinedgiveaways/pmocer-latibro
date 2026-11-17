@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "cfg.h"
+#include "diag_fence.h"
 #include "kernel_int.h"
 #include "platform/platform.h"
 
@@ -485,6 +486,10 @@ void kern_threads_dump(void) {
         rt_logf("  thread %#x \"%s\" prio %d core %d%s: %s %#llx%s\n", t->handle, name, t->prio, t->cur_core,
                 t == tcur ? " (this one)" : "", wk[k], (unsigned long long)(k ? t->waddr : 0),
                 dg_in_host(t) ? ", inside an SVC or host function" : "");
+        unsigned dk = k == 2 ? DK_CV : k == 3 ? DK_ADDR : k == 4 ? DK_EVENT : 0;
+        uint64_t did = k == 2 ? t->wkey : k == 3 ? t->waddr : k == 4 ? t->wev : 0;
+        char ks[200];
+        if (dk && did && diag_fence_key_text(dk, did, ks, sizeof ks)) rt_logf("    diag-fence: waits on %s\n", ks);
         rt_logf("    lr %s\n", ldr_describe(c->x[30], d, sizeof d));
         uint64_t fp = c->x[29];
         for (int f = 0; f < 12 && fp && !(fp & 7) && plat_mem_readable(fp, 16); f++) {

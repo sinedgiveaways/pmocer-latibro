@@ -14,6 +14,7 @@
 #include <string.h>
 
 #include "cfg.h"
+#include "diag_fence.h"
 #include "kernel_int.h"
 #include "platform/platform.h"
 
@@ -447,6 +448,7 @@ void kern_event_signal(uint32_t hw) {
     lock();
     Event *e = h_peek(hw, O_EVENT_W);
     if (!e) rt_fatal("kern_event_signal: %#x is not a writable event handle", hw);
+    DIAG_KEY(DK_EVENT, (uintptr_t)e, 1);
     e->signaled = 1;
     wake_sync_waiters();
     unlock();
