@@ -112,6 +112,8 @@ timed waits).
 
 ## Versions
 
+- **0.5.0**: the call chain of each thread's last wait (`last block frame` lines), and the signals on that key: how many,
+  when and by whom last. The GameThread's chain and key are in the findings.
 - **0.4.0**: the abort dump's "last block" line, which every thread that ever waited has: the key, the timeout, when the
   wait began and ended, whether it timed out, and the caller. It gives the GameThread's own last wait, which the dump
   shows as running. The key lines also carry how many waits had a timeout and how many of those timed out, so waits
