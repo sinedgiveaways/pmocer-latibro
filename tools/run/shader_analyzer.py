@@ -33,7 +33,7 @@ from analyze_timeout import (  # noqa: E402  the thread-dump reading is shared w
     parse_threads,
 )
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 # Lines that fill a run's log (guest page allocations, decoder set-up, SDK call census, RomFS lookups): counted, not kept.
 NOISE = re.compile(r"AllocateMemoryPages|nn::codec: queued decoder|^\[host\] sdk call \d+|^\[host\] fs entry ")
@@ -49,6 +49,7 @@ RULES = {
     "shader_stage": (re.compile(r"a stage \d+ shader of program \d+ has no prepared SPIR-V"), 0),
     "draw_skipped": (re.compile(r"\ba draw .*\bskipped\b"), 1),
     "pipeline_error": (re.compile(r"vk(_pipeline)?:.*(fail|error|VK_ERROR|device lost)", re.I), 3),
+    "diag_open": (re.compile(r"diag-fence:? open wait: "), 2),
     "problem": (
         re.compile(r"\b(unsupported|unimplemented|not implemented|trap|fault|crash)\b", re.I),
         4,
@@ -73,6 +74,32 @@ RE_WEAK = re.compile(r"(\w+): weak import (\S+) is unresolved")
 RE_NVN2 = re.compile(r"nvn2: (.*?) (ignored|dropped)\s*$")
 RE_MEMORY = re.compile(r"memory: process (\d+) MiB resident, (\d+) MiB private; system (\d+) of (\d+) MiB")
 RE_RUNTIME = re.compile(r"run time at the abort: ([\d.]+) s")
+# ORBITALS_DIAG_FENCE=1 (runtime/core/diag/diag_fence.c): a line every 5 s, and at an abort the same line, the open waits,
+# the counts and the last events.
+RE_BEAT = re.compile(
+    r"diag-fence(?: at the abort)?: t=(\d+)s vsync tick (\d+) \(([-\d.]+)s ago\) \| submits (\d+) presents (\d+) "
+    r"acquires (\d+) fence waits (\d+) \| fence submitted (\d+) queued (\d+) done (\d+) \| frames (\d+) \| "
+    r"last event ([-\d.]+)s ago"
+)
+RE_OPEN = re.compile(r"diag-fence(:)? open wait: (.+)$")  # with the colon: a heartbeat; without: the abort dump
+RE_RING = re.compile(
+    r"^\s+-\s*([\d.]+)s\s+tid\s+(\d+)\s+guest\s+(0x[0-9a-f]+|0)\s+(\w+)\s+obj\s+(0x[0-9a-f]+)\s+a\s+(\d+)\s+b\s+(\d+)"
+)
+RE_DF_COUNTS = re.compile(r"diag-fence counts of (\d+) events:(.*)$")
+BEAT_FIELDS = (
+    "t",
+    "tick",
+    "tick_ago",
+    "submits",
+    "presents",
+    "acquires",
+    "fence_waits",
+    "submitted",
+    "queued",
+    "done",
+    "frames",
+    "last_event_ago",
+)
 
 
 def read_log(path: Path):
@@ -86,6 +113,7 @@ def read_log(path: Path):
         "present_lines": 0, "intervals": [], "dt_init": {}, "nn_main": False, "gpu": None, "version": None, "app": None,
         "hashes": [], "stages": [], "spirv_dir": None, "fences": [], "imports": {}, "import_sums": {}, "weak": [],
         "nvn2": Counter(), "sync": {}, "memory": None, "runtime": None, "lines": 0,
+        "df_on": False, "beats": [], "abort_beat": None, "df_open": [], "df_open_beats": [], "df_none_open": False, "ring": [], "df_counts": None,
     }  # fmt: skip
     with path.open("rb") as raw:
         for b in raw:
@@ -125,6 +153,12 @@ def _facts(line: str, f: dict) -> None:
         m = rx.search(line)
         if m:
             f[key] = fn(m)
+    if "diag-fence" in line:
+        _diag_fence_facts(line, f)
+    elif (m := RE_RING.match(line)) and f["df_on"]:
+        f["ring"].append(
+            (float(m.group(1)), int(m.group(2)), m.group(3), m.group(4), m.group(5), int(m.group(6)), int(m.group(7)))
+        )
     if RE_PRESENT.search(line):
         f["present_lines"] += 1
     if m := RE_INTERVAL.search(line):
@@ -150,6 +184,24 @@ def _facts(line: str, f: dict) -> None:
         f["nvn2"][re.sub(r"\d+", "N", m.group(1)) + " " + m.group(2)] += 1
     if m := SYNC_PROC.search(line):
         f["sync"].setdefault(m.group(1), set()).add(m.group(2))
+
+
+def _diag_fence_facts(line: str, f: dict) -> None:
+    f["df_on"] = True
+    if m := RE_BEAT.search(line):
+        beat = dict(zip(BEAT_FIELDS, (float(x) if "." in x else int(x) for x in m.groups()), strict=True))
+        if "at the abort" in line:
+            f["abort_beat"] = beat
+        else:
+            f["beats"].append(beat)
+    elif m := RE_OPEN.search(line):
+        f["df_open_beats" if m.group(1) else "df_open"].append(m.group(2))
+    elif "no blocking wait of the NVN layer" in line:
+        f["df_none_open"] = True
+    elif m := RE_DF_COUNTS.search(line):
+        f["df_counts"] = {k: int(v) for k, v in re.findall(r"(\w+) (\d+),", m.group(2))}
+    elif "the last" in line and "events, oldest first" in line:
+        f["ring"] = []  # a later abort dump replaces an earlier one
 
 
 def analyse(path: Path, context: int) -> dict:
@@ -209,6 +261,18 @@ def analyse(path: Path, context: int) -> dict:
             ],
         }
         for name, idx in hits.items()
+    }
+    d["diag_fence"] = {
+        "on": f["df_on"],
+        "heartbeats": f["beats"],
+        "at_abort": f["abort_beat"],
+        "open_waits_at_abort": f["df_open"],
+        "open_waits_in_heartbeats": f["df_open_beats"],
+        "no_open_wait_at_abort": f["df_none_open"],
+        "counts": f["df_counts"],
+        "last_events_oldest_first": [
+            dict(zip(("ago_s", "host_tid", "guest", "kind", "obj", "a", "b"), e, strict=True)) for e in f["ring"]
+        ],
     }
     d["findings"] = findings(d)
     return d
@@ -308,9 +372,75 @@ def findings(d: dict) -> list[dict]:
         )
     if d["nvn2_ignored"]:
         add("info", f"{len(d['nvn2_ignored'])} kind(s) of NVN2 call ignored or dropped.")
+    df = d["diag_fence"]
+    if df["on"]:
+        _diag_fence_findings(df, add)
+    elif d["lines"]:
+        add(
+            "info",
+            "No diag-fence line: the run was made without ORBITALS_DIAG_FENCE=1 (or with a build that lacks it).",
+        )
     if not d["nvn_sync_call_sites"]:
         add("info", "No NVN sync/event/fence call site in this log (log without ORBITALS_TRACE=host?).")
     return out
+
+
+def _diag_fence_findings(df: dict, add) -> None:
+    beats = df["heartbeats"]
+    add(
+        "info",
+        f"ORBITALS_DIAG_FENCE was on: {len(beats)} heartbeat line(s)"
+        + (f", the last at t={beats[-1]['t']} s." if beats else "."),
+    )
+    key = ("submits", "presents", "fence_waits", "done", "submitted")
+    changed = [i for i in range(1, len(beats)) if any(beats[i][k] != beats[i - 1][k] for k in key)]
+    if len(beats) >= 2:
+        last = changed[-1] if changed else 0
+        flat = len(beats) - 1 - last
+        if flat >= 1:
+            a, b = beats[last], beats[-1]
+            add(
+                "warn",
+                f"The counters (submits, presents, fence waits, fence submitted/done) last changed at the heartbeat t={a['t']} s; "
+                f"{flat} later heartbeat(s), up to t={b['t']} s, show the same values (presents {b['presents']}, submits "
+                f"{b['submits']}, fence done {b['done']} of {b['submitted']} submitted). The vsync tick went from {a['tick']} to {b['tick']}.",
+            )
+        else:
+            add("info", f"The counters were still changing at the last heartbeat (t={beats[-1]['t']} s).")
+    ab = df["at_abort"]
+    if ab:
+        add(
+            "info",
+            f"At the abort: submits {ab['submits']}, presents {ab['presents']}, acquires {ab['acquires']}, fence waits "
+            f"{ab['fence_waits']}; fence submitted {ab['submitted']}, queued {ab['queued']}, done {ab['done']}; vsync tick "
+            f"{ab['tick']} ({ab['tick_ago']} s ago); last event {ab['last_event_ago']} s ago.",
+        )
+    if df["open_waits_in_heartbeats"]:
+        w = df["open_waits_in_heartbeats"]
+        add("warn", f"{len(w)} heartbeat line(s) report a blocking wait open for over 2 s; the last: {w[-1]}")
+    if df["open_waits_at_abort"]:
+        add("warn", "Blocking waits still open at the abort: " + " | ".join(df["open_waits_at_abort"]))
+    elif df["no_open_wait_at_abort"]:
+        add(
+            "info",
+            "No blocking wait of the NVN layer or the Vulkan back end was open at the abort: the idle threads wait on "
+            "something else (guest events or condition variables).",
+        )
+    ring = df["last_events_oldest_first"]
+    if ring:
+        latest = {}
+        for e in ring:
+            latest[e["kind"]] = e["ago_s"]
+        add(
+            "info",
+            "Seconds before the abort of the last event of each kind in the ring: "
+            + ", ".join(f"{k} {v}" for k, v in sorted(latest.items(), key=lambda kv: kv[1]))
+            + ".",
+        )
+    c = df["counts"] or {}
+    for k in ("CATCHUP_TIMEOUT", "ACQUIRE_TIMEOUT"):
+        if c.get(k):
+            add("warn", f"{k}: {c[k]} (a wait that the NVN layer bounds gave up).")
 
 
 def render_md(d: dict) -> str:
@@ -334,6 +464,29 @@ def render_md(d: dict) -> str:
             L.append(f"| {t['name']} | {t['state']} | {' ← '.join('`' + x + '`' for x in t['frames'][:3])} |")
         if th["running"]:
             L.append(f"\nRunning or ready (a scheduler label, not proof of progress): {', '.join(th['running'])}")
+    df = d["diag_fence"]
+    if df["on"]:
+        L += ["", "## ORBITALS_DIAG_FENCE", ""]
+        if df["heartbeats"]:
+            L += ["| t (s) | vsync tick | submits | presents | acquires | fence waits | fence submitted | queued | done | frames |",
+                  "|---|---|---|---|---|---|---|---|---|---|"]  # fmt: skip
+            L += [
+                f"| {b['t']} | {b['tick']} | {b['submits']} | {b['presents']} | {b['acquires']} | {b['fence_waits']} | "
+                f"{b['submitted']} | {b['queued']} | {b['done']} | {b['frames']} |"
+                for b in df["heartbeats"][-24:]
+            ]
+        if df["last_events_oldest_first"]:
+            L += [
+                "",
+                "Last events before the abort, oldest first (host tid, guest handle as in the thread dump):",
+                "",
+                "```",
+            ]
+            L += [
+                f"-{e['ago_s']:>9.3f}s tid {e['host_tid']:<6} guest {e['guest']:<6} {e['kind']:<16} obj {e['obj']} a {e['a']} b {e['b']}"
+                for e in df["last_events_oldest_first"][-40:]
+            ]
+            L.append("```")
     sh = d["shaders"]
     if sh["missing_hashes"]:
         L += ["", "## Shaders without prepared SPIR-V", ""] + [f"- `{h}`" for h in sh["missing_hashes"]]
@@ -363,7 +516,8 @@ def render_md(d: dict) -> str:
           "- Why a signal never came. The abort dump is taken while the GameThread handles the abort; its stack is not "
           "the stack it waited on.",
           "- Host threads. Replay, recorder, present and submit threads are not in the dump.",
-          "- Frames after the host's one-time lines: the log has no per-frame line yet (planned: ORBITALS_DIAG_FENCE).",
+          "- Frames: the log has no per-frame line. With ORBITALS_DIAG_FENCE=1 it has a counters line every 5 s and, at an "
+          "abort, the last events of the NVN layer and the back end; guest-side events (nn::os) are not recorded.",
           "- crit.bin is not read by this version."]  # fmt: skip
     return "\n".join(L) + "\n"
 

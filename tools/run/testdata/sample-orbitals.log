@@ -25,6 +25,13 @@ boot: DT_INIT sdk state=2 (94)
 [host] gfx_shader: prepared SPIR-V from C:\Users\player\orbitals-recomp/spirv
 [host] gfx_shader: no prepared SPIR-V 899b8305d50591fd514e5301a41ff81d86e34ed0ff9386351090809987b00c92 (1 lookups so far)
 [host] vk: a stage 1 shader of program 148 has no prepared SPIR-V: draws with it are skipped (logged once)
+[host] diag-fence: on (ring of 2048 events, a line every 5 s, the ring and the open waits at an abort; ORBITALS_DIAG_FENCE)
+[host] diag-fence: t=5s vsync tick 300 (0.0s ago) | submits 12 presents 6 acquires 6 fence waits 4 | fence submitted 31 queued 31 done 31 | frames 6 | last event 0.0s ago
+[host] diag-fence: t=10s vsync tick 600 (0.0s ago) | submits 40 presents 20 acquires 20 fence waits 17 | fence submitted 99 queued 99 done 99 | frames 20 | last event 0.0s ago
+[host] diag-fence: t=15s vsync tick 900 (0.0s ago) | submits 61 presents 30 acquires 30 fence waits 25 | fence submitted 140 queued 140 done 139 | frames 30 | last event 0.1s ago
+[host] diag-fence: t=20s vsync tick 1200 (0.0s ago) | submits 61 presents 30 acquires 30 fence waits 25 | fence submitted 140 queued 140 done 139 | frames 30 | last event 5.1s ago
+[host] diag-fence: t=25s vsync tick 1500 (0.0s ago) | submits 61 presents 30 acquires 30 fence waits 25 | fence submitted 140 queued 140 done 139 | frames 30 | last event 10.1s ago
+[host] diag-fence: open wait: host thread 5120 (guest 0x1002): FENCE_WAIT for 4.0s, obj 0 a 141 b 18446744073709551615
 [host] vk: pitch texture 0xf21410000 1920x1088 format 0x1 (2088960 bytes) written back to its storage at fence 26
 [host] vk: pitch texture 0xf21610000 1920x1088 format 0x1 (2088960 bytes) written back to its storage at fence 100
 [host] guest Break reason 0 result 0 at sdk+0x1a4540
@@ -50,6 +57,13 @@ FATAL: svc #0x26 Break at sdk+0x1a4540: Break (the SDK aborted)
   thread 0x1002 "GameThread" prio 43 core 1 (this one): running or ready 0, inside an SVC or host function
     frame  0: sdk+0xb9c48
     frame  1: main+0x161dc80
+  diag-fence at the abort: t=121s vsync tick 7260 (0.0s ago) | submits 61 presents 30 acquires 30 fence waits 25 | fence submitted 140 queued 140 done 139 | frames 30 | last event 106.0s ago
+  diag-fence counts of 191 events: SUBMIT 61, FENCE_WAIT 25, FENCE_WAIT_END 25, ACQUIRE 30, ACQUIRE_END 30, PRESENT 30, FENCE_DONE 70,
+  diag-fence: no blocking wait of the NVN layer or the back end is open
+  diag-fence: the last 3 events, oldest first (host tid, guest handle as in the thread dump):
+    -  106.250s tid 5120   guest 0x1002 SUBMIT           obj 0x7000 a 140 b 5
+    -  106.200s tid 5120   guest 0x1002 PRESENT          obj 0x7100 a 2 b 30
+    -  106.000s tid 6001   guest 0      FENCE_DONE       obj 0x0 a 138 b 139
   run time at the abort: 121.77 s by the host clock, 121.77 s by the guest's GetSystemTick
 FATAL: svc #0x26 Break is not implemented
 [host] FATAL: memory: process 1794 MiB resident, 4731 MiB private; system 11390 of 32581 MiB in use
