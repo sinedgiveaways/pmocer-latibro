@@ -112,6 +112,10 @@ timed waits).
 
 ## Versions
 
+- **0.4.0**: the abort dump's "last block" line, which every thread that ever waited has: the key, the timeout, when the
+  wait began and ended, whether it timed out, and the caller. It gives the GameThread's own last wait, which the dump
+  shows as running. The key lines also carry how many waits had a timeout and how many of those timed out, so waits
+  minus signals is not read as lost signals. New table and a finding for the GameThread.
 - **0.3.0**: the per-thread key statistics of the abort dump: which key each idle guest thread waits on, how often it was
   signalled, when and by whom last; findings for keys never signalled, signalled long ago, or signalled just before the abort.
 - **0.2.0**: reads `ORBITALS_DIAG_FENCE` output: heartbeat table and the point where the counters stop changing, state at

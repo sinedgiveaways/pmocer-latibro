@@ -58,6 +58,7 @@ FATAL: svc #0x26 Break at sdk+0x1a4540: Break (the SDK aborted)
   thread 0x1022 "RTHeartBeat 0" prio 43 core -1: running or ready 0, inside an SVC or host function
     frame  0: main+0x16398b8
   thread 0x1002 "GameThread" prio 43 core 1 (this one): running or ready 0, inside an SVC or host function
+    diag-fence: last block on condition variable key 0x5800b0f00: 900 wait(s), 899 signal(s), the last 120.1s ago by guest 0x1021, 900 timed, 890 timed out; timeout 1.000 ms; began 0.001s ago; ended 0.000s ago, timed out; from main+0x161d000
     frame  0: sdk+0xb9c48
     frame  1: main+0x161dc80
   diag-fence at the abort: t=121s vsync tick 7260 (0.0s ago) | submits 61 presents 30 acquires 30 fence waits 25 | fence submitted 140 queued 140 done 139 | frames 30 | last event 106.0s ago

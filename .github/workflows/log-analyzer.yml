@@ -48,6 +48,7 @@ jobs:
           grep -q "last changed at the heartbeat t=15 s; 2 later heartbeat" build/report.md
           grep -q "No blocking wait of the NVN layer or the Vulkan back end was open" build/report.md
           grep -q "wait on a key never signalled since the log began: RHIThread" build/report.md
+          grep -q "GameThread's last blocking wait: condition variable key 0x5800b0f00" build/report.md
           grep -q "last signal 119.9 s ago by RHIThread" build/report.md
           python -c "import json;d=json.load(open('build/report.json',encoding='utf-8'));assert d['end']['aborted'] and len(d['shaders']['missing_hashes'])==1 and len(d['diag_fence']['heartbeats'])==5"
       - uses: actions/upload-artifact@v4
