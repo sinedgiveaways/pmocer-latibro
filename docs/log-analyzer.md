@@ -112,6 +112,9 @@ timed waits).
 
 ## Versions
 
+- **0.5.1**: the 0.5.0 chain was empty: the SDK's wait code does not keep x29 as a frame pointer. The runtime now scans the
+  stack above the wait for return addresses (an instruction after a BL or BLR), printed with their offset from sp; the
+  report words them as nearest first and possibly stale.
 - **0.5.0**: the call chain of each thread's last wait (`last block frame` lines), and the signals on that key: how many,
   when and by whom last. The GameThread's chain and key are in the findings.
 - **0.4.0**: the abort dump's "last block" line, which every thread that ever waited has: the key, the timeout, when the

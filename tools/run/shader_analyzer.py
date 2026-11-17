@@ -33,7 +33,7 @@ from analyze_timeout import (  # noqa: E402  the thread-dump reading is shared w
     parse_threads,
 )
 
-VERSION = "0.5.0"
+VERSION = "0.5.1"
 
 # Lines that fill a run's log (guest page allocations, decoder set-up, SDK call census, RomFS lookups): counted, not kept.
 NOISE = re.compile(r"AllocateMemoryPages|nn::codec: queued decoder|^\[host\] sdk call \d+|^\[host\] fs entry ")
@@ -553,7 +553,11 @@ def _diag_fence_findings(df: dict, add) -> None:
                 ),
             )
             if b["callers"]:
-                add("warn", "GameThread's call chain at that wait, innermost first: " + " <- ".join(b["callers"]))
+                add(
+                    "warn",
+                    "Return addresses on the GameThread's stack at that wait, nearest first (a few may be stale): "
+                    + " <- ".join(b["callers"]),
+                )
     tmo = [k for k in keys if k.get("timed_waits")]
     if tmo:
         add(
