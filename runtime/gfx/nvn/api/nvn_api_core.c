@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include "cfg.h"
+#include "diag_fence.h"
 #include "gfx.h"
 #include "host.h"
 #include "nvn_api.h"
@@ -621,10 +622,12 @@ NVN_API(nvnSyncWait) {
     if (poll && poll_wait(s->fence)) { b->cpu_synced(s->fence); ret_x(c, NVN_SYNC_WAIT_RESULT_CONDITION_SATISFIED); return; }
     int ok;
     uint64_t t0 = (rt_trace & RT_TRACE_PERF) ? kern_now_ns() : 0, iss0 = t0 ? b->fence_queued() : 0;
+    DIAG_FENCE(DF_SYNC_WAIT, s, s->fence, timeout);
     {
         NVN_BLOCKING();
         ok = b->fence_wait(s->fence, timeout);
     }
+    DIAG_FENCE(DF_SYNC_WAIT_END, s, s->fence, ok);
     if (t0) sync_wait_note(s->fence, kern_now_ns() - t0, iss0);
     if (ok) b->cpu_synced(s->fence);
     ret_x(c, ok ? NVN_SYNC_WAIT_RESULT_CONDITION_SATISFIED : NVN_SYNC_WAIT_RESULT_TIMEOUT_EXPIRED);
@@ -707,6 +710,7 @@ NVN_API(nvnEventSignal) {
     uint32_t v = (uint32_t)arg_x(c, 2);
     if ((uint32_t)arg_x(c, 1) == NVN_EVENT_SIGNAL_MODE_ADD) *e->val += v;
     else *e->val = v;
+    DIAG_FENCE(DF_EVENT_SIGNAL, e->val, arg_x(c, 1), v);
     nvn_event_cpu_signal(e->val);
 }
 
@@ -762,10 +766,12 @@ NVN_API(nvnQueueGetError) {
 NVN_API(nvnQueueFlush) { (void)c; }
 // void nvnQueueFinish(NVNqueue *q)
 NVN_API(nvnQueueFinish) {
+    DIAG_FENCE(DF_FINISH, arg_p(c, 0), 0, 0);
     {
         NVN_BLOCKING();
         gfx_backend()->finish();
     }
+    DIAG_FENCE(DF_FINISH_END, arg_p(c, 0), 0, 0);
     gfx_backend()->cpu_synced(gfx_backend()->fence_done());
 }
 static uint64_t early_done(void) { return gfx_backend()->fence_done(); }   // ORBITALS_EARLY_READ: the GPU's progress
@@ -850,7 +856,8 @@ NVN_API(nvnQueueSubmitCommands) {
     ev_note_submit(f);
     // (not a held one: the console's GPU stops at its wait too, until the other queue's submit; that one waits for both)
     if (catchup && RT_KNOB_ON(catchup) && gfx_replay_async() && !held && (!only_reports || nvn_sub_sp_reports))
-        gfx_backend()->fence_wait(f, 500000000ull);
+        if (!gfx_backend()->fence_wait(f, 500000000ull)) DIAG_FENCE(DF_CATCHUP_TIMEOUT, q, f, 0);
+    DIAG_FENCE(DF_SUBMIT, q, f, (uint64_t)n | (uint64_t)held << 32);
     uint64_t prev = __atomic_load_n(&last_fence, __ATOMIC_RELAXED);
     while (f > prev && !__atomic_compare_exchange_n(&last_fence, &prev, f, 1, __ATOMIC_RELEASE, __ATOMIC_RELAXED)) {}
 }

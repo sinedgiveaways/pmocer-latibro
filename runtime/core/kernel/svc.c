@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "diag_fence.h"
 #include "fs.h"
 #include "gamelib.h"
 #include "hacks.h"
@@ -122,6 +123,7 @@ static __attribute__((noreturn)) void svc_fatal(Cpu *c, uint32_t imm, uint64_t p
     if (imm == 0x26) {
         abort_texts(c);
         kern_threads_dump();
+        diag_fence_dump();   // ORBITALS_DIAG_FENCE: the NVN layer's last waits and signals
         rt_logf("  run time at the abort: %.2f s by the host clock, %.2f s by the guest's GetSystemTick\n",
                 (plat_now_ns() - g_start_ns) / 1e9, (double)(rt_ticks() - g_start_ticks) / RT_TICK_HZ);
         rt_logf("  (the run time counts from the guest's first SVC, at its boot)\n");

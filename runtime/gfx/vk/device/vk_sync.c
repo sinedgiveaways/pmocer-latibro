@@ -18,6 +18,7 @@
 
 #include "gfx.h"
 #include "cfg.h"
+#include "diag_fence.h"
 #include "host.h"
 #include "nvn_api.h"
 #include "vk.h"
@@ -275,6 +276,7 @@ static void completion_main(void *arg) {
             plat_cond_broadcast(&cv_done);
             plat_mutex_unlock(&st_lock);
             vk_tl_reached(was, reached, 1);
+            DIAG_FENCE(DF_FENCE_DONE, 0, was, reached);
             if (vk_tl_on() > 0) cb_log(reached - was);
             vk_mem_collect();
             plat_mutex_lock(&st_lock);
@@ -651,7 +653,11 @@ static int fence_wait_impl(uint64_t value, uint64_t timeout_ns);
 int vk_sync_fence_wait(uint64_t value, uint64_t timeout_ns) {
     uint64_t p0 = perf_begin();
     int64_t w0 = vk_tl_on() > 0 && vk_sync_fence_done() < value ? (int64_t)plat_now_ns() : 0;
+    int blocks = diag_fence_state && vk_sync_fence_done() < value;   // ORBITALS_DIAG_FENCE: only waits that can block
+    uint64_t d0 = blocks ? plat_now_ns() : 0;
+    if (blocks) DIAG_FENCE(DF_FENCE_WAIT, 0, value, timeout_ns);
     int ok = fence_wait_impl(value, timeout_ns);
+    if (blocks) DIAG_FENCE(DF_FENCE_WAIT_END, plat_now_ns() - d0, value, ok);
     if (w0) vk_tl_wait(value, w0, (int64_t)plat_now_ns());
     perf_end(PERF_FENCE, p0);
     perf_gpu_wait(p0);

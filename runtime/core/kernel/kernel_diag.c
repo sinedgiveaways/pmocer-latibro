@@ -467,6 +467,8 @@ static int thread_name(const RtThread *t, char *out, size_t cap) {
     return 0;
 }
 
+uint32_t kern_current_handle(void) { return tcur ? (uint32_t)tcur->handle : 0; }
+
 void kern_threads_dump(void) {
     static const char *const wk[] = {"running or ready", "waiting on a mutex", "waiting on a condition variable",
                                      "waiting on an address", "waiting on handles"};
