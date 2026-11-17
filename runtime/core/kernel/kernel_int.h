@@ -85,7 +85,7 @@ struct RtThread {
     int st;                    // S_* state since st_since
     uint64_t st_since, st_ns[S_N], nblk, npre, pre_since, cpu_last;
     uint64_t wev;              // ORBITALS_DIAG_FENCE: host pointer of the first event of the current WaitSynchronization
-    uint64_t dwid, dwbeg, dwend, dwlr;   // ORBITALS_DIAG_FENCE: the last blocking wait: key, began, ended (0: still in it), caller
+    uint64_t dwid, dwbeg, dwend, dwlr, dwfp;   // ORBITALS_DIAG_FENCE: the last blocking wait: key, began, ended (0: still in it), caller
     int64_t dwto;              // its timeout in ns (< 0: none)
     uint32_t dwres;            // its result
     unsigned dwk;              // its key kind (DK_*), 0: none yet

@@ -500,6 +500,13 @@ void kern_threads_dump(void) {
                           t->dwres == R_TIMEOUT ? "timed out" : "woken");
             rt_logf("    diag-fence: last block on %s; %s; began %.3fs ago; %s; from %s\n", ks, to,
                     (double)(now - t->dwbeg) / 1e9, res, ldr_describe(t->dwlr, d, sizeof d));
+            uint64_t bfp = t->dwfp;
+            for (int f = 0; f < 12 && bfp && !(bfp & 7) && plat_mem_readable(bfp, 16); f++) {
+                uint64_t next = *(const uint64_t *)(uintptr_t)bfp, lr = *(const uint64_t *)(uintptr_t)(bfp + 8);
+                rt_logf("    diag-fence: last block frame %2d: %s\n", f, ldr_describe(lr, d, sizeof d));
+                if (next <= bfp || next - bfp > (64u << 20)) break;
+                bfp = next;
+            }
         }
         rt_logf("    lr %s\n", ldr_describe(c->x[30], d, sizeof d));
         uint64_t fp = c->x[29];
