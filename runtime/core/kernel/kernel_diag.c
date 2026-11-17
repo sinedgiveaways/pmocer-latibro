@@ -468,6 +468,15 @@ static int thread_name(const RtThread *t, char *out, size_t cap) {
     return 0;
 }
 
+// An address inside the code of the main, subsdk0 or sdk module.
+static int dg_in_code(uint64_t a) {
+    for (int i = 0; i < ldr_count(); i++) {
+        const RtLoaded *m = ldr_module(i);
+        if (m && a >= m->base && a < m->base + m->text_end) return 1;
+    }
+    return 0;
+}
+
 uint32_t kern_current_handle(void) { return tcur ? (uint32_t)tcur->handle : 0; }
 
 void kern_threads_dump(void) {
@@ -500,12 +509,18 @@ void kern_threads_dump(void) {
                           t->dwres == R_TIMEOUT ? "timed out" : "woken");
             rt_logf("    diag-fence: last block on %s; %s; began %.3fs ago; %s; from %s\n", ks, to,
                     (double)(now - t->dwbeg) / 1e9, res, ldr_describe(t->dwlr, d, sizeof d));
-            uint64_t bfp = t->dwfp;
-            for (int f = 0; f < 12 && bfp && !(bfp & 7) && plat_mem_readable(bfp, 16); f++) {
-                uint64_t next = *(const uint64_t *)(uintptr_t)bfp, lr = *(const uint64_t *)(uintptr_t)(bfp + 8);
-                rt_logf("    diag-fence: last block frame %2d: %s\n", f, ldr_describe(lr, d, sizeof d));
-                if (next <= bfp || next - bfp > (64u << 20)) break;
-                bfp = next;
+            // Return addresses on the stack above the wait's sp: a word in a module's code whose previous instruction is
+            // a BL or BLR. Stale ones can appear, so the offset from sp is printed: a smaller one is nearer the wait.
+            int nf = 0;
+            for (uint64_t off = 0; off < 8192 && nf < 14 && t->dwsp; off += 8) {
+                uint64_t at = t->dwsp + off;
+                if (!plat_mem_readable(at, 8)) break;
+                uint64_t v = *(const uint64_t *)(uintptr_t)at;
+                if ((v & 3) || !dg_in_code(v) || !plat_mem_readable(v - 4, 4)) continue;
+                uint32_t ins = *(const uint32_t *)(uintptr_t)(v - 4);
+                if ((ins & 0xFC000000u) != 0x94000000u && (ins & 0xFFFFFC1Fu) != 0xD63F0000u) continue;
+                rt_logf("    diag-fence: last block frame %2d: %s (sp+%#llx)\n", nf++, ldr_describe(v, d, sizeof d),
+                        (unsigned long long)off);
             }
         }
         rt_logf("    lr %s\n", ldr_describe(c->x[30], d, sizeof d));

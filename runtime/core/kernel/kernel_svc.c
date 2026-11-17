@@ -12,15 +12,16 @@
 
 // ---- ORBITALS_DIAG_FENCE: each thread's last blocking wait, for the thread the abort finds running
 // The GameThread's own wait is the one the abort needs, and the dump reads it as running: the watchdog fires in its
-// wait loop. A thread keeps its last key, timeout, caller and frame pointer, so the dump can say what it waited on
-// before and walk the callers: they are still on its stack when it is still in the loop that called the wait.
-static void dg_begin(RtThread *t, unsigned k, uint64_t id, int64_t to, uint64_t lr, uint64_t fp) {
+// wait loop. A thread keeps its last key, timeout, caller and stack pointer, so the dump can say what it waited on
+// before and find the callers on the stack: they are still there while the thread stays in the loop that called the
+// wait. The SDK's wait code does not keep x29 as a frame pointer, so the frame chain cannot be walked.
+static void dg_begin(RtThread *t, unsigned k, uint64_t id, int64_t to, uint64_t lr, uint64_t sp) {
     if (diag_fence_state <= 0 || !id) return;
     t->dwk = k;
     t->dwid = id;
     t->dwto = to;
     t->dwlr = lr;
-    t->dwfp = fp;
+    t->dwsp = sp;
     t->dwend = 0;
     t->dwbeg = plat_now_ns();
     if (to >= 0) diag_fence_key_flag(k, id, 0);
@@ -320,7 +321,7 @@ int kern_svc(Cpu *c, uint32_t imm) {
         }
         t->wobj = key;
         DIAG_KEY(DK_CV, key, 0);
-        dg_begin(t, DK_CV, key, (int64_t)x[3], c->x[30], c->x[29]);
+        dg_begin(t, DK_CV, key, (int64_t)x[3], c->x[30], c->sp);
         uint32_t r = block(t, W_CONDVAR, (int64_t)x[3]);   // on timeout user mode takes the lock itself
         dg_end(t, r);
         unlock();
@@ -370,7 +371,7 @@ int kern_svc(Cpu *c, uint32_t imm) {
         else {
             t->waddr = addr;
             t->wobj = addr;
-            dg_begin(t, DK_ADDR, addr, (int64_t)x[3], c->x[30], c->x[29]);
+            dg_begin(t, DK_ADDR, addr, (int64_t)x[3], c->x[30], c->sp);
             r = addr_block(t, q, (int64_t)x[3]);
             dg_end(t, r);
         }
@@ -497,7 +498,7 @@ int kern_svc(Cpu *c, uint32_t imm) {
                     if (!t->wev) t->wev = (uintptr_t)ev;
                 }
             g_sync_blocks++;
-            dg_begin(t, DK_EVENT, t->wev, left, c->x[30], c->x[29]);
+            dg_begin(t, DK_EVENT, t->wev, left, c->x[30], c->sp);
             if (block(t, W_SYNC, left) == R_TIMEOUT) {
                 r = R_TIMEOUT;
                 break;
