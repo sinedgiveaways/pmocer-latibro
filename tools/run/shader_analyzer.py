@@ -33,7 +33,7 @@ from analyze_timeout import (  # noqa: E402  the thread-dump reading is shared w
     parse_threads,
 )
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 # Lines that fill a run's log (guest page allocations, decoder set-up, SDK call census, RomFS lookups): counted, not kept.
 NOISE = re.compile(r"AllocateMemoryPages|nn::codec: queued decoder|^\[host\] sdk call \d+|^\[host\] fs entry ")
@@ -85,6 +85,11 @@ RE_OPEN = re.compile(r"diag-fence(:)? open wait: (.+)$")  # with the colon: a he
 RE_RING = re.compile(
     r"^\s+-\s*([\d.]+)s\s+tid\s+(\d+)\s+guest\s+(0x[0-9a-f]+|0)\s+(\w+)\s+obj\s+(0x[0-9a-f]+)\s+a\s+(\d+)\s+b\s+(\d+)"
 )
+RE_THREAD = re.compile(r'^\s*thread (0x[0-9a-f]+) "([^"]*)"')
+RE_WAITKEY = re.compile(
+    r"diag-fence: waits on (condition variable key|address|event) (0x[0-9a-f]+): (\d+) wait\(s\)"
+    r"(?:, (\d+) signal\(s\), the last ([\d.]+)s ago by (?:guest (0x[0-9a-f]+)|a host thread)|, never signalled)"
+)
 RE_DF_COUNTS = re.compile(r"diag-fence counts of (\d+) events:(.*)$")
 BEAT_FIELDS = (
     "t",
@@ -113,7 +118,7 @@ def read_log(path: Path):
         "present_lines": 0, "intervals": [], "dt_init": {}, "nn_main": False, "gpu": None, "version": None, "app": None,
         "hashes": [], "stages": [], "spirv_dir": None, "fences": [], "imports": {}, "import_sums": {}, "weak": [],
         "nvn2": Counter(), "sync": {}, "memory": None, "runtime": None, "lines": 0,
-        "df_on": False, "beats": [], "abort_beat": None, "df_open": [], "df_open_beats": [], "df_none_open": False, "ring": [], "df_counts": None,
+        "df_on": False, "threads": {}, "cur_thread": None, "wait_keys": [], "beats": [], "abort_beat": None, "df_open": [], "df_open_beats": [], "df_none_open": False, "ring": [], "df_counts": None,
     }  # fmt: skip
     with path.open("rb") as raw:
         for b in raw:
@@ -153,7 +158,15 @@ def _facts(line: str, f: dict) -> None:
         m = rx.search(line)
         if m:
             f[key] = fn(m)
-    if "diag-fence" in line:
+    if "thread 0x" in line and (m := RE_THREAD.match(line)):
+        f["cur_thread"] = m.group(1)
+        f["threads"][m.group(1)] = m.group(2)
+    if "diag-fence: waits on" in line and (m := RE_WAITKEY.search(line)):
+        f["wait_keys"].append(
+            (f["cur_thread"], m.group(1), m.group(2), int(m.group(3)), int(m.group(4) or 0), m.group(5), m.group(6))
+        )
+        f["df_on"] = True
+    elif "diag-fence" in line:
         _diag_fence_facts(line, f)
     elif (m := RE_RING.match(line)) and f["df_on"]:
         f["ring"].append(
@@ -266,6 +279,19 @@ def analyse(path: Path, context: int) -> dict:
         "on": f["df_on"],
         "heartbeats": f["beats"],
         "at_abort": f["abort_beat"],
+        "idle_thread_keys": [
+            {
+                "thread": f["threads"].get(t, t),
+                "handle": t,
+                "waits_on": kind,
+                "key": key,
+                "waits": w,
+                "signals": g,
+                "last_signal_ago_s": float(ago) if ago else None,
+                "last_signal_by": (f["threads"].get(by, by) if by else ("a host thread" if g else None)),
+            }
+            for (t, kind, key, w, g, ago, by) in f["wait_keys"]
+        ],
         "open_waits_at_abort": f["df_open"],
         "open_waits_in_heartbeats": f["df_open_beats"],
         "no_open_wait_at_abort": f["df_none_open"],
@@ -415,6 +441,35 @@ def _diag_fence_findings(df: dict, add) -> None:
             f"{ab['fence_waits']}; fence submitted {ab['submitted']}, queued {ab['queued']}, done {ab['done']}; vsync tick "
             f"{ab['tick']} ({ab['tick_ago']} s ago); last event {ab['last_event_ago']} s ago.",
         )
+    keys = df["idle_thread_keys"]
+    if keys:
+        never = [k for k in keys if not k["signals"]]
+        add("info", f"{len(keys)} waiting guest thread(s) have key statistics in the abort dump.")
+        if never:
+            add(
+                "warn",
+                f"{len(never)} of them wait on a key never signalled since the log began: "
+                + "; ".join(f"{k['thread']} ({k['waits_on']} {k['key']})" for k in never[:12]),
+            )
+        recent = [k for k in keys if k["signals"] and k["last_signal_ago_s"] is not None and k["last_signal_ago_s"] < 2]
+        if recent:
+            add(
+                "warn",
+                f"{len(recent)} of them wait on a key signalled less than 2 s before the abort and are still waiting: "
+                + "; ".join(f"{k['thread']} ({k['waits_on']} {k['key']}, {k['signals']} signals)" for k in recent[:12])
+                + ". Another waiter may take each signal, or the thread waits on another handle of its list "
+                "(only the first event of a WaitSynchronization is shown).",
+            )
+        lone = [k for k in keys if k["signals"] and k["last_signal_ago_s"] is not None and k["last_signal_ago_s"] > 10]
+        if lone:
+            add(
+                "warn",
+                f"{len(lone)} of them wait on a key whose last signal was over 10 s before the abort: "
+                + "; ".join(
+                    f"{k['thread']} (last signal {k['last_signal_ago_s']} s ago by {k['last_signal_by']})"
+                    for k in lone[:12]
+                ),
+            )
     if df["open_waits_in_heartbeats"]:
         w = df["open_waits_in_heartbeats"]
         add("warn", f"{len(w)} heartbeat line(s) report a blocking wait open for over 2 s; the last: {w[-1]}")
@@ -474,6 +529,14 @@ def render_md(d: dict) -> str:
                 f"| {b['t']} | {b['tick']} | {b['submits']} | {b['presents']} | {b['acquires']} | {b['fence_waits']} | "
                 f"{b['submitted']} | {b['queued']} | {b['done']} | {b['frames']} |"
                 for b in df["heartbeats"][-24:]
+            ]
+        if df["idle_thread_keys"]:
+            L += ["", "Waiting guest threads and what they wait on (the key's counts since the log began):", "",
+                  "| thread | waits on | key | waits | signals | last signal | by |", "|---|---|---|---|---|---|---|"]  # fmt: skip
+            L += [
+                f"| {k['thread']} | {k['waits_on']} | `{k['key']}` | {k['waits']} | {k['signals']} | "
+                f"{'-' if k['last_signal_ago_s'] is None else str(k['last_signal_ago_s']) + ' s ago'} | {k['last_signal_by'] or '-'} |"
+                for k in df["idle_thread_keys"]
             ]
         if df["last_events_oldest_first"]:
             L += [

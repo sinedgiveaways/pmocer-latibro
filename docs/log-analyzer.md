@@ -50,6 +50,11 @@ a line for each blocking wait open for more than 2 s, and, after the thread dump
 blocking waits still open, the counts per kind and the last 64 events (host thread id and guest handle, the handle the
 thread dump prints). Source: `runtime/core/diag/diag_fence.c`.
 
+In the thread dump each waiting guest thread also gets a line `diag-fence: waits on <key>: N wait(s), M signal(s), the last
+X s ago by guest 0x…`: the key is what the thread waits on (the key of a condition variable or nn::os event, an address,
+or the first event of a WaitSynchronization) and the counts are those of the whole run (SVC 0x1C/0x1D, 0x34/0x35, 0x11/0x18
+and the host's own event signals). "Never signalled" means no thread signalled that key since the log began.
+
 The log is `logs\orbitals.log` next to the program. `crit.bin` (`ORBITALS_CRIT`, `tools/run/crit_path.py`) is **not** read
 by this version.
 
@@ -60,7 +65,7 @@ by this version.
 | header: input, size, sha256, runtime version, program/build id, GPU | `log:`, `version:`, `vk: using gpu` lines |
 | Findings: one line each, level `info`, `warn` or `error` | rules in `findings()` |
 | Key threads at the abort: state and top frames of GameThread, Render, RHI, Viewport, FrameFlip, FrameOffset | the abort's thread dump |
-| ORBITALS_DIAG_FENCE: the heartbeat table, the last events before the abort | `diag-fence` lines |
+| ORBITALS_DIAG_FENCE: the heartbeat table, the waiting threads and their keys, the last events before the abort | `diag-fence` lines |
 | Shaders without prepared SPIR-V: the hashes and the (stage, program) pairs | `no prepared SPIR-V`, `a stage N shader of program P` |
 | NVN sync / event / present call sites | `host call nvn:nvn…Sync/Event/Fence/Finish/Flush/Present/Acquire/Submit` |
 | SDK functions without a host override | `imports: … (no host override)` and its per-namespace summary |
@@ -84,8 +89,9 @@ by this version.
 
 Findings from the `diag-fence` lines (facts only): the heartbeat at which the counters last changed and how many later
 beats show the same values; the vsync tick over that time; the state at the abort; the blocking waits open at the abort
-(or that none was); the age of the last event of each kind; `CATCHUP_TIMEOUT` and `ACQUIRE_TIMEOUT` counts. Not recorded:
-guest-side events and condition variables (`nn::os`, SVC 0x11/0x17/0x18), which is what the idle guest threads wait on.
+(or that none was); the age of the last event of each kind; `CATCHUP_TIMEOUT` and `ACQUIRE_TIMEOUT` counts. Per-key counts of guest-side waits and signals
+are in the thread dump; there is no per-event ring of them (a ring would hold only the last seconds of the audio threads'
+timed waits).
 
 ## Reading it correctly
 
@@ -106,6 +112,8 @@ guest-side events and condition variables (`nn::os`, SVC 0x11/0x17/0x18), which 
 
 ## Versions
 
+- **0.3.0**: the per-thread key statistics of the abort dump: which key each idle guest thread waits on, how often it was
+  signalled, when and by whom last; findings for keys never signalled, signalled long ago, or signalled just before the abort.
 - **0.2.0**: reads `ORBITALS_DIAG_FENCE` output: heartbeat table and the point where the counters stop changing, state at
   the abort, open waits, the last events; the `diag_open` pattern.
 - **0.1.0**: first version: end of run (abort, watchdog text, wait target, runtime, memory), thread states and key
