@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "cfg.h"
+#include "diag_fence.h"
 #include "kernel_int.h"
 #include "platform/platform.h"
 
@@ -467,6 +468,17 @@ static int thread_name(const RtThread *t, char *out, size_t cap) {
     return 0;
 }
 
+// An address inside the code of the main, subsdk0 or sdk module.
+static int dg_in_code(uint64_t a) {
+    for (int i = 0; i < ldr_count(); i++) {
+        const RtLoaded *m = ldr_module(i);
+        if (m && a >= m->base && a < m->base + m->text_end) return 1;
+    }
+    return 0;
+}
+
+uint32_t kern_current_handle(void) { return tcur ? (uint32_t)tcur->handle : 0; }
+
 void kern_threads_dump(void) {
     static const char *const wk[] = {"running or ready", "waiting on a mutex", "waiting on a condition variable",
                                      "waiting on an address", "waiting on handles"};
@@ -483,6 +495,34 @@ void kern_threads_dump(void) {
         rt_logf("  thread %#x \"%s\" prio %d core %d%s: %s %#llx%s\n", t->handle, name, t->prio, t->cur_core,
                 t == tcur ? " (this one)" : "", wk[k], (unsigned long long)(k ? t->waddr : 0),
                 dg_in_host(t) ? ", inside an SVC or host function" : "");
+        unsigned dk = k == 2 ? DK_CV : k == 3 ? DK_ADDR : k == 4 ? DK_EVENT : 0;
+        uint64_t did = k == 2 ? t->wkey : k == 3 ? t->waddr : k == 4 ? t->wev : 0;
+        char ks[200];
+        if (dk && did && diag_fence_key_text(dk, did, ks, sizeof ks)) rt_logf("    diag-fence: waits on %s\n", ks);
+        if (t->dwk && diag_fence_key_text(t->dwk, t->dwid, ks, sizeof ks)) {
+            uint64_t now = plat_now_ns(), end = t->dwend;
+            char to[24], res[48];
+            if (t->dwto < 0) snprintf(to, sizeof to, "no timeout");
+            else snprintf(to, sizeof to, "timeout %.3f ms", (double)t->dwto / 1e6);
+            if (!end) snprintf(res, sizeof res, "still in it");
+            else snprintf(res, sizeof res, "ended %.3fs ago, %s", (double)(now - end) / 1e9,
+                          t->dwres == R_TIMEOUT ? "timed out" : "woken");
+            rt_logf("    diag-fence: last block on %s; %s; began %.3fs ago; %s; from %s\n", ks, to,
+                    (double)(now - t->dwbeg) / 1e9, res, ldr_describe(t->dwlr, d, sizeof d));
+            // Return addresses on the stack above the wait's sp: a word in a module's code whose previous instruction is
+            // a BL or BLR. Stale ones can appear, so the offset from sp is printed: a smaller one is nearer the wait.
+            int nf = 0;
+            for (uint64_t off = 0; off < 8192 && nf < 14 && t->dwsp; off += 8) {
+                uint64_t at = t->dwsp + off;
+                if (!plat_mem_readable(at, 8)) break;
+                uint64_t v = *(const uint64_t *)(uintptr_t)at;
+                if ((v & 3) || !dg_in_code(v) || !plat_mem_readable(v - 4, 4)) continue;
+                uint32_t ins = *(const uint32_t *)(uintptr_t)(v - 4);
+                if ((ins & 0xFC000000u) != 0x94000000u && (ins & 0xFFFFFC1Fu) != 0xD63F0000u) continue;
+                rt_logf("    diag-fence: last block frame %2d: %s (sp+%#llx)\n", nf++, ldr_describe(v, d, sizeof d),
+                        (unsigned long long)off);
+            }
+        }
         rt_logf("    lr %s\n", ldr_describe(c->x[30], d, sizeof d));
         uint64_t fp = c->x[29];
         for (int f = 0; f < 12 && fp && !(fp & 7) && plat_mem_readable(fp, 16); f++) {

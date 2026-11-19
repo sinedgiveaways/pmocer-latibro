@@ -33,7 +33,7 @@ from analyze_timeout import (  # noqa: E402  the thread-dump reading is shared w
     parse_threads,
 )
 
-VERSION = "0.1.0"
+VERSION = "0.5.1"
 
 # Lines that fill a run's log (guest page allocations, decoder set-up, SDK call census, RomFS lookups): counted, not kept.
 NOISE = re.compile(r"AllocateMemoryPages|nn::codec: queued decoder|^\[host\] sdk call \d+|^\[host\] fs entry ")
@@ -49,6 +49,7 @@ RULES = {
     "shader_stage": (re.compile(r"a stage \d+ shader of program \d+ has no prepared SPIR-V"), 0),
     "draw_skipped": (re.compile(r"\ba draw .*\bskipped\b"), 1),
     "pipeline_error": (re.compile(r"vk(_pipeline)?:.*(fail|error|VK_ERROR|device lost)", re.I), 3),
+    "diag_open": (re.compile(r"diag-fence:? open wait: "), 2),
     "problem": (
         re.compile(r"\b(unsupported|unimplemented|not implemented|trap|fault|crash)\b", re.I),
         4,
@@ -73,6 +74,44 @@ RE_WEAK = re.compile(r"(\w+): weak import (\S+) is unresolved")
 RE_NVN2 = re.compile(r"nvn2: (.*?) (ignored|dropped)\s*$")
 RE_MEMORY = re.compile(r"memory: process (\d+) MiB resident, (\d+) MiB private; system (\d+) of (\d+) MiB")
 RE_RUNTIME = re.compile(r"run time at the abort: ([\d.]+) s")
+# ORBITALS_DIAG_FENCE=1 (runtime/core/diag/diag_fence.c): a line every 5 s, and at an abort the same line, the open waits,
+# the counts and the last events.
+RE_BEAT = re.compile(
+    r"diag-fence(?: at the abort)?: t=(\d+)s vsync tick (\d+) \(([-\d.]+)s ago\) \| submits (\d+) presents (\d+) "
+    r"acquires (\d+) fence waits (\d+) \| fence submitted (\d+) queued (\d+) done (\d+) \| frames (\d+) \| "
+    r"last event ([-\d.]+)s ago"
+)
+RE_OPEN = re.compile(r"diag-fence(:)? open wait: (.+)$")  # with the colon: a heartbeat; without: the abort dump
+RE_RING = re.compile(
+    r"^\s+-\s*([\d.]+)s\s+tid\s+(\d+)\s+guest\s+(0x[0-9a-f]+|0)\s+(\w+)\s+obj\s+(0x[0-9a-f]+)\s+a\s+(\d+)\s+b\s+(\d+)"
+)
+RE_THREAD = re.compile(r'^\s*thread (0x[0-9a-f]+) "([^"]*)"')
+RE_WAITKEY = re.compile(
+    r"diag-fence: waits on (condition variable key|address|event) (0x[0-9a-f]+): (\d+) wait\(s\)"
+    r"(?:, (\d+) signal\(s\), the last ([\d.]+)s ago by (?:guest (0x[0-9a-f]+)|a host thread)|, never signalled)"
+)
+RE_TIMED = re.compile(r", (\d+) timed, (\d+) timed out")
+RE_LBFRAME = re.compile(r"diag-fence: last block frame\s+(\d+): (.*)$")
+RE_SIGTXT = re.compile(r"(\d+) signal\(s\), the last ([\d.]+)s ago by (?:guest (0x[0-9a-f]+)|a host thread)")
+RE_LASTBLOCK = re.compile(
+    r"diag-fence: last block on (condition variable key|address|event) (0x[0-9a-f]+): (\d+) wait\(s\)(.*?); "
+    r"(no timeout|timeout [\d.]+ ms); began ([\d.]+)s ago; (still in it|ended [\d.]+s ago, (?:timed out|woken)); from (.*)$"
+)
+RE_DF_COUNTS = re.compile(r"diag-fence counts of (\d+) events:(.*)$")
+BEAT_FIELDS = (
+    "t",
+    "tick",
+    "tick_ago",
+    "submits",
+    "presents",
+    "acquires",
+    "fence_waits",
+    "submitted",
+    "queued",
+    "done",
+    "frames",
+    "last_event_ago",
+)
 
 
 def read_log(path: Path):
@@ -86,6 +125,7 @@ def read_log(path: Path):
         "present_lines": 0, "intervals": [], "dt_init": {}, "nn_main": False, "gpu": None, "version": None, "app": None,
         "hashes": [], "stages": [], "spirv_dir": None, "fences": [], "imports": {}, "import_sums": {}, "weak": [],
         "nvn2": Counter(), "sync": {}, "memory": None, "runtime": None, "lines": 0,
+        "df_on": False, "threads": {}, "cur_thread": None, "wait_keys": [], "last_blocks": [], "lb_frames": {}, "beats": [], "abort_beat": None, "df_open": [], "df_open_beats": [], "df_none_open": False, "ring": [], "df_counts": None,
     }  # fmt: skip
     with path.open("rb") as raw:
         for b in raw:
@@ -125,6 +165,53 @@ def _facts(line: str, f: dict) -> None:
         m = rx.search(line)
         if m:
             f[key] = fn(m)
+    if "thread 0x" in line and (m := RE_THREAD.match(line)):
+        f["cur_thread"] = m.group(1)
+        f["threads"][m.group(1)] = m.group(2)
+    if "diag-fence: waits on" in line and (m := RE_WAITKEY.search(line)):
+        tm = RE_TIMED.search(line)
+        f["wait_keys"].append(
+            (
+                f["cur_thread"],
+                m.group(1),
+                m.group(2),
+                int(m.group(3)),
+                int(m.group(4) or 0),
+                m.group(5),
+                m.group(6),
+                int(tm.group(1)) if tm else None,
+                int(tm.group(2)) if tm else None,
+            )
+        )
+        f["df_on"] = True
+    elif "diag-fence: last block frame" in line and (m := RE_LBFRAME.search(line)):
+        f["lb_frames"].setdefault(f["cur_thread"], []).append(m.group(2))
+        f["df_on"] = True
+    elif "diag-fence: last block" in line and (m := RE_LASTBLOCK.search(line)):
+        tm = RE_TIMED.search(m.group(4))
+        sg = RE_SIGTXT.search(m.group(4))
+        f["last_blocks"].append(
+            (
+                f["cur_thread"],
+                m.group(1),
+                m.group(2),
+                int(m.group(3)),
+                int(tm.group(1)) if tm else None,
+                int(tm.group(2)) if tm else None,
+                m.group(5),
+                float(m.group(6)),
+                m.group(7),
+                m.group(8),
+                (int(sg.group(1)), float(sg.group(2)), sg.group(3)) if sg else (0, None, None),
+            )
+        )
+        f["df_on"] = True
+    elif "diag-fence" in line:
+        _diag_fence_facts(line, f)
+    elif (m := RE_RING.match(line)) and f["df_on"]:
+        f["ring"].append(
+            (float(m.group(1)), int(m.group(2)), m.group(3), m.group(4), m.group(5), int(m.group(6)), int(m.group(7)))
+        )
     if RE_PRESENT.search(line):
         f["present_lines"] += 1
     if m := RE_INTERVAL.search(line):
@@ -150,6 +237,24 @@ def _facts(line: str, f: dict) -> None:
         f["nvn2"][re.sub(r"\d+", "N", m.group(1)) + " " + m.group(2)] += 1
     if m := SYNC_PROC.search(line):
         f["sync"].setdefault(m.group(1), set()).add(m.group(2))
+
+
+def _diag_fence_facts(line: str, f: dict) -> None:
+    f["df_on"] = True
+    if m := RE_BEAT.search(line):
+        beat = dict(zip(BEAT_FIELDS, (float(x) if "." in x else int(x) for x in m.groups()), strict=True))
+        if "at the abort" in line:
+            f["abort_beat"] = beat
+        else:
+            f["beats"].append(beat)
+    elif m := RE_OPEN.search(line):
+        f["df_open_beats" if m.group(1) else "df_open"].append(m.group(2))
+    elif "no blocking wait of the NVN layer" in line:
+        f["df_none_open"] = True
+    elif m := RE_DF_COUNTS.search(line):
+        f["df_counts"] = {k: int(v) for k, v in re.findall(r"(\w+) (\d+),", m.group(2))}
+    elif "the last" in line and "events, oldest first" in line:
+        f["ring"] = []  # a later abort dump replaces an earlier one
 
 
 def analyse(path: Path, context: int) -> dict:
@@ -209,6 +314,53 @@ def analyse(path: Path, context: int) -> dict:
             ],
         }
         for name, idx in hits.items()
+    }
+    d["diag_fence"] = {
+        "on": f["df_on"],
+        "heartbeats": f["beats"],
+        "at_abort": f["abort_beat"],
+        "idle_thread_keys": [
+            {
+                "thread": f["threads"].get(t, t),
+                "handle": t,
+                "waits_on": kind,
+                "key": key,
+                "waits": w,
+                "signals": g,
+                "last_signal_ago_s": float(ago) if ago else None,
+                "last_signal_by": (f["threads"].get(by, by) if by else ("a host thread" if g else None)),
+                "timed_waits": tw,
+                "timed_out": to,
+            }
+            for (t, kind, key, w, g, ago, by, tw, to) in f["wait_keys"]
+        ],
+        "last_blocks": [
+            {
+                "thread": f["threads"].get(t, t),
+                "handle": t,
+                "waits_on": kind,
+                "key": key,
+                "waits": w,
+                "timed_waits": tw,
+                "timed_out": to,
+                "timeout": tmo,
+                "began_ago_s": began,
+                "end": end,
+                "from": frm,
+                "signals": sig[0],
+                "last_signal_ago_s": sig[1],
+                "last_signal_by": f["threads"].get(sig[2], sig[2]) if sig[2] else ("a host thread" if sig[0] else None),
+                "callers": f["lb_frames"].get(t, []),
+            }
+            for (t, kind, key, w, tw, to, tmo, began, end, frm, sig) in f["last_blocks"]
+        ],
+        "open_waits_at_abort": f["df_open"],
+        "open_waits_in_heartbeats": f["df_open_beats"],
+        "no_open_wait_at_abort": f["df_none_open"],
+        "counts": f["df_counts"],
+        "last_events_oldest_first": [
+            dict(zip(("ago_s", "host_tid", "guest", "kind", "obj", "a", "b"), e, strict=True)) for e in f["ring"]
+        ],
     }
     d["findings"] = findings(d)
     return d
@@ -308,9 +460,138 @@ def findings(d: dict) -> list[dict]:
         )
     if d["nvn2_ignored"]:
         add("info", f"{len(d['nvn2_ignored'])} kind(s) of NVN2 call ignored or dropped.")
+    df = d["diag_fence"]
+    if df["on"]:
+        _diag_fence_findings(df, add)
+    elif d["lines"]:
+        add(
+            "info",
+            "No diag-fence line: the run was made without ORBITALS_DIAG_FENCE=1 (or with a build that lacks it).",
+        )
     if not d["nvn_sync_call_sites"]:
         add("info", "No NVN sync/event/fence call site in this log (log without ORBITALS_TRACE=host?).")
     return out
+
+
+def _diag_fence_findings(df: dict, add) -> None:
+    beats = df["heartbeats"]
+    add(
+        "info",
+        f"ORBITALS_DIAG_FENCE was on: {len(beats)} heartbeat line(s)"
+        + (f", the last at t={beats[-1]['t']} s." if beats else "."),
+    )
+    key = ("submits", "presents", "fence_waits", "done", "submitted")
+    changed = [i for i in range(1, len(beats)) if any(beats[i][k] != beats[i - 1][k] for k in key)]
+    if len(beats) >= 2:
+        last = changed[-1] if changed else 0
+        flat = len(beats) - 1 - last
+        if flat >= 1:
+            a, b = beats[last], beats[-1]
+            add(
+                "warn",
+                f"The counters (submits, presents, fence waits, fence submitted/done) last changed at the heartbeat t={a['t']} s; "
+                f"{flat} later heartbeat(s), up to t={b['t']} s, show the same values (presents {b['presents']}, submits "
+                f"{b['submits']}, fence done {b['done']} of {b['submitted']} submitted). The vsync tick went from {a['tick']} to {b['tick']}.",
+            )
+        else:
+            add("info", f"The counters were still changing at the last heartbeat (t={beats[-1]['t']} s).")
+    ab = df["at_abort"]
+    if ab:
+        add(
+            "info",
+            f"At the abort: submits {ab['submits']}, presents {ab['presents']}, acquires {ab['acquires']}, fence waits "
+            f"{ab['fence_waits']}; fence submitted {ab['submitted']}, queued {ab['queued']}, done {ab['done']}; vsync tick "
+            f"{ab['tick']} ({ab['tick_ago']} s ago); last event {ab['last_event_ago']} s ago.",
+        )
+    keys = df["idle_thread_keys"]
+    if keys:
+        never = [k for k in keys if not k["signals"]]
+        add("info", f"{len(keys)} waiting guest thread(s) have key statistics in the abort dump.")
+        if never:
+            add(
+                "warn",
+                f"{len(never)} of them wait on a key never signalled since the log began: "
+                + "; ".join(f"{k['thread']} ({k['waits_on']} {k['key']})" for k in never[:12]),
+            )
+        recent = [k for k in keys if k["signals"] and k["last_signal_ago_s"] is not None and k["last_signal_ago_s"] < 2]
+        if recent:
+            add(
+                "warn",
+                f"{len(recent)} of them wait on a key signalled less than 2 s before the abort and are still waiting: "
+                + "; ".join(f"{k['thread']} ({k['waits_on']} {k['key']}, {k['signals']} signals)" for k in recent[:12])
+                + ". Another waiter may take each signal, or the thread waits on another handle of its list "
+                "(only the first event of a WaitSynchronization is shown).",
+            )
+        lone = [k for k in keys if k["signals"] and k["last_signal_ago_s"] is not None and k["last_signal_ago_s"] > 10]
+        if lone:
+            add(
+                "warn",
+                f"{len(lone)} of them wait on a key whose last signal was over 10 s before the abort: "
+                + "; ".join(
+                    f"{k['thread']} (last signal {k['last_signal_ago_s']} s ago by {k['last_signal_by']})"
+                    for k in lone[:12]
+                ),
+            )
+    ended = [b for b in df["last_blocks"] if b["end"] != "still in it"]
+    if ended:
+        add(
+            "info",
+            f"{len(ended)} thread(s) were not in a wait at the abort; each one's last blocking wait is in the table "
+            "'Last blocking wait of the threads that were not waiting'.",
+        )
+        gt = [b for b in ended if b["thread"] == "GameThread"]
+        for b in gt:
+            add(
+                "warn",
+                f"GameThread's last blocking wait: {b['waits_on']} {b['key']}, {b['timeout']}, began {b['began_ago_s']} s "
+                f"before the abort, {b['end']}, from {b['from']}. Timed waits on this key: {b['timed_waits']}, of which "
+                f"{b['timed_out']} timed out. Signals on this key since the log began: {b['signals']}"
+                + (
+                    f", the last {b['last_signal_ago_s']} s before the abort by {b['last_signal_by']}."
+                    if b["signals"]
+                    else " (never signalled)."
+                ),
+            )
+            if b["callers"]:
+                add(
+                    "warn",
+                    "Return addresses on the GameThread's stack at that wait, nearest first (a few may be stale): "
+                    + " <- ".join(b["callers"]),
+                )
+    tmo = [k for k in keys if k.get("timed_waits")]
+    if tmo:
+        add(
+            "info",
+            f"{len(tmo)} waited key(s) had waits with a timeout; waits minus signals on those keys can be timeouts, not lost "
+            "signals: "
+            + "; ".join(f"{k['thread']} ({k['timed_waits']} timed, {k['timed_out']} timed out)" for k in tmo[:12]),
+        )
+    if df["open_waits_in_heartbeats"]:
+        w = df["open_waits_in_heartbeats"]
+        add("warn", f"{len(w)} heartbeat line(s) report a blocking wait open for over 2 s; the last: {w[-1]}")
+    if df["open_waits_at_abort"]:
+        add("warn", "Blocking waits still open at the abort: " + " | ".join(df["open_waits_at_abort"]))
+    elif df["no_open_wait_at_abort"]:
+        add(
+            "info",
+            "No blocking wait of the NVN layer or the Vulkan back end was open at the abort: the idle threads wait on "
+            "something else (guest events or condition variables).",
+        )
+    ring = df["last_events_oldest_first"]
+    if ring:
+        latest = {}
+        for e in ring:
+            latest[e["kind"]] = e["ago_s"]
+        add(
+            "info",
+            "Seconds before the abort of the last event of each kind in the ring: "
+            + ", ".join(f"{k} {v}" for k, v in sorted(latest.items(), key=lambda kv: kv[1]))
+            + ".",
+        )
+    c = df["counts"] or {}
+    for k in ("CATCHUP_TIMEOUT", "ACQUIRE_TIMEOUT"):
+        if c.get(k):
+            add("warn", f"{k}: {c[k]} (a wait that the NVN layer bounds gave up).")
 
 
 def render_md(d: dict) -> str:
@@ -334,6 +615,47 @@ def render_md(d: dict) -> str:
             L.append(f"| {t['name']} | {t['state']} | {' ← '.join('`' + x + '`' for x in t['frames'][:3])} |")
         if th["running"]:
             L.append(f"\nRunning or ready (a scheduler label, not proof of progress): {', '.join(th['running'])}")
+    df = d["diag_fence"]
+    if df["on"]:
+        L += ["", "## ORBITALS_DIAG_FENCE", ""]
+        if df["heartbeats"]:
+            L += ["| t (s) | vsync tick | submits | presents | acquires | fence waits | fence submitted | queued | done | frames |",
+                  "|---|---|---|---|---|---|---|---|---|---|"]  # fmt: skip
+            L += [
+                f"| {b['t']} | {b['tick']} | {b['submits']} | {b['presents']} | {b['acquires']} | {b['fence_waits']} | "
+                f"{b['submitted']} | {b['queued']} | {b['done']} | {b['frames']} |"
+                for b in df["heartbeats"][-24:]
+            ]
+        if df["idle_thread_keys"]:
+            L += ["", "Waiting guest threads and what they wait on (the key's counts since the log began):", "",
+                  "| thread | waits on | key | waits | signals | last signal | by |", "|---|---|---|---|---|---|---|"]  # fmt: skip
+            L += [
+                f"| {k['thread']} | {k['waits_on']} | `{k['key']}` | {k['waits']} | {k['signals']} | "
+                f"{'-' if k['last_signal_ago_s'] is None else str(k['last_signal_ago_s']) + ' s ago'} | {k['last_signal_by'] or '-'} |"
+                for k in df["idle_thread_keys"]
+            ]
+        lb = [b for b in df["last_blocks"] if b["end"] != "still in it"]
+        if lb:
+            L += ["", "Last blocking wait of the threads that were not waiting at the abort:", "",
+                  "| thread | waits on | key | timeout | began | ended | timed / timed out on the key | from |",
+                  "|---|---|---|---|---|---|---|---|"]  # fmt: skip
+            L += [
+                f"| {b['thread']} | {b['waits_on']} | `{b['key']}` | {b['timeout']} | {b['began_ago_s']} s ago | {b['end']} | "
+                f"{b['timed_waits']} / {b['timed_out']} | `{b['from']}` |"
+                for b in lb
+            ]
+        if df["last_events_oldest_first"]:
+            L += [
+                "",
+                "Last events before the abort, oldest first (host tid, guest handle as in the thread dump):",
+                "",
+                "```",
+            ]
+            L += [
+                f"-{e['ago_s']:>9.3f}s tid {e['host_tid']:<6} guest {e['guest']:<6} {e['kind']:<16} obj {e['obj']} a {e['a']} b {e['b']}"
+                for e in df["last_events_oldest_first"][-40:]
+            ]
+            L.append("```")
     sh = d["shaders"]
     if sh["missing_hashes"]:
         L += ["", "## Shaders without prepared SPIR-V", ""] + [f"- `{h}`" for h in sh["missing_hashes"]]
@@ -363,7 +685,8 @@ def render_md(d: dict) -> str:
           "- Why a signal never came. The abort dump is taken while the GameThread handles the abort; its stack is not "
           "the stack it waited on.",
           "- Host threads. Replay, recorder, present and submit threads are not in the dump.",
-          "- Frames after the host's one-time lines: the log has no per-frame line yet (planned: ORBITALS_DIAG_FENCE).",
+          "- Frames: the log has no per-frame line. With ORBITALS_DIAG_FENCE=1 it has a counters line every 5 s and, at an "
+          "abort, the last events of the NVN layer and the back end; guest-side events (nn::os) are not recorded.",
           "- crit.bin is not read by this version."]  # fmt: skip
     return "\n".join(L) + "\n"
 

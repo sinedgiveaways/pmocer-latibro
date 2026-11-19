@@ -39,6 +39,7 @@
 #include <string.h>
 
 #include "cfg.h"
+#include "diag_fence.h"
 #include "host.h"
 #include "nvn_api.h"
 #include "nvn_tex.h"
@@ -88,6 +89,7 @@ typedef struct { volatile uint32_t *val; uint32_t mode, value; } EventWrite;
 
 static void event_cb(void *arg) {
     EventWrite *e = arg;
+    DIAG_FENCE(DF_EVENT_WRITE, e->val, e->mode, e->value);
     if (e->mode == NVN_EVENT_SIGNAL_MODE_ADD) __atomic_fetch_add(e->val, e->value, __ATOMIC_RELEASE);
     else __atomic_store_n(e->val, e->value, __ATOMIC_RELEASE);
     free(e);

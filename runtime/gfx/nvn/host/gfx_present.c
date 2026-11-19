@@ -18,6 +18,7 @@
 #include <string.h>
 
 #include "cfg.h"
+#include "diag_fence.h"
 #include "flight.h"
 #include "fs.h"
 #include "gfx.h"
@@ -171,6 +172,7 @@ static void vsync_main(void *arg) {
         }
         n++;
         plat_xchg64(&g_ticks, (int64_t)n);
+        diag_fence_heartbeat(n);   // ORBITALS_DIAG_FENCE: proof the vsync thread runs, and a line every 5 s
         uint64_t ev[16];
         volatile int32_t *ctr[4];
         int ne, nc;

@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include "cfg.h"
+#include "diag_fence.h"
 #include "gfx.h"
 #include "hacks.h"
 #include "host.h"
@@ -724,7 +725,7 @@ static void acquire_wait(const win_t *w, int idx) {
     acq_n++;
     if (f && gfx_backend()->fence_done() < f) {
         uint64_t t0 = kern_now_ns();
-        gfx_backend()->fence_wait(f, 1000000000ull);
+        if (!gfx_backend()->fence_wait(f, 1000000000ull)) DIAG_FENCE(DF_ACQUIRE_TIMEOUT, w, idx, f);
         acq_waits++, acq_ns += kern_now_ns() - t0;
     }
     if (acq_n % 1800 == 0) {   // ~1 min at 30 fps
@@ -744,6 +745,7 @@ NVN_API(nvnWindowAcquireTexture) {
     NVN_BLOCKING();
     int idx = o->active ? o->next++ % o->active : 0;
     *out = idx;
+    DIAG_FENCE(DF_ACQUIRE, o, idx, 0);
     uint64_t at = idx < 4 ? o->avail[idx] : 0;
     if (at) {
         uint64_t p0 = perf_begin();
@@ -751,6 +753,7 @@ NVN_API(nvnWindowAcquireTexture) {
         perf_end(PERF_PACE, p0);
     }
     acquire_wait(o, idx);
+    DIAG_FENCE(DF_ACQUIRE_END, o, idx, 0);
     // The sync means "the display no longer reads this image". Presents are copies queued in submit order, so it is
     // already satisfied: fenced = 3 with fence 0.
     if (s) {
@@ -771,6 +774,7 @@ NVN_API(nvnQueuePresentTexture) {
     if (o->magic != NVN_WIN_MAGIC || idx < 0 || idx >= o->ntex || idx >= 4 || !o->tex[idx])
         rt_fatal("nvn: QueuePresentTexture of image %d on window %p", idx, (void *)o);
     o->presents++;
+    DIAG_FENCE(DF_PRESENT, o, idx, o->presents);
     turbo_poll();
     release_note(o, idx);
     nvn_present_fence_note();   // ORBITALS_TRACE=perf: which frame each blocking SyncWait waits for

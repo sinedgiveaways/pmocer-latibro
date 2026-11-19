@@ -38,6 +38,23 @@ diagnosis use `ORBITALS_TRACE=host` (the "host call" lines, which give the NVN c
 $env:ORBITALS_TRACE = "host"; .\orbitals-recomp.exe
 ```
 
+To record the waits and signals that can hold a frame back, add `ORBITALS_DIAG_FENCE=1` (the diagnosis of the roadmap's
+first section; off by default, one load on the hooked paths while off):
+
+```powershell
+$env:ORBITALS_TRACE = "host"; $env:ORBITALS_DIAG_FENCE = "1"; .\orbitals-recomp.exe
+```
+
+It writes a line every 5 s (`diag-fence: t=… vsync tick … | submits … presents … | fence submitted … queued … done …`),
+a line for each blocking wait open for more than 2 s, and, after the thread dump of a guest abort, the same counters, the
+blocking waits still open, the counts per kind and the last 64 events (host thread id and guest handle, the handle the
+thread dump prints). Source: `runtime/core/diag/diag_fence.c`.
+
+In the thread dump each waiting guest thread also gets a line `diag-fence: waits on <key>: N wait(s), M signal(s), the last
+X s ago by guest 0x…`: the key is what the thread waits on (the key of a condition variable or nn::os event, an address,
+or the first event of a WaitSynchronization) and the counts are those of the whole run (SVC 0x1C/0x1D, 0x34/0x35, 0x11/0x18
+and the host's own event signals). "Never signalled" means no thread signalled that key since the log began.
+
 The log is `logs\orbitals.log` next to the program. `crit.bin` (`ORBITALS_CRIT`, `tools/run/crit_path.py`) is **not** read
 by this version.
 
@@ -48,6 +65,7 @@ by this version.
 | header: input, size, sha256, runtime version, program/build id, GPU | `log:`, `version:`, `vk: using gpu` lines |
 | Findings: one line each, level `info`, `warn` or `error` | rules in `findings()` |
 | Key threads at the abort: state and top frames of GameThread, Render, RHI, Viewport, FrameFlip, FrameOffset | the abort's thread dump |
+| ORBITALS_DIAG_FENCE: the heartbeat table, the waiting threads and their keys, the last events before the abort | `diag-fence` lines |
 | Shaders without prepared SPIR-V: the hashes and the (stage, program) pairs | `no prepared SPIR-V`, `a stage N shader of program P` |
 | NVN sync / event / present call sites | `host call nvn:nvn…Sync/Event/Fence/Finish/Flush/Present/Acquire/Submit` |
 | SDK functions without a host override | `imports: … (no host override)` and its per-namespace summary |
@@ -66,11 +84,14 @@ by this version.
 | `shader_stage` | `a stage N shader of program P has no prepared SPIR-V` | counted only |
 | `draw_skipped` | `a draw … skipped` | 1 |
 | `pipeline_error` | `vk:` / `vk_pipeline:` lines with fail, error, VK_ERROR, device lost | 3 |
+| `diag_open` | `diag-fence: open wait: …` (a blocking wait open for over 2 s) | 2 |
 | `problem` | unsupported, unimplemented, not implemented, trap, fault, crash (the generic "Break is not implemented" tail, import and thread lines excluded) | 4 |
 
-Not in this version, because the log does not carry it yet: a line per fence or event signalled or waited
-(`ORBITALS_DIAG_FENCE`, step 1 of the roadmap's first section). Until then the report cannot say which fence is never
-signalled; it says which NVN sync call sites the game used and whether the threads that should render were all waiting.
+Findings from the `diag-fence` lines (facts only): the heartbeat at which the counters last changed and how many later
+beats show the same values; the vsync tick over that time; the state at the abort; the blocking waits open at the abort
+(or that none was); the age of the last event of each kind; `CATCHUP_TIMEOUT` and `ACQUIRE_TIMEOUT` counts. Per-key counts of guest-side waits and signals
+are in the thread dump; there is no per-event ring of them (a ring would hold only the last seconds of the audio threads'
+timed waits).
 
 ## Reading it correctly
 
@@ -91,6 +112,19 @@ signalled; it says which NVN sync call sites the game used and whether the threa
 
 ## Versions
 
+- **0.5.1**: the 0.5.0 chain was empty: the SDK's wait code does not keep x29 as a frame pointer. The runtime now scans the
+  stack above the wait for return addresses (an instruction after a BL or BLR), printed with their offset from sp; the
+  report words them as nearest first and possibly stale.
+- **0.5.0**: the call chain of each thread's last wait (`last block frame` lines), and the signals on that key: how many,
+  when and by whom last. The GameThread's chain and key are in the findings.
+- **0.4.0**: the abort dump's "last block" line, which every thread that ever waited has: the key, the timeout, when the
+  wait began and ended, whether it timed out, and the caller. It gives the GameThread's own last wait, which the dump
+  shows as running. The key lines also carry how many waits had a timeout and how many of those timed out, so waits
+  minus signals is not read as lost signals. New table and a finding for the GameThread.
+- **0.3.0**: the per-thread key statistics of the abort dump: which key each idle guest thread waits on, how often it was
+  signalled, when and by whom last; findings for keys never signalled, signalled long ago, or signalled just before the abort.
+- **0.2.0**: reads `ORBITALS_DIAG_FENCE` output: heartbeat table and the point where the counters stop changing, state at
+  the abort, open waits, the last events; the `diag_open` pattern.
 - **0.1.0**: first version: end of run (abort, watchdog text, wait target, runtime, memory), thread states and key
   threads, missing shaders, skipped draws, present lines, fences seen, NVN sync call sites, SDK imports without override,
   NVN2 ignored calls, allocation counts, excerpts, Markdown and JSON.

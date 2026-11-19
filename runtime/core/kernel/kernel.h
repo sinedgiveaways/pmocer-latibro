@@ -31,6 +31,8 @@ uint64_t kern_threads_created(void);
 void kern_backtrace(const Cpu *c);
 // Every guest thread's name, wait and frame-pointer chain to the log, at a fatal guest abort (kernel_diag.c).
 void kern_threads_dump(void);
+// The calling guest thread's handle (what the thread dump prints as "thread 0x1021"); 0 on a host thread (kernel_diag.c).
+uint32_t kern_current_handle(void);
 
 // ---- probe support
 enum { KERN_WAIT_NONE, KERN_WAIT_LOCK, KERN_WAIT_CONDVAR, KERN_WAIT_ADDRESS, KERN_WAIT_SYNC };
