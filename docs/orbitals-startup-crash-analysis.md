@@ -95,3 +95,23 @@ Instrument the faulting path to capture, for the **same guest thread and at the 
 3. The caller's guest PC/LR and the `TlsSlot` argument passed to `GetTlsValue`.
 
 This distinguishes a valid per-thread TLS base from a separate null slot-table pointer, and tells whether the failure comes from a bad argument/register, missing SDK initialization, or a layout mismatch. Do not alter TLS allocation sizes or fiber copying until those values are captured.
+
+
+## Further allocator cross-check
+
+The allocator implementation in `runtime/core/memory/memory.c` confirms that `mem_kernel_alloc(size, align)` zeroes exactly the requested allocation with `memset(p, 0, size ? size : 1)` before returning it. `thr_new()` obtains its TLS block through this allocator and assigns that address to `Cpu.tpidr`.
+
+This makes an important distinction in interpreting the dump:
+
+- The faulting thread's recorded `TPIDR_EL0` is `0xa2003c740`.
+- The guest `x27` value used by the generated code is `0x9e02031d0`.
+- These values are different. Therefore the observed `x27` pointer must not be casually identified with the runtime's `t->tls` allocation from this snapshot.
+- The allocator's zeroing behavior establishes that a newly allocated runtime TLS block begins zeroed, but it does not establish that the separate object reached through `x27` is that allocation or that the SDK expects its first word to be nonzero.
+
+The exact owner and provenance of `x27` remain open. In particular, the prior pointer-chain interpretation (a null second-level pointer) is consistent with the disassembly and effective address, but the dump does not yet identify which allocator or guest initialization routine owns that object.
+
+### Data needed to close the gap
+
+The next useful capture is a same-thread, same-call snapshot at entry to `sdk+0x16b730` (or in the exception handler): all guest GPRs `x0-x30`, `Cpu.tpidr`, `Cpu.tpidrro`, the current guest PC/LR, and safely-read 8-byte values at `x27` and `x27+0x8`. Also record the active `RtThread` pointer and its `tls`/ `tlr` addresses. Comparing those addresses will tell whether `x27` is a runtime-owned block, an SDK-owned structure, or a stale/corrupted guest pointer.
+
+No fix is justified from the current evidence alone.
