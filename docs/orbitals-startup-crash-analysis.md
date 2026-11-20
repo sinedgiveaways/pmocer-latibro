@@ -132,3 +132,39 @@ The roadmap also records these avenues as already tested and ruled out by A/B ru
 3. Only after those checks, return to the render-graph array's allocation, ownership, and mutation history to identify the first invalid write or double access.
 
 This order follows the repository roadmap and is more informative than changing TLS allocation sizes or adding a null check at the final fault. No runtime fix is proposed by this report update.
+
+
+## Kernel synchronization audit (20/11/2026)
+
+The current Windows runtime synchronization paths were reviewed in `runtime/core/kernel/kernel.c`, `kernel_svc.c`, `kernel_int.h`, and `runtime/probes/kernel_probe.c`.
+
+### Invariants observed in the implementation
+
+- The process-wide mutex/condition-variable wait list, thread handles, event state, and wake transitions are serialized by the exclusive kernel lock `G`.
+- `WaitProcessWideKeyAtomic` (SVC `0x1C`) registers the condition-variable key and sets it before handing off the user mutex, while still holding `G`. This prevents the documented lost-wakeup window where a signaler could observe a cleared key before the waiter is registered.
+- `SignalProcessWideKey` (SVC `0x1D`) moves signaled waiters either directly to ownership of the user mutex or to its mutex-wait queue; the eventual unlock performs the handoff.
+- `WaitForAddress` / `SignalToAddress` use a per-address queue lock when `ORBITALS_ADDR_QUEUES` is enabled. Enqueue, wake, timeout removal, and the compared memory word are handled under that queue lock.
+- Event signaled state, reference counts, and handle-table changes are performed under `G`; waiters are woken while that lock is held.
+
+No definite missing-lock or double-wake path was established by this source review.
+
+### Concrete issue found: unsynchronized lazy initialization
+
+Two process-wide configuration caches are initialized on first use without synchronization:
+
+- `g_aq_on` in `addr_queue()` (`kernel.c`): concurrent first calls to `WaitForAddress` can both read the initial negative value and write the same selected setting.
+- `g_wait_ns` in `wait_woken()` (`kernel.c`): concurrent first timed waits can both initialize the cached `WAIT_NS` setting.
+
+These are C-level data races even though the writers normally store the same value. They should be initialized once before guest threads start, or changed to a proper atomic/once initialization. The current evidence does not connect either race to the render-graph corruption, and neither has been changed in this diagnostic pass.
+
+### Existing coverage
+
+`runtime/probes/kernel_probe.c` already exercises mutex handoff order with five waiters, condition-variable wake order and mutex reacquisition, a deliberately broken lost-wakeup ordering as a negative control, address-arbiter wait/signal cases, and event synchronization. The source review does not replace running those probes on the current Windows build.
+
+### Next discriminating work
+
+1. Remove or prove harmless the two lazy-init data races, then run the kernel probe and CI.
+2. Add a stress probe for concurrent mutex/condition-variable handoff and for two threads entering/leaving the same critical section, checking a guarded counter and canaries.
+3. If those pass, instrument the game-side render-graph array's allocation and mutation/ownership path; the present crash dump alone cannot show the first corrupting write.
+
+No runtime code change or game run was made for this audit.
