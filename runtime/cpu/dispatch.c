@@ -95,13 +95,13 @@ void rt_tls_call_trace_dump(Cpu *c) {
         uint64_t tpidrro = __atomic_load_n(&e->tpidrro, __ATOMIC_RELAXED);
         uint64_t lr = __atomic_load_n(&e->lr, __ATOMIC_RELAXED);
         if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
-        rt_logf("  GetTlsValue entry: thread=%#llx pc=%#llx x0=%#llx x27=%#llx TPIDR_EL0=%#llx TLR=%#llx lr=%#llx\\n",
+        rt_logf("  GetTlsValue entry: thread=%#llx pc=%#llx x0=%#llx x27=%#llx TPIDR_EL0=%#llx TLR=%#llx lr=%#llx\n",
                 (unsigned long long)thread, (unsigned long long)pc, (unsigned long long)x0,
                 (unsigned long long)x27, (unsigned long long)tpidr, (unsigned long long)tpidrro,
                 (unsigned long long)lr);
         return;
     }
-    rt_logf("  GetTlsValue entry: no entry captured for thread=%#llx\\n", (unsigned long long)thread);
+    rt_logf("  GetTlsValue entry: no entry captured for thread=%#llx\n", (unsigned long long)thread);
 }
 
 int rt_tpidr_trace_enabled(void) { return rt_tpidr_trace; }
