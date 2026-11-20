@@ -69,7 +69,7 @@ static void tls_call_trace_record(Cpu *c) {
     TlsCallTraceEntry *e = &tls_call_trace[(seq - 1) % TLS_CALL_TRACE_CAP];
     __atomic_store_n(&e->seq, 0, __ATOMIC_RELAXED);
     __atomic_store_n(&e->thread, (uint64_t)(uintptr_t)c->thread, __ATOMIC_RELAXED);
-    __atomic_store_n(&e->pc, c->pc, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->pc, g_get_tls_value_pc, __ATOMIC_RELAXED);
     __atomic_store_n(&e->x0, c->x[0], __ATOMIC_RELAXED);
     __atomic_store_n(&e->x27, c->x[27], __ATOMIC_RELAXED);
     __atomic_store_n(&e->tpidr, c->tpidr, __ATOMIC_RELAXED);
