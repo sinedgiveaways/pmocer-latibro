@@ -24,7 +24,7 @@
 static int failures;
 #define CHECK(cond, ...) do { if (!(cond)) { failures++; printf("  FAIL: " __VA_ARGS__); putchar('\n'); } } while (0)
 
-static uint64_t a_lock_waiter, a_cv_waiter, a_cv_order_waiter, a_arb_waiter, a_event_waiter, a_core_worker,
+static uint64_t a_lock_waiter, a_lock_stress_worker, a_cv_waiter, a_cv_order_waiter, a_arb_waiter, a_event_waiter, a_core_worker,
     a_exit_entry, a_exit_nested, a_fiber_fn, a_fiber_exit_thread, a_fiber_exit_fn, a_tick_worker, a_mover_fn,
     a_mover_thread, a_ender_fn;
 static uint64_t a_fib_init, a_fib_fin, a_fib_switch, a_fib_cur, tick_stub;
@@ -156,6 +156,49 @@ static void test_lock(Cpu *c, uint32_t me) {
            ok ? "ok" : "FAIL");
     CHECK(ok, "lock handoff order");
     CHECK(ld(&g_lockw) == 0, "lock word %#x after the last unlock", ld(&g_lockw));
+}
+
+// ---- contended critical-section stress: every worker increments the same guarded counter
+#define LOCK_STRESS_THREADS 8
+#define LOCK_STRESS_ROUNDS 2000
+typedef struct { volatile uint32_t *lock; uint32_t tag; int rounds; } LockStressJob;
+static volatile uint32_t g_stress_lock __attribute__((aligned(8)));
+static volatile uint64_t g_stress_count;
+static volatile uint64_t g_stress_before, g_stress_after;
+
+static void lock_stress_worker(Cpu *c) {
+    LockStressJob *j = arg_p(c, 0);
+    for (int i = 0; i < j->rounds; i++) {
+        user_lock(c, j->lock, j->tag);
+        if (i == 0 && g_stress_before != 0x51A7B00Bull) g_stress_before = 0;
+        g_stress_count++;
+        if (i == j->rounds - 1 && g_stress_after != 0xA17E5AFEull) g_stress_after = 0;
+        user_unlock(c, j->lock, j->tag);
+    }
+    exit_thread(c);
+}
+
+static void test_lock_stress(Cpu *c) {
+    LockStressJob jobs[LOCK_STRESS_THREADS];
+    uint32_t handles[LOCK_STRESS_THREADS];
+    g_stress_lock = 0;
+    g_stress_count = 0;
+    g_stress_before = 0x51A7B00Bull;
+    g_stress_after = 0xA17E5AFEull;
+    for (int i = 0; i < LOCK_STRESS_THREADS; i++) {
+        jobs[i] = (LockStressJob){.lock = &g_stress_lock, .rounds = LOCK_STRESS_ROUNDS};
+        handles[i] = create(c, a_lock_stress_worker, &jobs[i], 40, -2);
+        jobs[i].tag = handles[i];
+        start(c, handles[i]);
+    }
+    for (int i = 0; i < LOCK_STRESS_THREADS; i++) join(c, handles[i]);
+    uint64_t want = (uint64_t)LOCK_STRESS_THREADS * LOCK_STRESS_ROUNDS;
+    int ok = g_stress_count == want && g_stress_before == 0x51A7B00Bull &&
+             g_stress_after == 0xA17E5AFEull && g_stress_lock == 0;
+    printf("lock stress: %d threads x %d guarded increments = %llu/%llu, canaries and final unlock: %s\n",
+           LOCK_STRESS_THREADS, LOCK_STRESS_ROUNDS, (unsigned long long)g_stress_count,
+           (unsigned long long)want, ok ? "ok" : "FAIL");
+    CHECK(ok, "contended critical-section stress");
 }
 
 // ---- condition variables
@@ -701,6 +744,7 @@ static void probe_main(Cpu *c) {
     CHECK(sv(c, 0x25, 0, KERN_H_CURRENT_THREAD, 0, 0) == 0 && c->x[1] == 0x51, "GetThreadId(current) %#llx",
           (unsigned long long)c->x[1]);
     test_lock(c, me);
+    test_lock_stress(c);
     test_cv_wake_order(c);
     test_cv_key_order(c);
     test_arbiter(c);
@@ -773,6 +817,7 @@ static void test_platform(void) {
 
 int probe_kernel(void) {
     a_lock_waiter = hostfn_register("probe-kernel lock waiter", lock_waiter);
+    a_lock_stress_worker = hostfn_register("probe-kernel lock stress worker", lock_stress_worker);
     a_cv_waiter = hostfn_register("probe-kernel condvar waiter", cv_waiter);
     a_cv_order_waiter = hostfn_register("probe-kernel condvar order waiter", cv_order_waiter);
     a_arb_waiter = hostfn_register("probe-kernel arbiter waiter", arb_waiter);
