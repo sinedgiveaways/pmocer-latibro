@@ -338,7 +338,7 @@ class Lifter:
         if L:  # MRS
             src = {
                 (3, 3, 13, 0, 3): 'c->tpidrro',
-                (3, 3, 13, 0, 2): f'rt_tpidr_trace ? rt_tpidr_read(c, {hx(pc)}) : c->tpidr',
+                (3, 3, 13, 0, 2): f'rt_tpidr_trace_enabled() ? rt_tpidr_read(c, {hx(pc)}) : c->tpidr',
                 (3, 3, 14, 0, 0): 'RT_TICK_HZ',  # CNTFRQ_EL0: 31.25 MHz on Switch 2 (runtime/cpu/cpu.h)
                 (3, 3, 14, 0, 1): 'rt_ticks()',
                 (3, 3, 14, 0, 2): 'rt_ticks()',
@@ -352,7 +352,7 @@ class Lifter:
                 raise Unsupported(f'mrs {key}')
             return Insn('op', set_reg(1, rt, src))
         dst = {
-            (3, 3, 13, 0, 2): f'if (rt_tpidr_trace) rt_tpidr_write(c, {hx(pc)}, {{v}}); else c->tpidr = {{v}};',
+            (3, 3, 13, 0, 2): f'if (rt_tpidr_trace_enabled()) rt_tpidr_write(c, {hx(pc)}, {{v}}); else c->tpidr = {{v}};',
             (3, 3, 4, 2, 0): 'c->nzcv = {v} & 0xf0000000ull;',
             (3, 3, 4, 4, 0): 'c->fpcr = {v} & 0x7c00000ull; rt_fpcr_sync(c);' if self.sc else 'rt_set_fpcr({v});',
             (3, 3, 4, 4, 1): 'c->fpsr = {v} & 0xf800009full;' if self.sc else 'rt_set_fpsr({v});',

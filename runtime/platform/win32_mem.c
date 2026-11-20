@@ -121,6 +121,21 @@ void plat_mem_watch_hook(int (*fn)(uint64_t addr, uint64_t rip)) {
 
 static void (*crash_fn)(const PlatCrash *c);
 
+// The VEH copies the faulting host context before calling runtime code. Keep it thread-local: the crash
+// reporter runs synchronously on the faulting thread and must not inspect a CONTEXT after the VEH returns.
+static _Thread_local uint64_t crash_host_regs[16];
+static _Thread_local uint8_t crash_host_insn[16];
+static _Thread_local uint32_t crash_host_insn_n;
+static _Thread_local int crash_host_context_valid;
+
+int plat_crash_host_context(uint64_t regs[16], uint8_t insn[16], uint32_t *insn_n) {
+    if (!crash_host_context_valid) return 0;
+    memcpy(regs, crash_host_regs, sizeof crash_host_regs);
+    memcpy(insn, crash_host_insn, sizeof crash_host_insn);
+    *insn_n = crash_host_insn_n;
+    return 1;
+}
+
 static LONG CALLBACK crash_veh(EXCEPTION_POINTERS *ep) {
     DWORD code = ep->ExceptionRecord->ExceptionCode;
     const char *what = code == EXCEPTION_ACCESS_VIOLATION ? "access violation"
@@ -131,6 +146,21 @@ static LONG CALLBACK crash_veh(EXCEPTION_POINTERS *ep) {
                      : code == EXCEPTION_IN_PAGE_ERROR ? "in-page error" : NULL;
     if (!what) return EXCEPTION_CONTINUE_SEARCH;
     uintptr_t rip = (uintptr_t)ep->ContextRecord->Rip;
+    CONTEXT *ctx = ep->ContextRecord;
+    crash_host_regs[0] = ctx->Rax; crash_host_regs[1] = ctx->Rcx;
+    crash_host_regs[2] = ctx->Rdx; crash_host_regs[3] = ctx->Rbx;
+    crash_host_regs[4] = ctx->Rsp; crash_host_regs[5] = ctx->Rbp;
+    crash_host_regs[6] = ctx->Rsi; crash_host_regs[7] = ctx->Rdi;
+    crash_host_regs[8] = ctx->R8;  crash_host_regs[9] = ctx->R9;
+    crash_host_regs[10] = ctx->R10; crash_host_regs[11] = ctx->R11;
+    crash_host_regs[12] = ctx->R12; crash_host_regs[13] = ctx->R13;
+    crash_host_regs[14] = ctx->R14; crash_host_regs[15] = ctx->R15;
+    crash_host_insn_n = 0;
+    SIZE_T insn_got = 0;
+    if (ReadProcessMemory(GetCurrentProcess(), (const void *)rip, crash_host_insn,
+                          sizeof crash_host_insn, &insn_got))
+        crash_host_insn_n = (uint32_t)insn_got;
+    crash_host_context_valid = 1;
     // Ours: orbitals-recomp.exe, the game code library (orbitalgame.dll), or no module at all (a jump to a wild address). Faults in
     // other modules (drivers) are left to the handler that expects them.
     HMODULE at = NULL, exe = GetModuleHandleW(NULL), game = GetModuleHandleW(L"orbitalgame.dll");

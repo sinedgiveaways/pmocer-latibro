@@ -41,23 +41,66 @@ static uint64_t g_table_bytes, g_functions;
 static struct { uint64_t addr; GuestFn fn; } g_host[HOST_CAP];
 static uint64_t g_nhost;
 
-/* Read/write tracing is opt-in: generated guest code pays one predictable branch when disabled. */
-int rt_tpidr_trace;
+/* Opt-in TPIDR trace. Keep a lock-free, crash-dumpable tail: ordinary log writes may be lost
+ * when an access violation terminates the process. Every field is atomic because guest threads
+ * can write concurrently with the crash handler. */
+#define TPIDR_TRACE_CAP 128u
+typedef struct {
+    uint64_t seq, thread, pc, old_value, new_value;
+    uint32_t op;
+} TpidrTraceEntry;
+static TpidrTraceEntry tpidr_trace_ring[TPIDR_TRACE_CAP];
+static uint64_t tpidr_trace_next;
+static int rt_tpidr_trace;
+
+int rt_tpidr_trace_enabled(void) { return rt_tpidr_trace; }
+
+static void tpidr_trace_record(Cpu *c, uint64_t pc, uint64_t old_value, uint64_t new_value, uint32_t op) {
+    uint64_t seq = __atomic_add_fetch(&tpidr_trace_next, 1, __ATOMIC_RELAXED);
+    TpidrTraceEntry *e = &tpidr_trace_ring[(seq - 1) % TPIDR_TRACE_CAP];
+    __atomic_store_n(&e->seq, 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->thread, (uint64_t)(uintptr_t)c->thread, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->pc, pc, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->old_value, old_value, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->new_value, new_value, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->op, op, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->seq, seq, __ATOMIC_RELEASE);
+}
+
+void rt_tpidr_trace_dump(void) {
+    uint64_t end = __atomic_load_n(&tpidr_trace_next, __ATOMIC_ACQUIRE);
+    uint64_t begin = end > TPIDR_TRACE_CAP ? end - TPIDR_TRACE_CAP + 1 : 1;
+    uint64_t count = end ? end - begin + 1 : 0;
+    rt_logf("FATAL: TPIDR trace: newest %llu of %llu recorded events\n",
+            (unsigned long long)count, (unsigned long long)end);
+    for (uint64_t seq = begin; seq <= end && seq; seq++) {
+        TpidrTraceEntry *e = &tpidr_trace_ring[(seq - 1) % TPIDR_TRACE_CAP];
+        uint64_t seen = __atomic_load_n(&e->seq, __ATOMIC_ACQUIRE);
+        if (seen != seq) continue;
+        uint64_t thread = __atomic_load_n(&e->thread, __ATOMIC_RELAXED);
+        uint64_t pc = __atomic_load_n(&e->pc, __ATOMIC_RELAXED);
+        uint64_t old_value = __atomic_load_n(&e->old_value, __ATOMIC_RELAXED);
+        uint64_t new_value = __atomic_load_n(&e->new_value, __ATOMIC_RELAXED);
+        uint32_t op = __atomic_load_n(&e->op, __ATOMIC_RELAXED);
+        if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
+        rt_logf("  tpidr[%llu] %s thread=%#llx pc=%#llx old=%#llx new=%#llx",
+                (unsigned long long)seq, op ? "write" : "read",
+                (unsigned long long)thread, (unsigned long long)pc,
+                (unsigned long long)old_value, (unsigned long long)new_value);
+        rt_log_raw("\n", 1);
+    }
+}
 
 uint64_t rt_tpidr_read(Cpu *c, uint64_t pc) {
     uint64_t value = c->tpidr;
-    char where[128];
-    rt_log("tpidr: read thread=%p pc=%s value=%#llx", c->thread,
-           ldr_describe(pc, where, sizeof where), (unsigned long long)value);
+    tpidr_trace_record(c, pc, value, value, 0);
     return value;
 }
 
 void rt_tpidr_write(Cpu *c, uint64_t pc, uint64_t value) {
     uint64_t old = c->tpidr;
     c->tpidr = value;
-    char where[128];
-    rt_log("tpidr: write thread=%p pc=%s old=%#llx new=%#llx", c->thread,
-           ldr_describe(pc, where, sizeof where), (unsigned long long)old, (unsigned long long)value);
+    tpidr_trace_record(c, pc, old, value, 1);
 }
 
 void rt_fatal(const char *fmt, ...) {

@@ -243,6 +243,11 @@ static uint64_t lifted_function(uintptr_t rip) {
 
 static int readable(uint64_t a, uint64_t n) { return plat_mem_readable(a, n); }
 
+#ifdef _WIN32
+// Windows-only fault context captured by win32_mem.c's vectored exception handler.
+extern int plat_crash_host_context(uint64_t regs[16], uint8_t insn[16], uint32_t *insn_n);
+#endif
+
 static void crash_handler(const PlatCrash *x) {
     static volatile int32_t busy;
     if (plat_xchg32(&busy, 1)) plat_exit(71);
@@ -250,6 +255,25 @@ static void crash_handler(const PlatCrash *x) {
     uintptr_t rip = x->rip;
     rt_logf("FATAL: %s (%#x) at host %p (%s+%#llx)", x->what, x->code, (void *)rip, x->module ? x->module : "orbitals-recomp",
             (unsigned long long)x->offset);
+    rt_tpidr_trace_dump();
+#ifdef _WIN32
+    uint64_t host[16];
+    uint8_t insn[16];
+    uint32_t insn_n = 0;
+    if (plat_crash_host_context(host, insn, &insn_n)) {
+        static const char *const names[16] = {
+            "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi",
+            "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
+        };
+        for (int i = 0; i < 16; i++)
+            rt_logf("  host %-3s %016llx%s", names[i], (unsigned long long)host[i], i % 2 ? "\n" : "");
+        if (insn_n) {
+            rt_log_raw("  host instruction:", 19);
+            for (uint32_t i = 0; i < insn_n; i++) rt_logf(" %02x", insn[i]);
+            rt_log_raw("\n", 1);
+        }
+    }
+#endif
     if (x->access >= 0)
         rt_logf(", %s address %#llx", x->access == 1 ? "writing" : x->access == 8 ? "executing" : "reading",
                 (unsigned long long)x->addr);
@@ -263,6 +287,11 @@ static void crash_handler(const PlatCrash *x) {
     if (f) rt_logf("  in lifted function f_%llx = %s\n", (unsigned long long)f, ldr_describe(f, d, sizeof d));
     Cpu *c = kern_cpu();
     if (c) {
+        rt_logf("  guest thread=%p TPIDR_EL0=%#llx TLR=%#llx\n", c->thread,
+                (unsigned long long)c->tpidr, (unsigned long long)c->tpidrro);
+        uint64_t thread_obj = 0;
+        if (c->tpidrro && plat_mem_read(c->tpidrro + 0x1F8, &thread_obj, sizeof thread_obj))
+            rt_logf("  TLR[+0x1f8] current-thread object=%#llx\n", (unsigned long long)thread_obj);
         for (int i = 0; i < 31; i++)
             rt_logf("  x%-2d %016llx%s", i, (unsigned long long)c->x[i], i % 4 == 3 ? "\n" : "");
         char p[160];
