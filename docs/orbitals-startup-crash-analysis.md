@@ -298,3 +298,25 @@ The earlier distinction remains important: the older `GetTlsValue` access violat
 ### Next discriminating disassembly
 
 Inspect the concrete targets of the specialized manager's virtual cleanup/release path (not just the wrapper dispatch), including the callbacks reached through vtable slots `+0x50`, and correlate the actual pointer argument with the pointer printed/rejected by `FMallocBinned3`. Also inspect the remaining portions of `main+0xf5020` and `main+0xf5600` if the table reset/free-slot algorithm itself becomes suspect. No runtime code change, fix, or root cause is claimed by this disassembly pass.
+
+
+## Allocator bucket registration path (20/11/2026)
+
+A disassembly pass over `main+0xb8760` (range `0xb8760-0xb8b80`) clarified how the base Binned3 manager registers backing regions in its pointer-lookup table:
+
+- The manager's `+0x60` field points to a hash table of buckets; the bucket index is masked by `manager+0x20 - 1`, and each bucket head/record stride is `0x20` bytes.
+- The lookup derives a region key from the pointer relative to `manager+0x28`, shifted by the manager's configured granularities. It walks the bucket chain through the link at record `+0x18`, checking the key at record `+0x00` and the region-data pointer at `+0x08`.
+- When a key is absent, the routine allocates backing storage, calls `main+0xbc7e0` to initialize region metadata, writes the region pointer into the record, and validates/initializes the metadata marker `0x39431234`.
+- It then links a record into the bucket's circular doubly linked list (record links at `+0x10` and `+0x18`). Existing-key and new-key paths both validate marker/state before updating the metadata value.
+- The marker `0x39431234` in this routine is distinct from the allocation metadata marker `0x17EA5678` examined by the fallback free path; they must not be conflated.
+
+A caller scan found one direct branch to `main+0xb67a0`, at `main+0xb831c`, within the slow allocation path. The user supplied only this one line of the scan output; the caller sections for `main+0xb8760` and `main+0xb6ad0` have not yet been provided, so their caller counts remain unverified. The current evidence supports that `0xb67a0` is reached from slow allocation, but does not yet prove that `0xb8760` has only one caller or that every freeable region is registered through one path.
+
+### Next discriminating steps
+
+1. Obtain the complete caller-scan output for `0xb8760` and `0xb6ad0` (including their section headers and totals).
+2. Inspect the call site around `0xb831c` and the full `0xb67a0` routine to establish its inputs, lock ownership, and region initialization semantics.
+3. Compare the record/key calculation in `0xb8760` with the search in `0xb90e0` instruction-for-instruction, including sentinel/list invariants and the exact metadata pointer calculation.
+4. Capture the rejected pointer from the live crash, plus the live manager pointer/vtable/slot-`+0x50` target and the allocator region key/bucket chain. Without the actual pointer and runtime object, the disassembly cannot distinguish a wrong-manager free, stale pointer, duplicate free, or prior metadata corruption.
+
+No allocator code change or root-cause claim is made by this update.
