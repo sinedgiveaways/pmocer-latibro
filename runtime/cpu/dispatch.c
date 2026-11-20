@@ -53,6 +53,57 @@ static TpidrTraceEntry tpidr_trace_ring[TPIDR_TRACE_CAP];
 static uint64_t tpidr_trace_next;
 static int rt_tpidr_trace;
 
+/* Capture the guest arguments at the entry to nn::os::GetTlsValue. The ring is
+ * matched by RtThread in the crash handler, so another guest thread cannot
+ * overwrite the evidence we need. */
+#define TLS_CALL_TRACE_CAP 64u
+typedef struct {
+    uint64_t seq, thread, pc, x0, x27, tpidr, tpidrro, lr;
+} TlsCallTraceEntry;
+static TlsCallTraceEntry tls_call_trace[TLS_CALL_TRACE_CAP];
+static uint64_t tls_call_trace_next;
+static uint64_t g_get_tls_value_pc;
+
+static void tls_call_trace_record(Cpu *c) {
+    uint64_t seq = __atomic_add_fetch(&tls_call_trace_next, 1, __ATOMIC_RELAXED);
+    TlsCallTraceEntry *e = &tls_call_trace[(seq - 1) % TLS_CALL_TRACE_CAP];
+    __atomic_store_n(&e->seq, 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->thread, (uint64_t)(uintptr_t)c->thread, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->pc, c->pc, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->x0, c->x[0], __ATOMIC_RELAXED);
+    __atomic_store_n(&e->x27, c->x[27], __ATOMIC_RELAXED);
+    __atomic_store_n(&e->tpidr, c->tpidr, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->tpidrro, c->tpidrro, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->lr, c->x[30], __ATOMIC_RELAXED);
+    __atomic_store_n(&e->seq, seq, __ATOMIC_RELEASE);
+}
+
+void rt_tls_call_trace_dump(Cpu *c) {
+    if (!c) return;
+    uint64_t thread = (uint64_t)(uintptr_t)c->thread;
+    uint64_t end = __atomic_load_n(&tls_call_trace_next, __ATOMIC_ACQUIRE);
+    uint64_t begin = end > TLS_CALL_TRACE_CAP ? end - TLS_CALL_TRACE_CAP + 1 : 1;
+    for (uint64_t seq = end; seq >= begin && seq; seq--) {
+        TlsCallTraceEntry *e = &tls_call_trace[(seq - 1) % TLS_CALL_TRACE_CAP];
+        if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
+        uint64_t seen_thread = __atomic_load_n(&e->thread, __ATOMIC_RELAXED);
+        if (seen_thread != thread) continue;
+        uint64_t pc = __atomic_load_n(&e->pc, __ATOMIC_RELAXED);
+        uint64_t x0 = __atomic_load_n(&e->x0, __ATOMIC_RELAXED);
+        uint64_t x27 = __atomic_load_n(&e->x27, __ATOMIC_RELAXED);
+        uint64_t tpidr = __atomic_load_n(&e->tpidr, __ATOMIC_RELAXED);
+        uint64_t tpidrro = __atomic_load_n(&e->tpidrro, __ATOMIC_RELAXED);
+        uint64_t lr = __atomic_load_n(&e->lr, __ATOMIC_RELAXED);
+        if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
+        rt_logf("  GetTlsValue entry: thread=%#llx pc=%#llx x0=%#llx x27=%#llx TPIDR_EL0=%#llx TLR=%#llx lr=%#llx\\n",
+                (unsigned long long)thread, (unsigned long long)pc, (unsigned long long)x0,
+                (unsigned long long)x27, (unsigned long long)tpidr, (unsigned long long)tpidrro,
+                (unsigned long long)lr);
+        return;
+    }
+    rt_logf("  GetTlsValue entry: no entry captured for thread=%#llx\\n", (unsigned long long)thread);
+}
+
 int rt_tpidr_trace_enabled(void) { return rt_tpidr_trace; }
 
 static void tpidr_trace_record(Cpu *c, uint64_t pc, uint64_t old_value, uint64_t new_value, uint32_t op) {
@@ -178,6 +229,8 @@ void rt_dispatch_init(const RtModule *mods, int count) {
         while (j > 0 && g_mods[j - 1]->base > mods[i].base) { g_mods[j] = g_mods[j - 1]; j--; }
         g_mods[j] = &mods[i];
     }
+    for (int i = 0; i < g_nmods; i++)
+        if (!strcmp(g_mods[i]->name, "sdk")) g_get_tls_value_pc = g_mods[i]->base + 0x16b730;
     for (int i = 1; i < g_nmods; i++)
         if (g_mods[i - 1]->base + g_mods[i - 1]->size > g_mods[i]->base)
             rt_fatal("dispatch: modules %s and %s overlap", g_mods[i - 1]->name, g_mods[i]->name);
@@ -273,6 +326,7 @@ static __attribute__((noinline)) void dispatch_preempt(Cpu *c) {
 // Jump to the guest address in c->pc. Always a tail call, so chains of indirect jumps keep the host stack flat. A
 // pending preempt request costs two loads and a branch to check.
 void rt_dispatch(Cpu *c) {
+    if (__builtin_expect(g_get_tls_value_pc && c->pc == g_get_tls_value_pc, 0)) tls_call_trace_record(c);
     if (__builtin_expect(c->thread && kern_preempt_pending(c->thread), 0))
         __attribute__((musttail)) return dispatch_preempt(c);
     uint64_t i = __builtin_rotateright64(c->pc - D.lo, 2);
