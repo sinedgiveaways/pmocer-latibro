@@ -126,13 +126,18 @@ static void (*crash_fn)(const PlatCrash *c);
 static _Thread_local uint64_t crash_host_regs[16];
 static _Thread_local uint8_t crash_host_insn[16];
 static _Thread_local uint32_t crash_host_insn_n;
+static _Thread_local uint64_t crash_host_stack[32];
+static _Thread_local uint32_t crash_host_stack_n;
 static _Thread_local int crash_host_context_valid;
 
-int plat_crash_host_context(uint64_t regs[16], uint8_t insn[16], uint32_t *insn_n) {
+int plat_crash_host_context(uint64_t regs[16], uint8_t insn[16], uint32_t *insn_n,
+                            uint64_t stack[32], uint32_t *stack_n) {
     if (!crash_host_context_valid) return 0;
     memcpy(regs, crash_host_regs, sizeof crash_host_regs);
     memcpy(insn, crash_host_insn, sizeof crash_host_insn);
+    memcpy(stack, crash_host_stack, sizeof crash_host_stack);
     *insn_n = crash_host_insn_n;
+    *stack_n = crash_host_stack_n;
     return 1;
 }
 
@@ -160,6 +165,12 @@ static LONG CALLBACK crash_veh(EXCEPTION_POINTERS *ep) {
     if (ReadProcessMemory(GetCurrentProcess(), (const void *)rip, crash_host_insn,
                           sizeof crash_host_insn, &insn_got))
         crash_host_insn_n = (uint32_t)insn_got;
+    crash_host_stack_n = 0;
+    SIZE_T stack_got = 0;
+    if (ctx->Rsp && !(ctx->Rsp & 7) &&
+        ReadProcessMemory(GetCurrentProcess(), (const void *)ctx->Rsp, crash_host_stack,
+                          sizeof crash_host_stack, &stack_got))
+        crash_host_stack_n = (uint32_t)(stack_got / sizeof(uint64_t));
     crash_host_context_valid = 1;
     // Ours: orbitals-recomp.exe, the game code library (orbitalgame.dll), or no module at all (a jump to a wild address). Faults in
     // other modules (drivers) are left to the handler that expects them.
