@@ -262,3 +262,39 @@ Not established:
 On the next instrumented run, capture the **actual rejected pointer** at the FMallocBinned3 diagnostic and the call stack with symbols/return addresses. Also capture, immediately before the relevant virtual +0x50 call, the global manager pointer, its vtable pointer and slot +0x50 target, the pointer argument, and the allocation's recorded owner/size if available. This should be correlated on the same thread with the allocator diagnostic. A live-process memory read is required; another static NSO dump will not answer the question.
 
 Do not change TLS sizes, manager dispatch, or allocator behavior based only on the current evidence. No root cause or fix is claimed.
+
+
+## Disassembly follow-up: allocation backtrace and manager metadata tables (20/11/2026)
+
+The next NSO disassembly pass examined `main+0x19f40`, `main+0xbdfe0`, `main+0xf4b70`, `main+0xf4c80`, `main+0xf4de0`, `main+0xf53c0`, `main+0xf5020`, `main+0xf524c`, `main+0xf555c`, `main+0xf5600`, `main+0xf5730`, `main+0xbd7e0`, `main+0xbe280`, and `main+0xbf0f0`.
+
+### Backtrace capture and deduplication
+
+- `main+0x19f40` calls `nn::diag::GetBacktrace(buffer, capacity)`. The caller supplies capacity `0x42`; when fewer frames are returned, the helper writes a null qword at the first unused position. This is a backtrace collector, not a generic buffer initializer.
+- `main+0xbdfe0` obtains that backtrace, invokes a callback obtained from global storage to derive a 32-bit key, then consults a read/write-locked table. A candidate entry is checked against the key and the stored trace contents before its associated identifier is reused. If no match exists, it inserts a new record and updates auxiliary slot bookkeeping.
+- `main+0xf4c80` confirms the content-comparison behavior for the related table: it walks a bucket chain, compares the 32-bit key, then compares qwords from the stored and supplied trace buffers, stopping on a mismatch or null terminator. On a match it replaces the stored descriptor/payload and updates the auxiliary index/list and bitmap state.
+- The strongest interpretation is therefore a deduplicating allocation/backtrace metadata registry: stack traces are fingerprinted and identical traces can share/reuse an identifier. The exact meaning of every returned identifier and the callback at `0x8ff70a68` still depends on its runtime target and call-site context.
+
+### Pointer-keyed metadata tables
+
+- `main+0xf4b70` allocates/copies a record, calls `main+0xf4c80` to detect/update an existing entry, and otherwise inserts it into a hash table. The key is derived from a pointer (shifted right by four and mixed); records have a `0x20`-byte stride.
+- `main+0xf4de0` is a related pointer-keyed operation. It copies a small descriptor into a `0x20`-byte record, searches the table, and on an existing key updates the record plus secondary list/bitmap bookkeeping. Its optional byte output indicates whether an existing entry was found/updated.
+- `main+0xf53c0` handles a related table with a `0x18`-byte record stride and corresponding hash-bucket and auxiliary-slot management. `main+0xf555c` is its existing-entry update path.
+- `main+0xf524c` and the continuation around `main+0xf5730` scan bitmaps/slot words and rebuild bucket links for records; the `0x18` stride is visible in the rehash loop. These are table maintenance/free-slot routines, not direct heap-free implementations.
+- `main+0xf5020` is a table reset/growth helper used by the smaller-record table. The supplied disassembly was partial, so its complete reset semantics are not claimed here.
+
+### Manager initialization
+
+- `main+0xbd7e0` initializes common manager state: mutex, reader/writer lock, counters, empty table pointers/counts, and a TLS slot/index used by later activity bookkeeping. It also calls `nn::os::GetTlsValue` and ensures the per-thread slot is initialized/cleared as needed.
+- `main+0xbe280` and `main+0xbf0f0` are one-time initialization/growth routines for the two specialized manager layouts created by `main+0xc7460`. They reserve backing storage for several record arrays and hash tables, initialize capacities, set the initialized flag, and publish the manager pointer globally. They are not the per-allocation/free operations themselves.
+- The two specialized layouts share the common initialization path but use different table offsets and helper routines, consistent with the distinct record formats observed above.
+
+### Relevance to the allocator rejection
+
+This strengthens the conclusion that the specialized manager is an instrumented allocator/metadata layer which records allocation-site backtraces and maintains pointer-keyed tracking tables under synchronization. It does **not** show that any table is corrupt, that a record is stale, or that this layer passed the pointer rejected by `FMallocBinned3`.
+
+The earlier distinction remains important: the older `GetTlsValue` access violation and the later `FMallocBinned3 Attempt to free an unrecognized pointer` are separate observed failures. The backtrace registry's use of `GetTlsValue` does not establish that TLS caused the allocator rejection.
+
+### Next discriminating disassembly
+
+Inspect the concrete targets of the specialized manager's virtual cleanup/release path (not just the wrapper dispatch), including the callbacks reached through vtable slots `+0x50`, and correlate the actual pointer argument with the pointer printed/rejected by `FMallocBinned3`. Also inspect the remaining portions of `main+0xf5020` and `main+0xf5600` if the table reset/free-slot algorithm itself becomes suspect. No runtime code change, fix, or root cause is claimed by this disassembly pass.
