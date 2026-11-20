@@ -244,3 +244,11 @@ numbers for Orbitals come from `tools/run/ab.py` runs (`ORBITALS_AB`).
   `spirv-dump` grew.
 - A Linux package that starts on non-rolling distributions, and the launcher tested on more Windows machines.
 - Steam Remote Play Together checked with Orbitals ([remote-play.md](remote-play.md)).
+
+
+### 1.2b Kernel knob race fix and stress coverage (20/11/2026)
+
+The two first-use races in `g_aq_on` and `g_wait_ns` are now initialized through `PlatOnce` in `runtime/core/kernel/kernel.c`. The existing platform once primitive in `runtime/platform/common.c` provides atomic publication and waits for the winning initializer to finish. No knob semantics were changed.
+
+The kernel probe now includes eight guest threads contending on one SDK-style mutex, each performing 2,000 guarded increments (16,000 expected total), with checks for the final count, guard values and unlocked mutex state. This is a source-level addition only: a Windows build and execution of `--probe-kernel` are still required. If the probe passes but Orbitals still crashes, the investigation returns to the first corrupting write in the render-graph array; this change is not evidence that the startup crash is fixed.
+
