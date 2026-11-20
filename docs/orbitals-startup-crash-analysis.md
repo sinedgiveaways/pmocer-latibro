@@ -168,3 +168,17 @@ These are C-level data races even though the writers normally store the same val
 3. If those pass, instrument the game-side render-graph array's allocation and mutation/ownership path; the present crash dump alone cannot show the first corrupting write.
 
 No runtime code change or game run was made for this audit.
+
+
+## Follow-up: race-free kernel knob initialization and contention probe (20/11/2026)
+
+The two unsynchronized lazy configuration caches identified in the previous audit have now been changed in `runtime/core/kernel/kernel.c`:
+
+- `g_wait_ns` is initialized by `init_wait_ns()` through a static `PlatOnce`.
+- `g_aq_on` is initialized by `init_addr_queues()` through a separate static `PlatOnce`.
+
+The platform layer already provides `plat_once()` in `runtime/platform/common.c`; it uses acquire/release atomic state and a shared wait mechanism so exactly one caller runs the initializer and other callers wait for completion. The values are read only after `plat_once()` returns. This removes the C data races on these two caches without changing the selected knob values or wait/queue behavior.
+
+A new `--probe-kernel` stress case was added in `runtime/probes/kernel_probe.c`: eight guest threads contend on the same SDK-style user mutex, each performs 2,000 guarded increments, and the probe checks the exact final count (16,000), guard values, and that the lock word is clear after all joins. Workers are allowed to run on any application core.
+
+**Validation status:** source changes and the probe are committed, but no Windows build or execution of `--probe-kernel` was available in this session. The stress case is therefore added, not yet passed. The original Orbitals crash has not been reproduced or fixed by this change. The next required validation is a Windows build, `--probe-kernel`, then a game launch/reproduction run; if the probe passes and the crash remains, trace the first invalid write to the render-graph array.
