@@ -180,19 +180,24 @@ trace, `docs/nx2/gpu-trace.md` in `sinedgiveaways/tool`): if Lichii's grids hold
 too, (b). Also a runtime bug seen on the way: a storage-image write into a mirrored texture is not marked GPU-owned
 (`vk_texture_storage_bound_locked`), so a later CPU page write re-uploads the storage over the GPU's result.
 
-### 1.2 A crash after the logos in about one run in three
+### 1.2 Crashes in render-graph / allocator paths
 
-`access violation ... reading address 0x104` in `f_7001759b20` (`main+0x1759b20`), Unreal's render graph popping an
-element of an internal array (`main+0x1759d9c` loop, elements of 0xe8 and 0x40 bytes) and freeing its allocation
-through `FMemory::Free` (`main+0xbf040`, a tail call to `GMalloc`'s vtable slot 0x50, which reads the thread's TLS).
-The structure was corrupted earlier; the code reading it is right.
+There are **two distinct observed failure signatures**; do not conflate them:
 
-- Ruled out by A/B runs of 3-4 starts each: GPU write-backs (`ORBITALS_WB_MERGE=none`), asynchronous preemption
-  (`ORBITALS_ASYNC_PREEMPT=0`), page freezing (`ORBITALS_FREEZE_IDLE=0`), the VRAM mirror (`ORBITALS_MEMORY=import`),
-  and STLR ordered as a release store (fixed in `7b4a312`, a correct change, the crash stayed). The game library was
-  checked rebuilt (its lifted code grew by 4 544 bytes).
-- **Next:** the kernel's synchronization (`runtime/core/kernel/`: mutex arbitration, condition variables, events) for
-  a path that lets two threads in at once; then the SDK functions the runtime replaces for threads and TLS.
+- Earlier runs: `0xC0000005` reading `0x104` in the generated `GetTlsValue` path, near `main+0x1759b20`. The prior dump records nonzero `TPIDR_EL0` and nonzero `x27`; the pointer chain used by the generated lookup is the unresolved part. The nearby render-graph array loop at `main+0x1759d9c` processes records of `0xe8` and `0x40` bytes. The TLS fault alone does not establish that TLS allocation/initialization is the original cause.
+- Later `orbitals(10).log`: after about 49 seconds, thread `0x1021` (`RenderThread 0`) reports `FMallocBinned3 Attempt to free an unrecognized pointer %p`, followed by `nn::diag::Abort`. This is an allocator diagnostic, not the earlier access violation. The supplied excerpt did not preserve the rejected pointer value. Stack offsets include `main+0x175a16c`, `main+0x1750b88`, and `main+0x1750650`; render-graph strings in stack memory are context, not proof of exact symbolic frames.
+
+**Disassembly correction:** `main+0xbf040` is a dispatcher through the global manager's virtual slot `+0x50`, not itself a direct `FMemory::Free`, `GMalloc`, or libc-free function. Likewise `main+0x13fc0` and `main+0x156b0` branch to that dispatcher. The manager wrapper serializes calls to an inner object; specialized manager methods (`main+0xbd950`, `main+0xbdb40`, `main+0xbdd70`) use TLS activity bookkeeping and a mutex before delegating. Cleanup paths (`main+0xec990`, `main+0xecad0`, `main+0xf43f0`, `main+0xf4740`) route stored pointers through virtual slot `+0x50`. The inner method's runtime target and exact ownership semantics are not yet identified.
+
+A per-thread block/pool path also exists (`main+0x170aa0`, `main+0x5df20`): it obtains TLS state and can request a `0x10000` block through manager slot `+0x30`. This makes the manager/pool path worth investigating, but does not prove it caused the allocator rejection.
+
+The static NSO-image reads at `main+0x94beda0` and `main+0x9072210` showed zero qwords in the first `0x80` bytes. These are file-image observations, not live-process snapshots; they do not prove that runtime objects have null vtables or are invalid.
+
+- Ruled out for the earlier access-violation signature by A/B runs of 3-4 starts each: GPU write-backs (`ORBITALS_WB_MERGE=none`), asynchronous preemption (`ORBITALS_ASYNC_PREEMPT=0`), page freezing (`ORBITALS_FREEZE_IDLE=0`), the VRAM mirror (`ORBITALS_MEMORY=import`), and STLR ordered as a release store (fixed in `7b4a312`, with the crash persisting). The game library was checked rebuilt (its lifted code grew by 4 544 bytes).
+- The kernel source audit found no confirmed missing-lock or double-wake path. Two first-use configuration races were found and fixed with `PlatOnce`; a mutex contention probe was added, but Windows build/execution is still required (see 1.2b and the detailed report).
+- **Next:** capture the exact pointer rejected by `FMallocBinned3`, its allocation owner/size, and the same-thread call stack. At the relevant virtual `+0x50` call, capture the live global manager pointer, its vtable and slot target, and the pointer argument. Then trace that pointer's allocation, transfers, and releases to the first invalid ownership transition. Do not label the failure double-free, stale pointer, or TLS bug until the evidence distinguishes them.
+
+Detailed investigation and disassembly caveats: [orbitals-startup-crash-analysis.md](orbitals-startup-crash-analysis.md).
 
 ### 1.2a Kernel synchronization source audit (20/11/2026)
 
