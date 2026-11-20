@@ -70,8 +70,9 @@ static void tpidr_trace_record(Cpu *c, uint64_t pc, uint64_t old_value, uint64_t
 void rt_tpidr_trace_dump(void) {
     uint64_t end = __atomic_load_n(&tpidr_trace_next, __ATOMIC_ACQUIRE);
     uint64_t begin = end > TPIDR_TRACE_CAP ? end - TPIDR_TRACE_CAP + 1 : 1;
-    rt_logf("FATAL: TPIDR trace: newest %llu of %llu recorded events",
-            (unsigned long long)(end - begin + (end != 0)), (unsigned long long)end);
+    uint64_t count = end ? end - begin + 1 : 0;
+    rt_logf("FATAL: TPIDR trace: newest %llu of %llu recorded events\\n",
+            (unsigned long long)count, (unsigned long long)end);
     for (uint64_t seq = begin; seq <= end && seq; seq++) {
         TpidrTraceEntry *e = &tpidr_trace_ring[(seq - 1) % TPIDR_TRACE_CAP];
         uint64_t seen = __atomic_load_n(&e->seq, __ATOMIC_ACQUIRE);
@@ -86,6 +87,7 @@ void rt_tpidr_trace_dump(void) {
                 (unsigned long long)seq, op ? "write" : "read",
                 (unsigned long long)thread, (unsigned long long)pc,
                 (unsigned long long)old_value, (unsigned long long)new_value);
+        rt_log_raw("\\n", 1);
     }
 }
 
