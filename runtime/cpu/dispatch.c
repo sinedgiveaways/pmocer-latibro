@@ -42,7 +42,9 @@ static struct { uint64_t addr; GuestFn fn; } g_host[HOST_CAP];
 static uint64_t g_nhost;
 
 /* Read/write tracing is opt-in: generated guest code pays one predictable branch when disabled. */
-int rt_tpidr_trace;
+static int rt_tpidr_trace;
+
+int rt_tpidr_trace_enabled(void) { return rt_tpidr_trace; }
 
 uint64_t rt_tpidr_read(Cpu *c, uint64_t pc) {
     uint64_t value = c->tpidr;
