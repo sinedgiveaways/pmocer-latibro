@@ -39,7 +39,9 @@ int rt_tpidr_trace_enabled(void);
 uint64_t rt_tpidr_read(Cpu *c, uint64_t pc);
 void rt_tpidr_write(Cpu *c, uint64_t pc, uint64_t value);
 void rt_tpidr_trace_dump(void);
-void rt_tls_call_trace_entry(Cpu *c);\nvoid rt_tls_call_trace_dump(Cpu *c);  // last GetTlsValue entry for the faulting guest thread\nextern uint64_t g_get_tls_value_pc __attribute__((visibility("hidden")));
+void rt_tls_call_trace_entry(Cpu *c);
+void rt_tls_call_trace_dump(Cpu *c);  // last GetTlsValue entry for the faulting guest thread
+extern uint64_t g_get_tls_value_pc __attribute__((visibility("hidden")));
 void rt_sj_owner(Cpu *c, GuestFn body, uint64_t lo, uint64_t hi);   // a setjmp caller's body (cpu/sjlj.c)
 void rt_spin_gate(Cpu *c, uint64_t head);  // a pass of a spin wait loop (kernel.c, recomp/patches.py `spin`)
 void rt_svc(Cpu *c, uint32_t imm, uint64_t pc);
