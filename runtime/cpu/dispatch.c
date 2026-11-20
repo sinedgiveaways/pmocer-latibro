@@ -62,7 +62,7 @@ typedef struct {
 } TlsCallTraceEntry;
 static TlsCallTraceEntry tls_call_trace[TLS_CALL_TRACE_CAP];
 static uint64_t tls_call_trace_next;
-static uint64_t g_get_tls_value_pc;
+uint64_t g_get_tls_value_pc __attribute__((visibility("hidden")));
 
 static void tls_call_trace_record(Cpu *c) {
     uint64_t seq = __atomic_add_fetch(&tls_call_trace_next, 1, __ATOMIC_RELAXED);
@@ -78,7 +78,7 @@ static void tls_call_trace_record(Cpu *c) {
     __atomic_store_n(&e->seq, seq, __ATOMIC_RELEASE);
 }
 
-void rt_tls_call_trace_dump(Cpu *c) {
+void rt_tls_call_trace_entry(Cpu *c) {\n    if (c) tls_call_trace_record(c);\n}\n\nvoid rt_tls_call_trace_dump(Cpu *c) {
     if (!c) return;
     uint64_t thread = (uint64_t)(uintptr_t)c->thread;
     uint64_t end = __atomic_load_n(&tls_call_trace_next, __ATOMIC_ACQUIRE);
