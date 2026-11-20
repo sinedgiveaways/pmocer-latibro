@@ -272,3 +272,10 @@ A further disassembly pass clarified the specialized manager's bookkeeping:
 **Interpretation:** the manager is strongly consistent with an instrumented allocator/metadata layer tracking pointers and deduplicated allocation backtraces. This does not establish corruption in those tables or prove that this layer supplied the pointer rejected by `FMallocBinned3`. The older `GetTlsValue` access violation remains separate from the later allocator diagnostic.
 
 **Next:** identify the concrete runtime target behind the manager's virtual `+0x50` cleanup/release call and capture its pointer argument on the same thread as the `FMallocBinned3` rejection. No runtime fix or root cause is claimed.
+
+
+### 1.2d Binned3 base-manager region registration (20/11/2026)
+
+The disassembly of `main+0xb8760` shows the base Binned3 manager maintaining a hash table at `manager+0x60`. Buckets/records use a `0x20`-byte stride; the lookup key is derived from the pointer relative to `manager+0x28`, and chains are traversed through record `+0x18`. A missing key leads to backing-region allocation, metadata initialization via `main+0xbc7e0`, marker validation (`0x39431234`), and insertion into the bucket's circular linked list. This registration marker is different from the `0x17EA5678` allocation marker checked by the fallback free path.
+
+The caller scan so far reports `main+0xb831c -> main+0xb67a0`, connecting that helper to the slow allocation path. The user has not yet supplied the complete scan sections for `main+0xb8760` and `main+0xb6ad0`; do not infer their caller counts. Next: get the full scan output, inspect `0xb831c` and `0xb67a0`, compare the `0xb8760` registration logic with the `0xb90e0` fallback-free lookup, and capture the exact rejected pointer plus live manager/vtable target during the crash. No allocator root cause or fix is established.
