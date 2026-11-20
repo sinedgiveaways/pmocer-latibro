@@ -119,7 +119,7 @@ No fix is justified from the current evidence alone.
 
 ## Roadmap cross-check: distinguish the failing lookup from the earlier corruption (20/11/2026)
 
-A cross-check against the current `docs/roadmap.md` changes the investigation priority. The roadmap identifies the affected guest function `main+0x1759b20` as Unreal's render-graph path that pops an element from an internal array (the nearby loop is at `main+0x1759d9c`, with element sizes `0xe8` and `0x40`) and frees its allocation through `FMemory::Free` (`main+0xbf040`). That free reaches `GMalloc`'s vtable slot `0x50`, which reads thread TLS.
+A cross-check against the current `docs/roadmap.md` places the affected guest function `main+0x1759b20` in Unreal's render-graph path, near a loop at `main+0x1759d9c` that processes records of sizes `0xe8` and `0x40`. **Correction from the later disassembly audit:** `main+0xbf040` is a dispatcher through the current global manager object's virtual slot `+0x50`; it is not itself a direct `FMemory::Free`, `GMalloc`, or libc-free implementation. Some manager implementations reached through this slot use TLS bookkeeping and a mutex before delegating to an inner object, but the ultimate operation depends on the runtime vtable and has not been identified conclusively.
 
 The roadmap's current working diagnosis is that the render-graph structure was corrupted earlier and that the code which reads/pops it is behaving correctly. This means the TLS lookup may be where the process finally faults while freeing an already-corrupted object; it is not, by itself, proof that TLS initialization caused the original corruption. Keep the immediate access-violation evidence above, but do not treat the null pointer in the lookup path as the established root cause.
 
@@ -182,3 +182,83 @@ The platform layer already provides `plat_once()` in `runtime/platform/common.c`
 A new `--probe-kernel` stress case was added in `runtime/probes/kernel_probe.c`: eight guest threads contend on the same SDK-style user mutex, each performs 2,000 guarded increments, and the probe checks the exact final count (16,000), guard values, and that the lock word is clear after all joins. Workers are allowed to run on any application core.
 
 **Validation status:** source changes and the probe are committed, but no Windows build or execution of `--probe-kernel` was available in this session. The stress case is therefore added, not yet passed. The original Orbitals crash has not been reproduced or fixed by this change. The next required validation is a Windows build, `--probe-kernel`, then a game launch/reproduction run; if the probe passes and the crash remains, trace the first invalid write to the render-graph array.
+
+
+## Separate crash: Unreal allocator rejects a pointer (20/11/2026)
+
+This is a **different failure mode** from the earlier 0xC0000005 access violation in nn::os::GetTlsValue documented above. Do not merge their stack traces or assume they share a root cause.
+
+### Runtime observation
+
+For orbitals(10).log (build 0.2.0-g3732230, Windows, RTX 4080 / Vulkan 1.4.351):
+
+- The process runs for about 49 seconds before the diagnostic.
+- The failing thread is 0x1021, named RenderThread 0.
+- Unreal's allocator reports: FMallocBinned3 Attempt to free an unrecognized pointer %p.
+- The process then takes the Nintendo SDK diagnostic-abort path (nn::diag::Abort).
+- Stack offsets reported in main include main+0x175a16c, main+0x1750b88, and main+0x1750650.
+- Stack-memory strings include FRDGBuilder::AddCommandListSetupTask and FRDGBuilder::AsyncSetupQueue. These are contextual strings, **not proof of symbolic stack frames**.
+- Reported system RAM use was about 16,565 / 32,581 MiB; this does not suggest ordinary system-memory exhaustion.
+- GPU breadcrumbs were enabled; ORBITALS_GPU_CRUMBS=0 disables them.
+
+The diagnostic means the allocator was asked to free a pointer it did not recognize as one of its allocations. The rejected pointer value itself was not captured in the supplied excerpt. Possible explanations include a stale pointer, duplicate release, pointer from a different allocator, or earlier heap/object corruption. None is established yet.
+
+### Disassembly findings
+
+The following are findings from the player's disassembly of the matching main NSO. They describe dispatch and object-management paths; they do not identify the rejected pointer.
+
+1. **The global manager dispatchers are not free functions.**
+   - main+0xbf040 loads the global manager at the cell based on main+0x8ff7a80, reads its vtable entry at +0x50, and branches indirectly.
+   - main+0xbef90 similarly dispatches through vtable entry +0x30.
+   - main+0xc7a60 and main+0xc7850 dispatch through other manager vtable entries (+0x68 and +0x40 respectively), with lazy initialization where applicable.
+   - Therefore labels such as free attached to main+0x13fc0 in the disassembler output are misleading: 0x13fc0 branches to 0xbf040, which is another virtual dispatch. The same applies to main+0x156b0.
+
+2. **The generic wrapper serializes calls to an inner manager.**
+   - The wrapper created by main+0xc7460 has a mutex and an inner-object pointer.
+   - Its methods at main+0xf0880, main+0xf08f0, main+0xf0970, and main+0xf09d0 lock the wrapper mutex, load the inner object, and dispatch to its corresponding virtual method.
+   - main+0xc7460 initializes the global manager and may also construct specialized manager objects of sizes 0x170 and 0x140, depending on global feature flags. Their initializers are main+0xbe280 and main+0xbf0f0; main+0xbd7e0 initializes common fields and synchronization primitives.
+
+3. **The specialized manager methods maintain per-thread activity state.**
+   - main+0xbd950 (slot +0x30), main+0xbdb40 (slot +0x40), and main+0xbdd70 (slot +0x50) first query an inner-object capability/status method at vtable offset +0x108.
+   - On the direct path they delegate to the corresponding inner-object slot.
+   - On the managed path they update a per-thread counter obtained through nn::os::GetTlsValue, use a mutex at manager offset +0x18, call inner-object methods (including slots +0x30, +0x40, +0x50, and +0x70), and then undo the TLS counter update.
+   - This is evidence of thread-aware manager bookkeeping. It is **not** enough to name the inner operations as allocate/free without examining the actual runtime vtable target.
+
+4. **Cleanup paths release or return stored resources through the manager interface.**
+   - main+0xec990 and main+0xecad0 reset stored-pointer counters and pass non-null stored pointers to the global manager's slot +0x50.
+   - main+0xf43f0 and main+0xf4740 similarly reset structures and route pointer fields through slot +0x50.
+   - main+0xec770 resets object state and finalizes its reader/writer lock and mutex; it does not directly prove that the outer allocation is freed.
+   - main+0xecaa0 and main+0xecbe0 call cleanup then main+0x13fc0; that final call is still the manager dispatch described above, not a verified direct allocator free.
+
+5. **A thread-local block allocator/pool is present, but its ownership semantics remain unproven.**
+   - main+0x170aa0 obtains per-thread state using GetTlsValue; when it has no current block it requests 0x10000 bytes through main+0xbef90 and lays out chunk metadata in the returned block.
+   - main+0x5df20 manipulates global block metadata with atomic compare-and-swap operations and TLS lookups.
+   - main+0x131b60 performs recursive reference-count release and routes object cleanup through the manager interface.
+   - These functions make the allocator/manager path a worthwhile investigation target, but do not prove that it produced the pointer rejected by FMallocBinned3.
+
+### Static-image data check
+
+The player inspected the first 0x80 bytes at main+0x94beda0 and main+0x9072210; all displayed qwords were zero in the NSO image. These addresses are associated with accessors/global initialization paths (including main+0x89660 and main+0x14a30). This is a **file-image observation**, not a live-process memory capture. Zero-filled BSS/global storage and runtime initialization/relocation mean these values cannot establish that the corresponding runtime objects have null vtables or are invalid. Do not use these static zeros as evidence of a bad live object.
+
+### What is established and what is not
+
+Established:
+
+- The new failure is an Unreal allocator diagnostic followed by SDK abort, not the older TLS read access violation.
+- The failing thread is the render thread, and the stack context contains render-graph-related strings.
+- The disassembled manager path contains virtual dispatch, TLS activity counters, mutex serialization, cleanup of stored pointers, and a thread-local block/pool path.
+- Several apparent free labels in the disassembly are not direct free implementations.
+
+Not established:
+
+- The exact pointer rejected by FMallocBinned3.
+- The concrete inner vtable implementation reached by the failing release call at runtime.
+- Whether the invalid pointer results from double release, stale ownership, allocator mismatch, or earlier memory corruption.
+- Whether the render-graph strings correspond to the exact active stack frames.
+- Whether the manager/pool path is causal or merely nearby.
+
+### Next discriminating capture
+
+On the next instrumented run, capture the **actual rejected pointer** at the FMallocBinned3 diagnostic and the call stack with symbols/return addresses. Also capture, immediately before the relevant virtual +0x50 call, the global manager pointer, its vtable pointer and slot +0x50 target, the pointer argument, and the allocation's recorded owner/size if available. This should be correlated on the same thread with the allocator diagnostic. A live-process memory read is required; another static NSO dump will not answer the question.
+
+Do not change TLS sizes, manager dispatch, or allocator behavior based only on the current evidence. No root cause or fix is claimed.
