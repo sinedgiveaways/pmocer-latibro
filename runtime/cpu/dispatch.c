@@ -12,6 +12,7 @@
 // is also fixed at init; they are looked up only after the flat table misses.
 #include "dispatch.h"
 #include "host.h"
+#include "cfg.h"
 #include "platform/platform.h"
 
 #include <stdarg.h>
@@ -39,6 +40,25 @@ static uint64_t g_table_bytes, g_functions;
 
 static struct { uint64_t addr; GuestFn fn; } g_host[HOST_CAP];
 static uint64_t g_nhost;
+
+/* Read/write tracing is opt-in: generated guest code pays one predictable branch when disabled. */
+int rt_tpidr_trace;
+
+uint64_t rt_tpidr_read(Cpu *c, uint64_t pc) {
+    uint64_t value = c->tpidr;
+    char where[128];
+    rt_log("tpidr: read thread=%p pc=%s value=%#llx", c->thread,
+           ldr_describe(pc, where, sizeof where), (unsigned long long)value);
+    return value;
+}
+
+void rt_tpidr_write(Cpu *c, uint64_t pc, uint64_t value) {
+    uint64_t old = c->tpidr;
+    c->tpidr = value;
+    char where[128];
+    rt_log("tpidr: write thread=%p pc=%s old=%#llx new=%#llx", c->thread,
+           ldr_describe(pc, where, sizeof where), (unsigned long long)old, (unsigned long long)value);
+}
 
 void rt_fatal(const char *fmt, ...) {
     va_list ap;
@@ -103,6 +123,9 @@ static void table_seal(void *p, uint64_t bytes) {
 }
 
 void rt_dispatch_init(const RtModule *mods, int count) {
+    const char *trace_tpidr = cfg_get("ORBITALS_TRACE_TPIDR");
+    rt_tpidr_trace = trace_tpidr && *trace_tpidr && strcmp(trace_tpidr, "0");
+    if (rt_tpidr_trace) rt_log("tpidr: tracing guest TPIDR_EL0 reads and writes (ORBITALS_TRACE_TPIDR)");
     if (g_ready) rt_fatal("rt_dispatch_init called twice");
     if (count <= 0 || count > MAX_MODULES) rt_fatal("rt_dispatch_init: %d modules", count);
 
