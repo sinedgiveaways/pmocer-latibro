@@ -194,6 +194,12 @@ The structure was corrupted earlier; the code reading it is right.
 - **Next:** the kernel's synchronization (`runtime/core/kernel/`: mutex arbitration, condition variables, events) for
   a path that lets two threads in at once; then the SDK functions the runtime replaces for threads and TLS.
 
+### 1.2a Kernel synchronization source audit (20/11/2026)
+
+A source review of `runtime/core/kernel/kernel.c`, `kernel_svc.c` and the Windows platform lock/condition-variable layer found no confirmed missing-lock or double-wake path in mutex handoff, process-wide condition variables, address waits, or events. The global kernel lock `G` protects the shared wait list, handle table, event state and wake transitions. `WaitProcessWideKeyAtomic` sets/registers its key before releasing the guest mutex, and the existing kernel probe includes a negative control that reproduces the lost-wakeup bug if that order is reversed.
+
+Two lazy configuration caches remain unsynchronized on first use: `g_aq_on` (`ADDR_QUEUES`) and `g_wait_ns` (`WAIT_NS`). Concurrent first callers can race while writing the same setting. This is a C data race, but there is no evidence yet that it causes the render-graph corruption. Next: make initialization race-free, run the kernel probe/CI, then add stress coverage for concurrent lock handoff and guarded critical sections. If that passes, trace the first invalid write to the render-graph array rather than treating the final `FMemory::Free` TLS lookup as the root cause.
+
 ### 1.3 Smaller visible differences
 
 - The title and main menu backgrounds (nebula, starfield, menu art) are black, while their logos and text show.
