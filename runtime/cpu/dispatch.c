@@ -78,7 +78,11 @@ static void tls_call_trace_record(Cpu *c) {
     __atomic_store_n(&e->seq, seq, __ATOMIC_RELEASE);
 }
 
-void rt_tls_call_trace_entry(Cpu *c) {\n    if (c) tls_call_trace_record(c);\n}\n\nvoid rt_tls_call_trace_dump(Cpu *c) {
+void rt_tls_call_trace_entry(Cpu *c) {
+    if (c) tls_call_trace_record(c);
+}
+
+void rt_tls_call_trace_dump(Cpu *c) {
     if (!c) return;
     uint64_t thread = (uint64_t)(uintptr_t)c->thread;
     uint64_t end = __atomic_load_n(&tls_call_trace_next, __ATOMIC_ACQUIRE);
