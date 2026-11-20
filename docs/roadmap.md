@@ -257,3 +257,18 @@ The two first-use races in `g_aq_on` and `g_wait_ns` are now initialized through
 
 The kernel probe now includes eight guest threads contending on one SDK-style mutex, each performing 2,000 guarded increments (16,000 expected total), with checks for the final count, guard values and unlocked mutex state. This is a source-level addition only: a Windows build and execution of `--probe-kernel` are still required. If the probe passes but Orbitals still crashes, the investigation returns to the first corrupting write in the render-graph array; this change is not evidence that the startup crash is fixed.
 
+
+
+### 1.2c Allocation backtrace registry and pointer metadata tables (20/11/2026)
+
+A further disassembly pass clarified the specialized manager's bookkeeping:
+
+- `main+0x19f40` calls `nn::diag::GetBacktrace` (capacity `0x42`) and null-terminates the first unused frame when the returned trace is shorter.
+- `main+0xbdfe0` fingerprints the collected trace through a callback and consults a read/write-locked table, reusing an identifier for a matching key/content or inserting a new record. Together with `main+0xf4c80`, which compares the key and trace qwords in a bucket chain, this is strong evidence for a deduplicating backtrace/ allocation-site metadata registry.
+- `main+0xf4b70` inserts records into a pointer-keyed hash table with `0x20`-byte records. `main+0xf4de0` updates an existing pointer-keyed record and its auxiliary list/bitmap. `main+0xf53c0`/`main+0xf555c` implement a related table with `0x18`-byte records.
+- `main+0xf524c` and the continuation near `main+0xf5730` scan bitmap/slot state and rebuild hash buckets. `main+0xf5020` is a reset/growth helper, but the supplied disassembly is incomplete.
+- `main+0xbd7e0` initializes common synchronization, table, counter and TLS bookkeeping. `main+0xbe280` and `main+0xbf0f0` prepare/publish the two specialized manager layouts.
+
+**Interpretation:** the manager is strongly consistent with an instrumented allocator/metadata layer tracking pointers and deduplicated allocation backtraces. This does not establish corruption in those tables or prove that this layer supplied the pointer rejected by `FMallocBinned3`. The older `GetTlsValue` access violation remains separate from the later allocator diagnostic.
+
+**Next:** identify the concrete runtime target behind the manager's virtual `+0x50` cleanup/release call and capture its pointer argument on the same thread as the `FMallocBinned3` rejection. No runtime fix or root cause is claimed.
