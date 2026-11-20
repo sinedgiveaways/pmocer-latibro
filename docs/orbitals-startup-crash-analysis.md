@@ -121,7 +121,7 @@ No fix is justified from the current evidence alone.
 
 A cross-check against the current `docs/roadmap.md` places the affected guest function `main+0x1759b20` in Unreal's render-graph path, near a loop at `main+0x1759d9c` that processes records of sizes `0xe8` and `0x40`. **Correction from the later disassembly audit:** `main+0xbf040` is a dispatcher through the current global manager object's virtual slot `+0x50`; it is not itself a direct `FMemory::Free`, `GMalloc`, or libc-free implementation. Some manager implementations reached through this slot use TLS bookkeeping and a mutex before delegating to an inner object, but the ultimate operation depends on the runtime vtable and has not been identified conclusively.
 
-The roadmap's current working diagnosis is that the render-graph structure was corrupted earlier and that the code which reads/pops it is behaving correctly. This means the TLS lookup may be where the process finally faults while freeing an already-corrupted object; it is not, by itself, proof that TLS initialization caused the original corruption. Keep the immediate access-violation evidence above, but do not treat the null pointer in the lookup path as the established root cause.
+The roadmap's current working diagnosis is that the render-graph structure was corrupted earlier and that the code which reads/pops it is behaving correctly. This means the TLS lookup may be where the process finally faults while a manager-mediated cleanup/release path processes an already-corrupted object; it is not, by itself, proof that TLS initialization caused the original corruption. Keep the immediate access-violation evidence above, but do not treat the null pointer in the lookup path as the established root cause.
 
 The roadmap also records these avenues as already tested and ruled out by A/B runs of 3–4 starts each: GPU write-backs (`ORBITALS_WB_MERGE=none`), asynchronous preemption (`ORBITALS_ASYNC_PREEMPT=0`), page freezing (`ORBITALS_FREEZE_IDLE=0`), VRAM mirror mode (`ORBITALS_MEMORY=import`), and release-order handling of `STLR` (fixed in `7b4a312`, with the crash persisting). It also says the game library was rebuilt and its lifted code grew by 4,544 bytes.
 
@@ -228,7 +228,7 @@ The following are findings from the player's disassembly of the matching main NS
    - main+0xec990 and main+0xecad0 reset stored-pointer counters and pass non-null stored pointers to the global manager's slot +0x50.
    - main+0xf43f0 and main+0xf4740 similarly reset structures and route pointer fields through slot +0x50.
    - main+0xec770 resets object state and finalizes its reader/writer lock and mutex; it does not directly prove that the outer allocation is freed.
-   - main+0xecaa0 and main+0xecbe0 call cleanup then main+0x13fc0; that final call is still the manager dispatch described above, not a verified direct allocator free.
+   - main+0xecaa0 and main+0xecc08 call cleanup then main+0x13fc0; that final call is still the manager dispatch described above, not a verified direct allocator free.
 
 5. **A thread-local block allocator/pool is present, but its ownership semantics remain unproven.**
    - main+0x170aa0 obtains per-thread state using GetTlsValue; when it has no current block it requests 0x10000 bytes through main+0xbef90 and lays out chunk metadata in the returned block.
