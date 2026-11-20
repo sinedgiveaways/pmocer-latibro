@@ -250,6 +250,7 @@ static void crash_handler(const PlatCrash *x) {
     uintptr_t rip = x->rip;
     rt_logf("FATAL: %s (%#x) at host %p (%s+%#llx)", x->what, x->code, (void *)rip, x->module ? x->module : "orbitals-recomp",
             (unsigned long long)x->offset);
+    rt_tpidr_trace_dump();
     if (x->access >= 0)
         rt_logf(", %s address %#llx", x->access == 1 ? "writing" : x->access == 8 ? "executing" : "reading",
                 (unsigned long long)x->addr);
