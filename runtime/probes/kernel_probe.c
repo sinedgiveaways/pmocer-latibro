@@ -187,7 +187,7 @@ static void test_lock_stress(Cpu *c) {
     g_stress_after = 0xA17E5AFEull;
     for (int i = 0; i < LOCK_STRESS_THREADS; i++) {
         jobs[i] = (LockStressJob){.lock = &g_stress_lock, .rounds = LOCK_STRESS_ROUNDS};
-        handles[i] = create(c, a_lock_stress_worker, &jobs[i], 40, -2);
+        handles[i] = create(c, a_lock_stress_worker, &jobs[i], 40, -1);
         jobs[i].tag = handles[i];
         start(c, handles[i]);
     }
