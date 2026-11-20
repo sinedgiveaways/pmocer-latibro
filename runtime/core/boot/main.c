@@ -290,10 +290,10 @@ static void crash_handler(const PlatCrash *x) {
         rt_tls_call_trace_dump(c);
         uint64_t tls_indirect = 0;
         if (c->x[27] && plat_mem_read(c->x[27], &tls_indirect, sizeof tls_indirect))
-            rt_logf("  TLS x27 chain: x27=%#llx [x27]=%#llx\\n", (unsigned long long)c->x[27],
+            rt_logf("  TLS x27 chain: x27=%#llx [x27]=%#llx\n", (unsigned long long)c->x[27],
                     (unsigned long long)tls_indirect);
         else
-            rt_logf("  TLS x27 chain: x27=%#llx [x27] unreadable\\n", (unsigned long long)c->x[27]);
+            rt_logf("  TLS x27 chain: x27=%#llx [x27] unreadable\n", (unsigned long long)c->x[27]);
         rt_logf("  guest thread=%p TPIDR_EL0=%#llx TLR=%#llx\n", c->thread,
                 (unsigned long long)c->tpidr, (unsigned long long)c->tpidrro);
         uint64_t thread_obj = 0;
