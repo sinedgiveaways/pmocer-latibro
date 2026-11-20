@@ -245,7 +245,7 @@ static int readable(uint64_t a, uint64_t n) { return plat_mem_readable(a, n); }
 
 #ifdef _WIN32
 // Windows-only fault context captured by win32_mem.c's vectored exception handler.
-extern int plat_crash_host_context(uint64_t regs[16], uint8_t insn[16], uint32_t *insn_n);
+extern int plat_crash_host_context(uint64_t regs[16], uint8_t insn[16], uint32_t *insn_n, uint64_t stack[32], uint32_t *stack_n);
 #endif
 
 static void crash_handler(const PlatCrash *x) {
@@ -257,10 +257,10 @@ static void crash_handler(const PlatCrash *x) {
             (unsigned long long)x->offset);
     rt_tpidr_trace_dump();
 #ifdef _WIN32
-    uint64_t host[16];
+    uint64_t host[16], host_stack[32];
     uint8_t insn[16];
-    uint32_t insn_n = 0;
-    if (plat_crash_host_context(host, insn, &insn_n)) {
+    uint32_t insn_n = 0, host_stack_n = 0;
+    if (plat_crash_host_context(host, insn, &insn_n, host_stack, &host_stack_n)) {
         static const char *const names[16] = {
             "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi",
             "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
@@ -271,6 +271,13 @@ static void crash_handler(const PlatCrash *x) {
             rt_log_raw("  host instruction:", 19);
             for (uint32_t i = 0; i < insn_n; i++) rt_logf(" %02x", insn[i]);
             rt_log_raw("\n", 1);
+        }
+        if (host_stack_n) {
+            rt_logf("  host stack at rsp (%u qwords):\n", host_stack_n);
+            for (uint32_t i = 0; i < host_stack_n; i++)
+                rt_logf("    rsp+%03x  %016llx%s", i * 8, (unsigned long long)host_stack[i],
+                        i % 2 ? "\n" : "");
+            if (host_stack_n & 1) rt_log_raw("\n", 1);
         }
     }
 #endif
