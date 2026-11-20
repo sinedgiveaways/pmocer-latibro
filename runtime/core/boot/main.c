@@ -266,11 +266,11 @@ static void crash_handler(const PlatCrash *x) {
             "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
         };
         for (int i = 0; i < 16; i++)
-            rt_logf("  host %-3s %016llx%s", names[i], (unsigned long long)host[i], i % 2 ? "\\n" : "");
+            rt_logf("  host %-3s %016llx%s", names[i], (unsigned long long)host[i], i % 2 ? "\n" : "");
         if (insn_n) {
             rt_log_raw("  host instruction:", 19);
             for (uint32_t i = 0; i < insn_n; i++) rt_logf(" %02x", insn[i]);
-            rt_log_raw("\\n", 1);
+            rt_log_raw("\n", 1);
         }
     }
 #endif
@@ -287,11 +287,11 @@ static void crash_handler(const PlatCrash *x) {
     if (f) rt_logf("  in lifted function f_%llx = %s\n", (unsigned long long)f, ldr_describe(f, d, sizeof d));
     Cpu *c = kern_cpu();
     if (c) {
-        rt_logf("  guest thread=%p TPIDR_EL0=%#llx TLR=%#llx\\n", c->thread,
+        rt_logf("  guest thread=%p TPIDR_EL0=%#llx TLR=%#llx\n", c->thread,
                 (unsigned long long)c->tpidr, (unsigned long long)c->tpidrro);
         uint64_t thread_obj = 0;
         if (c->tpidrro && plat_mem_read(c->tpidrro + 0x1F8, &thread_obj, sizeof thread_obj))
-            rt_logf("  TLR[+0x1f8] current-thread object=%#llx\\n", (unsigned long long)thread_obj);
+            rt_logf("  TLR[+0x1f8] current-thread object=%#llx\n", (unsigned long long)thread_obj);
         for (int i = 0; i < 31; i++)
             rt_logf("  x%-2d %016llx%s", i, (unsigned long long)c->x[i], i % 4 == 3 ? "\n" : "");
         char p[160];
