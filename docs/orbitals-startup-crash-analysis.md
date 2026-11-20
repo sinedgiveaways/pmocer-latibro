@@ -115,3 +115,20 @@ The exact owner and provenance of `x27` remain open. In particular, the prior po
 The next useful capture is a same-thread, same-call snapshot at entry to `sdk+0x16b730` (or in the exception handler): all guest GPRs `x0-x30`, `Cpu.tpidr`, `Cpu.tpidrro`, the current guest PC/LR, and safely-read 8-byte values at `x27` and `x27+0x8`. Also record the active `RtThread` pointer and its `tls`/ `tlr` addresses. Comparing those addresses will tell whether `x27` is a runtime-owned block, an SDK-owned structure, or a stale/corrupted guest pointer.
 
 No fix is justified from the current evidence alone.
+
+
+## Roadmap cross-check: distinguish the failing lookup from the earlier corruption (20/11/2026)
+
+A cross-check against the current `docs/roadmap.md` changes the investigation priority. The roadmap identifies the affected guest function `main+0x1759b20` as Unreal's render-graph path that pops an element from an internal array (the nearby loop is at `main+0x1759d9c`, with element sizes `0xe8` and `0x40`) and frees its allocation through `FMemory::Free` (`main+0xbf040`). That free reaches `GMalloc`'s vtable slot `0x50`, which reads thread TLS.
+
+The roadmap's current working diagnosis is that the render-graph structure was corrupted earlier and that the code which reads/pops it is behaving correctly. This means the TLS lookup may be where the process finally faults while freeing an already-corrupted object; it is not, by itself, proof that TLS initialization caused the original corruption. Keep the immediate access-violation evidence above, but do not treat the null pointer in the lookup path as the established root cause.
+
+The roadmap also records these avenues as already tested and ruled out by A/B runs of 3–4 starts each: GPU write-backs (`ORBITALS_WB_MERGE=none`), asynchronous preemption (`ORBITALS_ASYNC_PREEMPT=0`), page freezing (`ORBITALS_FREEZE_IDLE=0`), VRAM mirror mode (`ORBITALS_MEMORY=import`), and release-order handling of `STLR` (fixed in `7b4a312`, with the crash persisting). It also says the game library was rebuilt and its lifted code grew by 4,544 bytes.
+
+### Revised investigation order
+
+1. Audit kernel synchronization for a path that permits two guest threads to enter a supposedly exclusive section concurrently: mutex arbitration, condition variables, and events in `runtime/core/kernel/`.
+2. Then audit the SDK thread/TLS functions replaced by the runtime, including the observed `AllocateTlsSlot` startup call and the `GetTlsValue` / `SetTlsValue` call paths.
+3. Only after those checks, return to the render-graph array's allocation, ownership, and mutation history to identify the first invalid write or double access.
+
+This order follows the repository roadmap and is more informative than changing TLS allocation sizes or adding a null check at the final fault. No runtime fix is proposed by this report update.
