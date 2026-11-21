@@ -293,8 +293,9 @@ static void crash_handler(const PlatCrash *x) {
     uint64_t f = lifted_function(rip);
     if (f) rt_logf("  in lifted function f_%llx = %s\n", (unsigned long long)f, ldr_describe(f, d, sizeof d));
     Cpu *c = kern_cpu();
+    // Print hook counters even if kern_cpu() failed to recover the faulting guest context.
+    rt_tls_call_trace_dump(c);
     if (c) {
-        rt_tls_call_trace_dump(c);
         uint64_t tls_indirect = 0;
         if (c->x[27] && plat_mem_read(c->x[27], &tls_indirect, sizeof tls_indirect))
             rt_logf("  TLS x27 chain: x27=%#llx [x27]=%#llx\n", (unsigned long long)c->x[27],
