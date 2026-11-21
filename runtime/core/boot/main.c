@@ -295,8 +295,8 @@ static void crash_handler(const PlatCrash *x) {
     uintptr_t lifted_host = 0;
     uint64_t f = lifted_function(rip, &lifted_host);
     if (f) {
-        rt_logf("  in lifted function f_%llx = %s\\n", (unsigned long long)f, ldr_describe(f, d, sizeof d));
-        rt_logf("  host offset in lifted function: entry=%p delta=%#llx\\n", (void *)lifted_host,
+        rt_logf("  in lifted function f_%llx = %s\n", (unsigned long long)f, ldr_describe(f, d, sizeof d));
+        rt_logf("  host offset in lifted function: entry=%p delta=%#llx\n", (void *)lifted_host,
                 (unsigned long long)(rip - lifted_host));
     }
     Cpu *c = kern_cpu();
