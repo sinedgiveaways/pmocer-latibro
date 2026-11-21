@@ -65,6 +65,12 @@ static uint64_t tls_call_trace_next;
 uint64_t g_get_tls_value_pc __attribute__((visibility("hidden")));
 static uint64_t g_tls_fault_pc;
 
+/* Why a target entry can be absent from the per-thread ring. These counters are
+ * updated by fnprof_hit via rt_tls_diag_hit and printed by the fatal reporter. */
+static uint64_t tls_hook_calls, tls_hook_cpu_null, tls_hook_cpu_ok;
+static uint64_t tls_hook_get_tls, tls_hook_fault_pc;
+static uint64_t tls_hook_last_pc, tls_hook_last_thread, tls_hook_last_cpu, tls_hook_last_lr;
+
 static void tls_call_trace_record(Cpu *c, uint64_t pc) {
     uint64_t seq = __atomic_add_fetch(&tls_call_trace_next, 1, __ATOMIC_RELAXED);
     TlsCallTraceEntry *e = &tls_call_trace[(seq - 1) % TLS_CALL_TRACE_CAP];
@@ -84,11 +90,38 @@ void rt_tls_call_trace_entry(Cpu *c) {
 }
 
 void rt_tls_diag_hit(Cpu *c, uint64_t pc) {
-    if (c && (pc == g_get_tls_value_pc || pc == g_tls_fault_pc))
+    __atomic_fetch_add(&tls_hook_calls, 1, __ATOMIC_RELAXED);
+    __atomic_store_n(&tls_hook_last_pc, pc, __ATOMIC_RELAXED);
+    if (!c) {
+        __atomic_fetch_add(&tls_hook_cpu_null, 1, __ATOMIC_RELAXED);
+        __atomic_store_n(&tls_hook_last_thread, 0, __ATOMIC_RELAXED);
+        __atomic_store_n(&tls_hook_last_cpu, 0, __ATOMIC_RELAXED);
+        __atomic_store_n(&tls_hook_last_lr, 0, __ATOMIC_RELAXED);
+        return;
+    }
+    __atomic_fetch_add(&tls_hook_cpu_ok, 1, __ATOMIC_RELAXED);
+    __atomic_store_n(&tls_hook_last_thread, (uint64_t)(uintptr_t)c->thread, __ATOMIC_RELAXED);
+    __atomic_store_n(&tls_hook_last_cpu, (uint64_t)(uintptr_t)c, __ATOMIC_RELAXED);
+    __atomic_store_n(&tls_hook_last_lr, c->x[30], __ATOMIC_RELAXED);
+    if (pc == g_get_tls_value_pc) __atomic_fetch_add(&tls_hook_get_tls, 1, __ATOMIC_RELAXED);
+    if (pc == g_tls_fault_pc) __atomic_fetch_add(&tls_hook_fault_pc, 1, __ATOMIC_RELAXED);
+    if (pc == g_get_tls_value_pc || pc == g_tls_fault_pc)
         tls_call_trace_record(c, pc);
 }
 
 void rt_tls_call_trace_dump(Cpu *c) {
+    rt_logf("  TLS hook stats: calls=%llu cpu_ok=%llu cpu_null=%llu GetTlsValue=%llu fault_pc=%llu\\n",
+            (unsigned long long)__atomic_load_n(&tls_hook_calls, __ATOMIC_RELAXED),
+            (unsigned long long)__atomic_load_n(&tls_hook_cpu_ok, __ATOMIC_RELAXED),
+            (unsigned long long)__atomic_load_n(&tls_hook_cpu_null, __ATOMIC_RELAXED),
+            (unsigned long long)__atomic_load_n(&tls_hook_get_tls, __ATOMIC_RELAXED),
+            (unsigned long long)__atomic_load_n(&tls_hook_fault_pc, __ATOMIC_RELAXED));
+    rt_logf("    configured GetTlsValue=%#llx fault_pc=%#llx last_pc=%#llx last_thread=%#llx last_cpu=%#llx last_lr=%#llx\\n",
+            (unsigned long long)g_get_tls_value_pc, (unsigned long long)g_tls_fault_pc,
+            (unsigned long long)__atomic_load_n(&tls_hook_last_pc, __ATOMIC_RELAXED),
+            (unsigned long long)__atomic_load_n(&tls_hook_last_thread, __ATOMIC_RELAXED),
+            (unsigned long long)__atomic_load_n(&tls_hook_last_cpu, __ATOMIC_RELAXED),
+            (unsigned long long)__atomic_load_n(&tls_hook_last_lr, __ATOMIC_RELAXED));
     if (!c) return;
     uint64_t thread = (uint64_t)(uintptr_t)c->thread;
     uint64_t end = __atomic_load_n(&tls_call_trace_next, __ATOMIC_ACQUIRE);
