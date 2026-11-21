@@ -45,7 +45,7 @@ From the `orbitals-recomp` folder, in PowerShell. Paths use forward slashes: a `
 | Command | What it does |
 |---|---|
 | `.\setup\python\python.exe setup/src/tools/prepare/nup.py addons "<game>.nup" .` | Unpacks the add-ons (the Deluxe content) into `aoc/<index>/`; the setup's romfs step does it too |
-| `.\setup\python\python.exe setup/src/tools/prepare/dumped_shaders.py --dumped spirv-dump` | Translates every dumped program into `spirv/`; prints the valid count and the refusal reasons (`spirv/failed.tsv`) |
+| `.\setup\python\python.exe setup/src/tools/prepare/dumped_shaders.py --dumped spirv-dump` | Translates every dumped program into `spirv/`; prints the valid count and the refusal reasons (`spirv/failed.tsv`). The runtime runs it by itself during a run since 21/11/2026 (`logs/shaders-auto.log`) |
 | `.\setup\python\python.exe setup/src/tools/shaders/base_origin.py --dumped spirv-dump [--tex]` | Counts where the untraced storage buffer bases (or, `--tex`, texture handles) of the refused programs come from |
 | `.\setup\python\python.exe setup/src/tools/shaders/c0_reads.py --dumped spirv-dump [--banks]` | Counts which constant bank words the programs read at fixed addresses, by stage |
 | `.\setup\python\python.exe setup/src/tools/shaders/missing.py --log logs/orbitals.log` | The dumped programs without SPIR-V, by stage, with the translator's reason and whether that run met them |

@@ -76,7 +76,7 @@ void vk_exec_draw_forget(void) {
 // the 2048-slot direct-mapped table this replaced missed 3% of them on conflicts.
 #define SHADER_SETS 2048
 #define SHADER_WAYS 4
-typedef struct { uint64_t serial; int stage; int used; GfxShaderAnswers a; const GfxShader *s; } ShaderEnt;
+typedef struct { uint64_t serial; int stage; int used; GfxShaderAnswers a; const GfxShader *s; uint32_t gen; } ShaderEnt;   // gen: gfx_shader_gen() of a miss
 static _Thread_local ShaderEnt (*shader_tab)[SHADER_WAYS];   // per recording thread (vk_exec_draw_thread)
 
 static int find_stage_scan(const prog_t *p, int nvn_stage, const uint8_t **ctl, const uint8_t **code, uint32_t *len) {
@@ -191,6 +191,11 @@ static const GfxShader *cached_shader(VkExec *ex, int st, const uint8_t *ctl, co
         for (int w = 0; w < SHADER_WAYS && set[w].used; w++) {
             ShaderEnt *e = &set[w];
             if (e->serial != serial || e->stage != st || memcmp(&e->a, &a, sizeof a)) continue;
+            if (!e->s && e->gen != gfx_shader_gen()) {   // a miss from before a background translation: look again
+                memmove(&set[w], &set[w + 1], (SHADER_WAYS - 1 - w) * sizeof *set);
+                set[SHADER_WAYS - 1].used = 0;
+                break;
+            }
             if (w) {   // to the front
                 ShaderEnt hit = *e;
                 memmove(&set[1], &set[0], w * sizeof *set);
@@ -208,7 +213,7 @@ static const GfxShader *cached_shader(VkExec *ex, int st, const uint8_t *ctl, co
     // (fg3, 11/11/2026)
     if (set) {
         memmove(&set[1], &set[0], (SHADER_WAYS - 1) * sizeof *set);
-        set[0] = (ShaderEnt){.serial = serial, .stage = st, .used = 1, .a = a, .s = s};
+        set[0] = (ShaderEnt){.serial = serial, .stage = st, .used = 1, .a = a, .s = s, .gen = s ? 0 : gfx_shader_gen()};
     }
     return s;
 }
