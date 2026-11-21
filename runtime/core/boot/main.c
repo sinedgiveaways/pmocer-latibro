@@ -219,7 +219,7 @@ static int by_host(const void *a, const void *b) {
 }
 
 // The lifted function that contains a host code address, by the nearest function start below it.
-static uint64_t lifted_function(uintptr_t rip) {
+static uint64_t lifted_function(uintptr_t rip, uintptr_t *host_start) {
     if (!fn_rev) {
         static RtModule mods[MAX_MODULES];
         int n = rt_linked_modules(mods, MAX_MODULES);
@@ -238,7 +238,9 @@ static uint64_t lifted_function(uintptr_t rip) {
         if (fn_rev[mid].host <= rip) lo = mid + 1;
         else hi = mid;
     }
-    return lo ? fn_rev[lo - 1].guest : 0;
+    if (!lo) return 0;
+    if (host_start) *host_start = fn_rev[lo - 1].host;
+    return fn_rev[lo - 1].guest;
 }
 
 static int readable(uint64_t a, uint64_t n) { return plat_mem_readable(a, n); }
@@ -286,12 +288,17 @@ static void crash_handler(const PlatCrash *x) {
                 (unsigned long long)x->addr);
     rt_log_raw("\n", 1);
     if (x->ret) {   // a wild jump: who made it, if it was a call
-        uint64_t from = lifted_function(x->ret);
+        uint64_t from = lifted_function(x->ret, NULL);
         rt_logf("  word at rsp %p%s%s\n", (void *)x->ret, from ? ", in lifted function " : "",
                 from ? ldr_describe(from, d, sizeof d) : "");
     }
-    uint64_t f = lifted_function(rip);
-    if (f) rt_logf("  in lifted function f_%llx = %s\n", (unsigned long long)f, ldr_describe(f, d, sizeof d));
+    uintptr_t lifted_host = 0;
+    uint64_t f = lifted_function(rip, &lifted_host);
+    if (f) {
+        rt_logf("  in lifted function f_%llx = %s\\n", (unsigned long long)f, ldr_describe(f, d, sizeof d));
+        rt_logf("  host offset in lifted function: entry=%p delta=%#llx\\n", (void *)lifted_host,
+                (unsigned long long)(rip - lifted_host));
+    }
     Cpu *c = kern_cpu();
     // Print hook counters even if kern_cpu() failed to recover the faulting guest context.
     rt_tls_call_trace_dump(c);
