@@ -70,7 +70,7 @@ jobs:
         run: uv run tools/build/windeps.py
       - name: Validate Windows DLL linker map option
         run: |
-          printf 'int trace_map_probe(void) { return 0; }\\n' > build/trace-map-probe.c
+          printf 'int trace_map_probe(void) { return 0; }\n' > build/trace-map-probe.c
           build/win/llvm-mingw/bin/x86_64-w64-mingw32-clang -c build/trace-map-probe.c -o build/trace-map-probe.obj
           build/win/llvm-mingw/bin/lld-link /dll /noentry /out:build/trace-map-probe.dll -MAP:build/trace-map-probe.map build/trace-map-probe.obj
           test -s build/trace-map-probe.map
