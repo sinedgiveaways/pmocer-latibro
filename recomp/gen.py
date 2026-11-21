@@ -377,6 +377,8 @@ class Emitter:
         trace_tls = mod.name == 'sdk' and entry == mod.base + 0x16b730
         # Crash B's faulting lifted function: main+0x1759b20 (f_7001759b20).
         trace_crash_b = mod.name == 'main' and entry == mod.base + 0x1759b20
+        # The targeted element hook reads Cpu.x[] at main+0x18f71; keep those registers materialized.
+        trace_crash_b_element = mod.name == 'main' and entry <= mod.base + 0x18f71 < end
         insns = [mod.lift(a) for a in range(entry, end, 4)]
         labels, tables = self.scan(insns, entry, end)
         refs = set()
@@ -615,7 +617,7 @@ class Emitter:
                      and (ins.kind in ('bl', 'blr') or (ins.kind == 'op' and regs.RELOAD in texts[i]))}
             # Keep guest registers in Cpu for traced functions so pre-instruction snapshots
             # contain live ARM64 values rather than stale/spilled register locals.
-            rp = regs.plan(texts, succ, clean, 0 if trace_crash_b else self.reg_locals, self.kept)
+            rp = regs.plan(texts, succ, clean, 0 if trace_crash_b or trace_crash_b_element else self.reg_locals, self.kept)
             if rp.regs:
                 out.append('    ' + rp.decl())
             self.stats['local_reg_functions'] += bool(rp.regs)
