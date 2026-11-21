@@ -258,6 +258,7 @@ static void crash_handler(const PlatCrash *x) {
     rt_logf("FATAL: %s (%#x) at host %p (%s+%#llx)", x->what, x->code, (void *)rip, x->module ? x->module : "orbitals-recomp",
             (unsigned long long)x->offset);
     rt_crash_b_instruction_trace_dump(kern_cpu());
+    rt_crash_b_element_trace_dump();
     rt_tls_call_trace_dump(kern_cpu());
     rt_tpidr_trace_dump();
 #ifdef _WIN32
