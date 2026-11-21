@@ -95,3 +95,38 @@ Instrument the faulting path to capture, for the **same guest thread and at the 
 3. The caller's guest PC/LR and the `TlsSlot` argument passed to `GetTlsValue`.
 
 This distinguishes a valid per-thread TLS base from a separate null slot-table pointer, and tells whether the failure comes from a bad argument/register, missing SDK initialization, or a layout mismatch. Do not alter TLS allocation sizes or fiber copying until those values are captured.
+
+## Runtime capture update (21/11/2026, Crash B)
+
+This section supersedes older thread IDs and host-register assumptions above where they differ. The earlier values came from a different run.
+
+### Latest correlated fault snapshot
+
+- Faulting guest thread in the latest detailed capture: `0x205b2bde100`.
+- Guest PC at the captured SDK entry: `sdk+0x16b730` (`nn::os::GetTlsValue`); LR: `main+0x175a16c`.
+- Guest `TPIDR_EL0=0xa2003c740`, `TPIDRRO_EL0=0x7010078000`; `TLR[+0x1f8]=0x7c005a038`. These values are nonzero.
+- Guest `x27=0x9e01f7c00`, and the captured first qword at `[x27]` is zero. This alone does not establish that x27 is the TLS table base or that the zero first field is invalid.
+- The Windows exception handler captured the host instruction bytes `42 8b 4c 01 5c`, decoded as `mov ecx, [rcx+r8+0x5c]`, with host `RCX=0` and `R8=0xa8`. Its effective read address is therefore exactly `0x104`, matching the access-violation address.
+- Guest `x25=0xa8` in the fatal guest snapshot. This is a useful candidate correlation with host R8, but it is **not** proof that host R8 was allocated from guest x25. The host compiler may have transformed, reused, or spilled guest values.
+
+### Important distinction about the two captures
+
+The `main+0x1759b20` records are snapshots taken when that lifted function is entered through dispatch. They are not guaranteed to be the live guest register state at the exact host fault instruction. Do not combine one of those entry snapshots with the later fatal Cpu snapshot as if they were a single atomic register dump.
+
+The Windows VEH already copies all 16 host GPRs, up to 16 instruction bytes, and up to 32 qwords at host RSP before entering the crash reporter. The crash reporter separately prints the current guest Cpu registers. The next step is to correlate these existing snapshots against the generated host function, not to add another high-volume TPIDR trace.
+
+### Trace-retention limitation confirmed in source
+
+The per-thread recorder currently has 32 permanently claimed thread slots and retains 64 events per event type per thread. Slots are not reclaimed when guest threads exit. On a busy process, slot exhaustion and ring wrap are expected; a missing event is not evidence that the call never happened. The large reported ring-overflow counts make absence-based conclusions unsafe.
+
+### Next implementation / analysis steps
+
+1. Use the exact host fault RIP and instruction bytes from the fatal record to locate the instruction inside the host function generated for guest `main+0x1759b20`. Use the matching build's generated object or emitted C; do not infer a host-to-guest register map from equal numeric values alone.
+2. Reconstruct the host dataflow immediately before the faulting load: where RCX becomes zero, where R8 becomes `0xa8`, and which earlier load or calculation supplied each value.
+3. Compare that dataflow with the guest ARM64 instruction sequence and the saved Cpu state to establish whether the null base is a guest-visible value, a lifted temporary, or a translation/lowering error.
+4. Only if the existing build artifact cannot answer this, add a narrowly scoped diagnostic that records the relevant host function's instruction window and guest Cpu pointer/thread identity at the exception. Keep it disabled by default and bounded; do not trace every GetTlsValue call.
+5. Build the Windows executable with the existing **runtime-only** workflow (`tools/build/build.py --target windows --dist --runtime-only`). This workflow builds the host runtime and package; do not invoke `prepare.py`, `generate.py`, or a game-code rebuild for this investigation.
+
+### Current conclusion
+
+The immediate invalid read is localized: a host load uses a null base plus index `0xa8` and field offset `0x5c`, producing address `0x104`. The thread's captured TPIDR/TLR values are nonzero. The root cause remains open between a bad guest-side lookup value/initialization and an incorrect lifted-code dataflow. The next decisive evidence is the generated host-code dataflow at the fault RIP.
