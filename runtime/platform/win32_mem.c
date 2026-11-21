@@ -123,16 +123,25 @@ static void (*crash_fn)(const PlatCrash *c);
 
 // The VEH copies the faulting host context before calling runtime code. Keep it thread-local: the crash
 // reporter runs synchronously on the faulting thread and must not inspect a CONTEXT after the VEH returns.
+#define CRASH_HOST_STACK_WORDS 64u
 static _Thread_local uint64_t crash_host_regs[16];
 static _Thread_local uint8_t crash_host_insn[16];
 static _Thread_local uint32_t crash_host_insn_n;
+static _Thread_local uint64_t crash_host_stack[CRASH_HOST_STACK_WORDS];
+static _Thread_local uint32_t crash_host_stack_n;
+static _Thread_local uint32_t crash_host_tid;
 static _Thread_local int crash_host_context_valid;
 
-int plat_crash_host_context(uint64_t regs[16], uint8_t insn[16], uint32_t *insn_n) {
+int plat_crash_host_context(uint64_t regs[16], uint8_t insn[16], uint32_t *insn_n,
+                            uint64_t stack[CRASH_HOST_STACK_WORDS], uint32_t *stack_n,
+                            uint32_t *thread_id) {
     if (!crash_host_context_valid) return 0;
     memcpy(regs, crash_host_regs, sizeof crash_host_regs);
     memcpy(insn, crash_host_insn, sizeof crash_host_insn);
+    memcpy(stack, crash_host_stack, sizeof crash_host_stack);
     *insn_n = crash_host_insn_n;
+    *stack_n = crash_host_stack_n;
+    *thread_id = crash_host_tid;
     return 1;
 }
 
@@ -160,6 +169,16 @@ static LONG CALLBACK crash_veh(EXCEPTION_POINTERS *ep) {
     if (ReadProcessMemory(GetCurrentProcess(), (const void *)rip, crash_host_insn,
                           sizeof crash_host_insn, &insn_got))
         crash_host_insn_n = (uint32_t)insn_got;
+    // Preserve the faulting thread's raw stack words before entering the crash reporter.
+    // This is deliberately a bounded snapshot, not a guessed unwind of JIT/lifted frames.
+    crash_host_stack_n = 0;
+    crash_host_tid = GetCurrentThreadId();
+    SIZE_T stack_got = 0;
+    uintptr_t fault_sp = (uintptr_t)ctx->Rsp;
+    if (fault_sp && !(fault_sp & (sizeof(uintptr_t) - 1)) &&
+        ReadProcessMemory(GetCurrentProcess(), (const void *)fault_sp, crash_host_stack,
+                          sizeof crash_host_stack, &stack_got))
+        crash_host_stack_n = (uint32_t)(stack_got / sizeof(uint64_t));
     crash_host_context_valid = 1;
     // Ours: orbitals-recomp.exe, the game code library (orbitalgame.dll), or no module at all (a jump to a wild address). Faults in
     // other modules (drivers) are left to the handler that expects them.
