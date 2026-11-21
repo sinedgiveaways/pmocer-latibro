@@ -363,3 +363,16 @@ The TLS ring also records the host OS thread ID alongside the guest runtime-thre
 The generated `sdk+0x16b730` function now snapshots the live guest register file before each lifted instruction. Register-local optimization is disabled only for this single function so `Cpu.x[0..30]` and `Cpu.sp` are current at every snapshot. A bounded 32-instruction ring retains the immediately preceding guest PCs, all X registers, SP, host thread ID and guest-thread pointer. The fatal report dumps this ring before the function-entry TLS snapshots.
 
 This is the key capture for identifying the exact values used by a faulting load in the SDK function. It is intentionally restricted to the target function; the rest of the game retains its normal recompilation and register-local optimization.
+
+
+## Crash B: expanded capture on mco2vie/orbital-crash-trace
+
+The previous instruction ring targeted `sdk+0x16b730` (GetTlsValue). That remains a secondary trace only; it is not treated as the faulting function. The new primary ring targets the lifted function `main+0x1759b20` (`f_7001759b20`), which contains the failing host-side lifted instruction sequence documented in the Crash B control-flow follow-up.
+
+- A 64-entry lock-free ring snapshots guest PC, SP, host TID, guest-thread pointer and all `x0..x30` immediately before each guest instruction in that one function.
+- The fatal report prints the Crash B ring first, filtered to the current guest thread, then the older GetTlsValue and TPIDR traces.
+- On Windows, an additional DbgHelp minidump is written to `%TEMP%\\OrbitalsCrashDumps\\` for faults handled by the runtime. It includes thread information, handles, unloaded modules, data segments, indirectly referenced memory and private read/write memory. It is not a full-memory dump.
+- The path to a successfully written dump is printed in the fatal log. The dump may contain process memory and should be treated as private.
+- The Windows build links DbgHelp and publishes the linker map as a separate `orbitals-crash-symbols-mco2vie` artifact alongside the executable and player package.
+
+The minidump is supplementary host-side evidence. The guest ARM64 ring is the key evidence for reconstructing the Crash B branch and the values consumed by the faulting load. Neither trace alone proves the upstream cause.
