@@ -53,29 +53,61 @@ static TpidrTraceEntry tpidr_trace_ring[TPIDR_TRACE_CAP];
 static uint64_t tpidr_trace_next;
 static int rt_tpidr_trace;
 
-/* Capture the guest arguments at the entry to nn::os::GetTlsValue. The ring is
- * matched by RtThread in the crash handler, so another guest thread cannot
- * overwrite the evidence we need. */
+/* Per-guest-thread TLS flight recorder. The old single 64-entry global ring was
+ * overwritten by calls from unrelated threads: GetTlsValue is called millions
+ * of times, while the faulting function is much rarer. Keep independent rings
+ * for the two target PCs in each guest thread. */
+#define TLS_THREAD_SLOTS 32u
 #define TLS_CALL_TRACE_CAP 64u
+enum { TLS_EVENT_GET_VALUE, TLS_EVENT_FAULT_PC, TLS_EVENT_COUNT };
 typedef struct {
     uint64_t seq, thread, pc, x[8], x27, tpidr, tpidrro, lr;
 } TlsCallTraceEntry;
-static TlsCallTraceEntry tls_call_trace[TLS_CALL_TRACE_CAP];
-static uint64_t tls_call_trace_next;
+typedef struct {
+    uint64_t owner;
+    uint64_t next[TLS_EVENT_COUNT];
+    TlsCallTraceEntry event[TLS_EVENT_COUNT][TLS_CALL_TRACE_CAP];
+} TlsThreadTrace;
+static TlsThreadTrace tls_thread_trace[TLS_THREAD_SLOTS];
 uint64_t g_get_tls_value_pc __attribute__((visibility("hidden")));
 static uint64_t g_tls_fault_pc;
+static uint64_t tls_trace_slot_overflow;
 
-/* Why a target entry can be absent from the per-thread ring. These counters are
- * updated by fnprof_hit via rt_tls_diag_hit and printed by the fatal reporter. */
+/* Aggregate counters are deliberately separate from the bounded evidence rings. */
 static uint64_t tls_hook_calls, tls_hook_cpu_null, tls_hook_cpu_ok;
 static uint64_t tls_hook_get_tls, tls_hook_fault_pc;
 static uint64_t tls_hook_last_pc, tls_hook_last_thread, tls_hook_last_cpu, tls_hook_last_lr;
 
+static TlsThreadTrace *tls_thread_slot(uint64_t thread, int claim) {
+    if (!thread) return NULL;
+    uint64_t h = ((thread >> 4) * 0x9E3779B97F4A7C15ull) >> 59;
+    for (uint32_t n = 0; n < TLS_THREAD_SLOTS; n++) {
+        TlsThreadTrace *s = &tls_thread_trace[(h + n) & (TLS_THREAD_SLOTS - 1)];
+        uint64_t owner = __atomic_load_n(&s->owner, __ATOMIC_ACQUIRE);
+        if (owner == thread) return s;
+        if (!owner && claim) {
+            uint64_t zero = 0;
+            if (__atomic_compare_exchange_n(&s->owner, &zero, thread, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
+                return s;
+            if (zero == thread) return s;
+        }
+    }
+    return NULL;
+}
+
 static void tls_call_trace_record(Cpu *c, uint64_t pc) {
-    uint64_t seq = __atomic_add_fetch(&tls_call_trace_next, 1, __ATOMIC_RELAXED);
-    TlsCallTraceEntry *e = &tls_call_trace[(seq - 1) % TLS_CALL_TRACE_CAP];
+    if (!c || !c->thread) return;
+    uint64_t thread = (uint64_t)(uintptr_t)c->thread;
+    TlsThreadTrace *s = tls_thread_slot(thread, 1);
+    if (!s) {
+        __atomic_fetch_add(&tls_trace_slot_overflow, 1, __ATOMIC_RELAXED);
+        return;
+    }
+    unsigned kind = pc == g_get_tls_value_pc ? TLS_EVENT_GET_VALUE : TLS_EVENT_FAULT_PC;
+    uint64_t seq = __atomic_add_fetch(&s->next[kind], 1, __ATOMIC_RELAXED);
+    TlsCallTraceEntry *e = &s->event[kind][(seq - 1) % TLS_CALL_TRACE_CAP];
     __atomic_store_n(&e->seq, 0, __ATOMIC_RELAXED);
-    __atomic_store_n(&e->thread, (uint64_t)(uintptr_t)c->thread, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->thread, thread, __ATOMIC_RELAXED);
     __atomic_store_n(&e->pc, pc, __ATOMIC_RELAXED);
     for (int i = 0; i < 8; i++) __atomic_store_n(&e->x[i], c->x[i], __ATOMIC_RELAXED);
     __atomic_store_n(&e->x27, c->x[27], __ATOMIC_RELAXED);
@@ -110,51 +142,57 @@ void rt_tls_diag_hit(Cpu *c, uint64_t pc) {
 }
 
 void rt_tls_call_trace_dump(Cpu *c) {
-    rt_logf("  TLS hook stats: calls=%llu cpu_ok=%llu cpu_null=%llu GetTlsValue=%llu fault_pc=%llu\n",
+    rt_logf("  TLS hook stats: calls=%llu cpu_ok=%llu cpu_null=%llu GetTlsValue=%llu fault_pc=%llu ring_overflow=%llu\n",
             (unsigned long long)__atomic_load_n(&tls_hook_calls, __ATOMIC_RELAXED),
             (unsigned long long)__atomic_load_n(&tls_hook_cpu_ok, __ATOMIC_RELAXED),
             (unsigned long long)__atomic_load_n(&tls_hook_cpu_null, __ATOMIC_RELAXED),
             (unsigned long long)__atomic_load_n(&tls_hook_get_tls, __ATOMIC_RELAXED),
-            (unsigned long long)__atomic_load_n(&tls_hook_fault_pc, __ATOMIC_RELAXED));
+            (unsigned long long)__atomic_load_n(&tls_hook_fault_pc, __ATOMIC_RELAXED),
+            (unsigned long long)__atomic_load_n(&tls_trace_slot_overflow, __ATOMIC_RELAXED));
     rt_logf("    configured GetTlsValue=%#llx fault_pc=%#llx last_pc=%#llx last_thread=%#llx last_cpu=%#llx last_lr=%#llx\n",
             (unsigned long long)g_get_tls_value_pc, (unsigned long long)g_tls_fault_pc,
             (unsigned long long)__atomic_load_n(&tls_hook_last_pc, __ATOMIC_RELAXED),
             (unsigned long long)__atomic_load_n(&tls_hook_last_thread, __ATOMIC_RELAXED),
             (unsigned long long)__atomic_load_n(&tls_hook_last_cpu, __ATOMIC_RELAXED),
             (unsigned long long)__atomic_load_n(&tls_hook_last_lr, __ATOMIC_RELAXED));
-    /* A normal window close has no single current guest CPU. In that case dump
-     * every retained entry, preserving the guest thread identity in each record. */
-    uint64_t thread = c ? (uint64_t)(uintptr_t)c->thread : 0;
-    uint64_t end = __atomic_load_n(&tls_call_trace_next, __ATOMIC_ACQUIRE);
-    uint64_t begin = end > TLS_CALL_TRACE_CAP ? end - TLS_CALL_TRACE_CAP + 1 : 1;
+    uint64_t wanted = c ? (uint64_t)(uintptr_t)c->thread : 0;
     uint64_t found = 0;
-    for (uint64_t seq = begin; seq <= end && seq; seq++) {
-        TlsCallTraceEntry *e = &tls_call_trace[(seq - 1) % TLS_CALL_TRACE_CAP];
-        if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
-        uint64_t entry_thread = __atomic_load_n(&e->thread, __ATOMIC_RELAXED);
-        if (c && entry_thread != thread) continue;
-        uint64_t pc = __atomic_load_n(&e->pc, __ATOMIC_RELAXED);
-        uint64_t x[8], x27 = __atomic_load_n(&e->x27, __ATOMIC_RELAXED);
-        uint64_t tpidr = __atomic_load_n(&e->tpidr, __ATOMIC_RELAXED);
-        uint64_t tpidrro = __atomic_load_n(&e->tpidrro, __ATOMIC_RELAXED);
-        uint64_t lr = __atomic_load_n(&e->lr, __ATOMIC_RELAXED);
-        for (int i = 0; i < 8; i++) x[i] = __atomic_load_n(&e->x[i], __ATOMIC_RELAXED);
-        if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
-        rt_logf("  TLS entry: thread=%#llx pc=%#llx target=%s\n",
-                (unsigned long long)entry_thread, (unsigned long long)pc,
-                pc == g_get_tls_value_pc ? "nn::os::GetTlsValue" : "main+0x1759b20");
-        rt_logf("    x0=%#llx x1=%#llx x2=%#llx x3=%#llx x4=%#llx x5=%#llx x6=%#llx x7=%#llx\n",
-                (unsigned long long)x[0], (unsigned long long)x[1], (unsigned long long)x[2],
-                (unsigned long long)x[3], (unsigned long long)x[4], (unsigned long long)x[5],
-                (unsigned long long)x[6], (unsigned long long)x[7]);
-        rt_logf("    x27=%#llx TPIDR_EL0=%#llx TPIDRRO_EL0=%#llx lr=%#llx\n",
-                (unsigned long long)x27, (unsigned long long)tpidr, (unsigned long long)tpidrro,
-                (unsigned long long)lr);
-        found++;
+    for (uint32_t i = 0; i < TLS_THREAD_SLOTS; i++) {
+        TlsThreadTrace *s = &tls_thread_trace[i];
+        uint64_t owner = __atomic_load_n(&s->owner, __ATOMIC_ACQUIRE);
+        if (!owner || (wanted && owner != wanted)) continue;
+        for (unsigned kind = 0; kind < TLS_EVENT_COUNT; kind++) {
+            uint64_t end = __atomic_load_n(&s->next[kind], __ATOMIC_ACQUIRE);
+            uint64_t begin = end > TLS_CALL_TRACE_CAP ? end - TLS_CALL_TRACE_CAP + 1 : 1;
+            for (uint64_t seq = begin; seq <= end && seq; seq++) {
+                TlsCallTraceEntry *e = &s->event[kind][(seq - 1) % TLS_CALL_TRACE_CAP];
+                if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
+                uint64_t entry_thread = __atomic_load_n(&e->thread, __ATOMIC_RELAXED);
+                uint64_t pc = __atomic_load_n(&e->pc, __ATOMIC_RELAXED);
+                uint64_t x[8], x27 = __atomic_load_n(&e->x27, __ATOMIC_RELAXED);
+                uint64_t tpidr = __atomic_load_n(&e->tpidr, __ATOMIC_RELAXED);
+                uint64_t tpidrro = __atomic_load_n(&e->tpidrro, __ATOMIC_RELAXED);
+                uint64_t lr = __atomic_load_n(&e->lr, __ATOMIC_RELAXED);
+                for (int r = 0; r < 8; r++) x[r] = __atomic_load_n(&e->x[r], __ATOMIC_RELAXED);
+                if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
+                rt_logf("  TLS entry: thread=%#llx pc=%#llx target=%s seq=%llu\n",
+                        (unsigned long long)entry_thread, (unsigned long long)pc,
+                        kind == TLS_EVENT_GET_VALUE ? "nn::os::GetTlsValue" : "main+0x1759b20",
+                        (unsigned long long)seq);
+                rt_logf("    x0=%#llx x1=%#llx x2=%#llx x3=%#llx x4=%#llx x5=%#llx x6=%#llx x7=%#llx\n",
+                        (unsigned long long)x[0], (unsigned long long)x[1], (unsigned long long)x[2],
+                        (unsigned long long)x[3], (unsigned long long)x[4], (unsigned long long)x[5],
+                        (unsigned long long)x[6], (unsigned long long)x[7]);
+                rt_logf("    x27=%#llx TPIDR_EL0=%#llx TPIDRRO_EL0=%#llx lr=%#llx\n",
+                        (unsigned long long)x27, (unsigned long long)tpidr, (unsigned long long)tpidrro,
+                        (unsigned long long)lr);
+                found++;
+            }
+        }
     }
     if (!found) {
-        if (c) rt_logf("  TLS entry: no target entries captured for thread=%#llx\n", (unsigned long long)thread);
-        else rt_log("  TLS entry: no target entries captured in retained ring");
+        if (c) rt_logf("  TLS entry: no retained events for crashing thread=%#llx\n", (unsigned long long)wanted);
+        else rt_log("  TLS entry: no retained events in per-thread rings");
     }
 }
 
