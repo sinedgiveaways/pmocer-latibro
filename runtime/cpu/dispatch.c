@@ -402,7 +402,7 @@ RtDispatchStats rt_dispatch_stats(void) {
 /* Crash B trace: main+0x1759b20 (f_7001759b20). The generated hook runs
  * immediately before each guest instruction. Keep a bounded tail so the
  * faulting load and its path predecessors survive the fatal report. */
-#define CRASH_B_TRACE_CAP 64u
+#define CRASH_B_TRACE_CAP 256u
 typedef struct {
     uint64_t seq, thread, pc, sp;
     uint32_t host_tid;
@@ -435,8 +435,15 @@ void rt_crash_b_instruction_trace_dump(Cpu *c) {
     uint64_t thread = c ? (uint64_t)(uintptr_t)c->thread : 0;
     uint64_t end = __atomic_load_n(&crash_b_trace_next, __ATOMIC_ACQUIRE);
     uint64_t begin = end > CRASH_B_TRACE_CAP ? end - CRASH_B_TRACE_CAP + 1 : 1;
-    rt_logf("FATAL: Crash B main+0x1759b20 instruction trace; guest_thread=%#llx entries=%llu (max %u)\n",
-            (unsigned long long)thread, (unsigned long long)(end ? end - begin + 1 : 0), CRASH_B_TRACE_CAP);
+    uint64_t matching = 0;
+    for (uint64_t seq = begin; seq <= end && seq; seq++) {
+        CrashBTraceEntry *e = &crash_b_trace[(seq - 1) % CRASH_B_TRACE_CAP];
+        if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) == seq &&
+            __atomic_load_n(&e->thread, __ATOMIC_RELAXED) == thread)
+            matching++;
+    }
+    rt_logf("FATAL: Crash B main+0x1759b20 instruction trace; guest_thread=%#llx entries=%llu (ring max %u)\\n",
+            (unsigned long long)thread, (unsigned long long)matching, CRASH_B_TRACE_CAP);
     for (uint64_t seq = begin; seq <= end && seq; seq++) {
         CrashBTraceEntry *e = &crash_b_trace[(seq - 1) % CRASH_B_TRACE_CAP];
         if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
