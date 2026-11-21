@@ -188,7 +188,7 @@ void rt_tls_instruction_trace_dump(Cpu *c) {
     uint64_t thread = (uint64_t)(uintptr_t)c->thread;
     uint64_t end = __atomic_load_n(&tls_insn_trace_next, __ATOMIC_ACQUIRE);
     uint64_t begin = end > TLS_INSN_TRACE_CAP ? end - TLS_INSN_TRACE_CAP + 1 : 1;
-    rt_logf("FATAL: GetTlsValue instruction trace for guest thread=%#llx (up to %u instructions):\\n",
+    rt_logf("FATAL: GetTlsValue instruction trace for guest thread=%#llx (up to %u instructions):\n",
             (unsigned long long)thread, TLS_INSN_TRACE_CAP);
     for (uint64_t seq = begin; seq <= end && seq; seq++) {
         TlsInsnTraceEntry *e = &tls_insn_trace[(seq - 1) % TLS_INSN_TRACE_CAP];
@@ -202,13 +202,13 @@ void rt_tls_instruction_trace_dump(Cpu *c) {
         for (uint32_t i = 0; i < 31; i++)
             x[i] = __atomic_load_n(&e->x[i], __ATOMIC_RELAXED);
         if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
-        rt_logf("  sdk+%#llx host_tid=%u SP=%#llx\\n",
+        rt_logf("  sdk+%#llx host_tid=%u SP=%#llx\n",
                 (unsigned long long)(pc - g_get_tls_value_pc), tid, (unsigned long long)sp);
         for (uint32_t i = 0; i < 31; i += 4) {
             rt_logf("    x%-2u=%016llx", i, (unsigned long long)x[i]);
             for (uint32_t j = i + 1; j < 31 && j < i + 4; j++)
                 rt_logf(" x%-2u=%016llx", j, (unsigned long long)x[j]);
-            rt_log_raw("\\n", 1);
+            rt_log_raw("\n", 1);
         }
     }
 }
