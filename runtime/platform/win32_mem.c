@@ -2,6 +2,7 @@
 #include <io.h>
 #include <stdio.h>
 #include <windows.h>
+#include <dbghelp.h>
 #include <bcrypt.h>
 #include <pdh.h>
 #include <pdhmsg.h>
@@ -131,6 +132,35 @@ static _Thread_local uint64_t crash_host_stack[CRASH_HOST_STACK_WORDS];
 static _Thread_local uint32_t crash_host_stack_n;
 static _Thread_local uint32_t crash_host_tid;
 static _Thread_local int crash_host_context_valid;
+static _Thread_local char crash_dump_path_utf8[1024];
+static volatile LONG crash_dump_once;
+
+const char *plat_crash_dump_path(void) { return crash_dump_path_utf8; }
+
+static void write_crash_minidump(EXCEPTION_POINTERS *ep) {
+    if (InterlockedCompareExchange(&crash_dump_once, 1, 0) != 0) return;
+    wchar_t dir[MAX_PATH], path[MAX_PATH];
+    DWORD n = GetTempPathW(MAX_PATH, dir);
+    if (!n || n >= MAX_PATH) return;
+    if (wcscat_s(dir, MAX_PATH, L"OrbitalsCrashDumps\\\\") != 0) return;
+    if (!CreateDirectoryW(dir, NULL) && GetLastError() != ERROR_ALREADY_EXISTS) return;
+    SYSTEMTIME st; GetLocalTime(&st);
+    _snwprintf_s(path, MAX_PATH, _TRUNCATE,
+        L"%sOrbitals-%04u%02u%02u-%02u%02u%02u-p%lu-t%lu.dmp", dir,
+        st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond,
+        GetCurrentProcessId(), GetCurrentThreadId());
+    HANDLE file = CreateFileW(path, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (file == INVALID_HANDLE_VALUE) return;
+    MINIDUMP_EXCEPTION_INFORMATION ex = {GetCurrentThreadId(), ep, FALSE};
+    MINIDUMP_TYPE type = (MINIDUMP_TYPE)(MiniDumpWithDataSegs | MiniDumpWithHandleData |
+        MiniDumpWithUnloadedModules | MiniDumpWithThreadInfo | MiniDumpWithIndirectlyReferencedMemory |
+        MiniDumpWithPrivateReadWriteMemory);
+    BOOL ok = MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), file, type, &ex, NULL, NULL);
+    CloseHandle(file);
+    if (!ok) { DeleteFileW(path); return; }
+    WideCharToMultiByte(CP_UTF8, 0, path, -1, crash_dump_path_utf8,
+                        (int)sizeof crash_dump_path_utf8, NULL, NULL);
+}
 
 int plat_crash_host_context(uint64_t regs[16], uint8_t insn[16], uint32_t *insn_n,
                             uint64_t stack[CRASH_HOST_STACK_WORDS], uint32_t *stack_n,
@@ -194,6 +224,7 @@ static LONG CALLBACK crash_veh(EXCEPTION_POINTERS *ep) {
     if (!in_module && sp && !(sp & 7) && plat_mem_readable(sp, 8)) c.ret = *(const uintptr_t *)sp;
     if (code == EXCEPTION_ACCESS_VIOLATION && ep->ExceptionRecord->NumberParameters >= 2)
         c.access = (int)ep->ExceptionRecord->ExceptionInformation[0], c.addr = ep->ExceptionRecord->ExceptionInformation[1];
+    write_crash_minidump(ep);
     crash_fn(&c);
     return EXCEPTION_CONTINUE_SEARCH;
 }
