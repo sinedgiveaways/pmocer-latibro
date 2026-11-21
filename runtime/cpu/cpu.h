@@ -93,9 +93,9 @@ typedef uint8_t __attribute__((may_alias)) u8a;
 // library reads them directly rather than through an import.
 extern volatile int g_fnprof __attribute__((visibility("hidden")));
 extern uint8_t rt_patch_on[] __attribute__((visibility("hidden")));
-void fnprof_hit(Cpu *c, uint64_t addr, uint64_t lr, uint64_t x0);
+void fnprof_hit(uint64_t addr, uint64_t lr, uint64_t x0);
 #define FN_ENTER(a) do { \
-    if (__builtin_expect(g_fnprof, 0)) fnprof_hit(c, a, c->x[30], c->x[0]); \
+    if (__builtin_expect(g_fnprof, 0)) fnprof_hit(a, c->x[30], c->x[0]); \
 } while (0)
 #define LD8(a)  (*(const u8a *)(uintptr_t)(a))
 #define LD16(a) (*(const u16u *)(uintptr_t)(a))
