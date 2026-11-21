@@ -111,7 +111,8 @@ void rt_tpidr_write(Cpu *c, uint64_t pc, uint64_t value) {
 #define TLS_CANDIDATES 3u
 uint64_t g_get_tls_value_pc __attribute__((visibility("hidden")));
 typedef struct {
-    uint64_t seq, thread, pc, lr, x0, x27, table, tpidr, tpidrro;
+    uint64_t seq, thread, pc, lr, x0, x27, table, tpidr, tpidrro, sp, fp;
+    uint32_t host_tid;
     uint64_t x27_region_end, table_region_end;
     int32_t x27_region_state, table_region_state;
     uint32_t slot_valid, slots[TLS_CANDIDATES];
@@ -144,6 +145,9 @@ void rt_tls_call_trace_entry(Cpu *c, uint64_t pc) {
     __atomic_store_n(&e->table, have_table ? table : 0, __ATOMIC_RELAXED);
     __atomic_store_n(&e->tpidr, c->tpidr, __ATOMIC_RELAXED);
     __atomic_store_n(&e->tpidrro, c->tpidrro, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->sp, c->sp, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->fp, c->x[29], __ATOMIC_RELAXED);
+    __atomic_store_n(&e->host_tid, plat_thread_id(), __ATOMIC_RELAXED);
     __atomic_store_n(&e->x27_region_end, x27_end, __ATOMIC_RELAXED);
     __atomic_store_n(&e->table_region_end, table_end, __ATOMIC_RELAXED);
     __atomic_store_n(&e->x27_region_state, x27_state, __ATOMIC_RELAXED);
@@ -173,6 +177,9 @@ void rt_tls_call_trace_dump(Cpu *c) {
         uint64_t table = __atomic_load_n(&e->table, __ATOMIC_RELAXED);
         uint64_t tpidr = __atomic_load_n(&e->tpidr, __ATOMIC_RELAXED);
         uint64_t tpidrro = __atomic_load_n(&e->tpidrro, __ATOMIC_RELAXED);
+        uint64_t sp = __atomic_load_n(&e->sp, __ATOMIC_RELAXED);
+        uint64_t fp = __atomic_load_n(&e->fp, __ATOMIC_RELAXED);
+        uint32_t host_tid = __atomic_load_n(&e->host_tid, __ATOMIC_RELAXED);
         uint64_t xe = __atomic_load_n(&e->x27_region_end, __ATOMIC_RELAXED);
         uint64_t te = __atomic_load_n(&e->table_region_end, __ATOMIC_RELAXED);
         int xs = __atomic_load_n(&e->x27_region_state, __ATOMIC_RELAXED);
@@ -183,7 +190,7 @@ void rt_tls_call_trace_dump(Cpu *c) {
             slots[i] = __atomic_load_n(&e->slots[i], __ATOMIC_RELAXED);
         if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
         rt_logf("  GetTlsValue[%llu]: pc=%#llx lr=%#llx TlsSlot(x0)=%#llx x27=%#llx [x27]=%#llx TPIDR=%#llx TLR=%#llx\n",
-                (unsigned long long)seq, (unsigned long long)pc, (unsigned long long)lr,
+                (unsigned long long)seq, host_tid, (unsigned long long)pc, (unsigned long long)lr,
                 (unsigned long long)x0, (unsigned long long)x27, (unsigned long long)table,
                 (unsigned long long)tpidr, (unsigned long long)tpidrro);
         rt_logf("    x27 region: state=%d end=%#llx; table region: state=%d end=%#llx\n",
