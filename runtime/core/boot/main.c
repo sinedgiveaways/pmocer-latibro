@@ -290,7 +290,7 @@ static void crash_handler(const PlatCrash *x) {
         if (x->addr != UINT64_MAX) {
             uint64_t region_end = 0;
             int region_state = plat_mem_state(x->addr, x->addr + 1, &region_end);
-            rt_logf("\\n  fault address region: state=%d end=%#llx", region_state,
+            rt_logf("\n  fault address region: state=%d end=%#llx", region_state,
                     (unsigned long long)region_end);
         }
     }
