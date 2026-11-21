@@ -94,6 +94,8 @@ void rt_tls_call_trace_dump(Cpu *c);
 void rt_crash_b_trace_begin(Cpu *c, uint64_t pc);
 void rt_crash_b_instruction_trace(Cpu *c, uint64_t pc);
 void rt_crash_b_instruction_trace_dump(Cpu *c);
+void rt_crash_b_element_trace(Cpu *c, uint64_t pc);
+void rt_crash_b_element_trace_dump(void);
 void fnprof_hit(uint64_t addr, uint64_t lr, uint64_t x0);
 #define FN_ENTER(a) do { if (__builtin_expect(g_fnprof, 0)) fnprof_hit(a, c->x[30], c->x[0]); } while (0)
 
