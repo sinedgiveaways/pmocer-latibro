@@ -26,9 +26,9 @@ jobs:
     steps:
       - name: Tools
         run: pacman -Syu --noconfirm --needed git ccache ninja cmake binutils uv python curl
+      - uses: actions/checkout@v5
       - name: Validate diagnostic recompiler syntax
         run: python -m py_compile recomp/gen.py
-      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: ccache in the checkout, kept between runs (build.py compiles through it when installed)
