@@ -280,7 +280,7 @@ def ninja_file(target: Target, gen: Path, out: Path, rt_extra: list[str], dist: 
         ),
         f"rule ar\n  command = rm -f $out && {target.ar} rcs $out $in\n  description = ar $out",
         (
-            f"rule solink\n  command = {' '.join([target.cc, *(sys_flags or [])])} -shared -fuse-ld=lld -o $out $in $solibs"
+            f"rule solink\n  command = {' '.join([target.cc, *(sys_flags or [])])} -shared -fuse-ld=lld -Wl,--Map=$out.map -o $out $in $solibs"
             "\n  description = link $out"
         ),
         (
