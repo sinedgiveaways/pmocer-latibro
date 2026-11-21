@@ -452,3 +452,66 @@ void rt_dispatch(Cpu *c) {
 RtDispatchStats rt_dispatch_stats(void) {
     return (RtDispatchStats){D.lo, D.lo + D.slots * 4, D.slots, g_table_bytes, g_functions, g_nhost};
 }
+
+
+/* Crash B trace: main+0x1759b20 (f_7001759b20). The generated hook runs
+ * immediately before each guest instruction. Keep a bounded tail so the
+ * faulting load and its path predecessors survive the fatal report. */
+#define CRASH_B_TRACE_CAP 64u
+typedef struct {
+    uint64_t seq, thread, pc, sp;
+    uint32_t host_tid;
+    uint64_t x[31];
+} CrashBTraceEntry;
+static CrashBTraceEntry crash_b_trace[CRASH_B_TRACE_CAP];
+static uint64_t crash_b_trace_next;
+static uint64_t crash_b_trace_pc;
+
+void rt_crash_b_trace_begin(Cpu *c, uint64_t pc) {
+    if (!c) return;
+    crash_b_trace_pc = pc;
+}
+
+void rt_crash_b_instruction_trace(Cpu *c, uint64_t pc) {
+    if (!c) return;
+    uint64_t seq = __atomic_add_fetch(&crash_b_trace_next, 1, __ATOMIC_RELAXED);
+    CrashBTraceEntry *e = &crash_b_trace[(seq - 1) % CRASH_B_TRACE_CAP];
+    __atomic_store_n(&e->seq, 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->thread, (uint64_t)(uintptr_t)c->thread, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->pc, pc, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->sp, c->sp, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->host_tid, plat_thread_id(), __ATOMIC_RELAXED);
+    for (uint32_t i = 0; i < 31; i++)
+        __atomic_store_n(&e->x[i], c->x[i], __ATOMIC_RELAXED);
+    __atomic_store_n(&e->seq, seq, __ATOMIC_RELEASE);
+}
+
+void rt_crash_b_instruction_trace_dump(Cpu *c) {
+    uint64_t thread = c ? (uint64_t)(uintptr_t)c->thread : 0;
+    uint64_t end = __atomic_load_n(&crash_b_trace_next, __ATOMIC_ACQUIRE);
+    uint64_t begin = end > CRASH_B_TRACE_CAP ? end - CRASH_B_TRACE_CAP + 1 : 1;
+    rt_logf("FATAL: Crash B main+0x1759b20 instruction trace; guest_thread=%#llx entries=%llu (max %u)\\n",
+            (unsigned long long)thread, (unsigned long long)(end ? end - begin + 1 : 0), CRASH_B_TRACE_CAP);
+    for (uint64_t seq = begin; seq <= end && seq; seq++) {
+        CrashBTraceEntry *e = &crash_b_trace[(seq - 1) % CRASH_B_TRACE_CAP];
+        if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
+        uint64_t owner = __atomic_load_n(&e->thread, __ATOMIC_RELAXED);
+        if (c && owner != thread) continue;
+        uint64_t pc = __atomic_load_n(&e->pc, __ATOMIC_RELAXED);
+        uint64_t sp = __atomic_load_n(&e->sp, __ATOMIC_RELAXED);
+        uint32_t tid = __atomic_load_n(&e->host_tid, __ATOMIC_RELAXED);
+        uint64_t x[31];
+        for (uint32_t i = 0; i < 31; i++)
+            x[i] = __atomic_load_n(&e->x[i], __ATOMIC_RELAXED);
+        if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
+        rt_logf("  main+%#llx host_tid=%u guest_thread=%#llx SP=%#llx\\n",
+                (unsigned long long)(pc - crash_b_trace_pc), tid,
+                (unsigned long long)owner, (unsigned long long)sp);
+        for (uint32_t i = 0; i < 31; i += 4) {
+            rt_logf("    x%-2u=%016llx", i, (unsigned long long)x[i]);
+            for (uint32_t j = i + 1; j < 31 && j < i + 4; j++)
+                rt_logf(" x%-2u=%016llx", j, (unsigned long long)x[j]);
+            rt_log_raw("\\n", 1);
+        }
+    }
+}
