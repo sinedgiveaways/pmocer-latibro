@@ -19,6 +19,9 @@
 #include "nvn_api.h"
 #include "platform/platform.h"
 
+// Private runtime diagnostic hook; keep cpu.h unchanged so the existing game-code ABI ID remains valid.
+void rt_tls_diag_hit(Cpu *c, uint64_t pc);
+
 #define HSIZE 8192   // power of two; main imports 1 289 functions
 
 static uint64_t main_lo, main_hi;
