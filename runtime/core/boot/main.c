@@ -263,13 +263,13 @@ static void crash_handler(const PlatCrash *x) {
     uint8_t insn[16];
     uint32_t insn_n = 0, host_stack_n = 0, host_tid = 0;
     if (plat_crash_host_context(host, insn, &insn_n, host_stack, &host_stack_n, &host_tid)) {
-        rt_logf("  host thread id=%u; raw stack snapshot from fault RSP (%u qwords):\\n",
+        rt_logf("  host thread id=%u; raw stack snapshot from fault RSP (%u qwords):\n",
                 host_tid, host_stack_n);
         for (uint32_t i = 0; i < host_stack_n; i += 4) {
             rt_logf("    rsp+%03x:", i * 8);
             for (uint32_t j = i; j < host_stack_n && j < i + 4; j++)
                 rt_logf(" %016llx", (unsigned long long)host_stack[j]);
-            rt_log_raw("\\n", 1);
+            rt_log_raw("\n", 1);
         }
         static const char *const names[16] = {
             "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi",
