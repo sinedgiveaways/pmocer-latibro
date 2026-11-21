@@ -30,7 +30,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Validate diagnostic recompiler and build scripts
-        run: python -m py_compile recomp/gen.py tools/build/build.py
+        run: python -m py_compile recomp/gen.py tools/build/build.py tools/prepare/gamecode.py tools/prepare/machine.py
       - name: Validate generated-game diagnostic imports
         run: |
           python - <<'PY'
