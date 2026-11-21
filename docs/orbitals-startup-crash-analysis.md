@@ -120,6 +120,8 @@ The Windows VEH already copies all 16 host GPRs, up to 16 instruction bytes, and
 The per-thread recorder currently has 32 permanently claimed thread slots and retains 64 events per event type per thread. Slots are not reclaimed when guest threads exit. On a busy process, slot exhaustion and ring wrap are expected; a missing event is not evidence that the call never happened. The large reported ring-overflow counts make absence-based conclusions unsafe.
 
 ### Next implementation / analysis steps
+The crash reporter now also prints the nearest lifted host-function entry and the byte delta from that entry to the faulting host RIP. This is a runtime-only diagnostic in `runtime/core/boot/main.c`; it makes the next crash log directly searchable against the generated host function's disassembly without tracing every guest call. The Windows runtime-only build is triggered by the branch update.
+
 
 1. Use the exact host fault RIP and instruction bytes from the fatal record to locate the instruction inside the host function generated for guest `main+0x1759b20`. Use the matching build's generated object or emitted C; do not infer a host-to-guest register map from equal numeric values alone.
 2. Reconstruct the host dataflow immediately before the faulting load: where RCX becomes zero, where R8 becomes `0xa8`, and which earlier load or calculation supplied each value.
