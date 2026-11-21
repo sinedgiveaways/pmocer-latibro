@@ -263,7 +263,7 @@ static void crash_handler(const PlatCrash *x) {
     rt_tpidr_trace_dump();
 #ifdef _WIN32
     const char *dump_path = plat_crash_dump_path();
-    if (dump_path && dump_path[0]) rt_logf("  Windows minidump: %s\\n", dump_path);
+    if (dump_path && dump_path[0]) rt_logf("  Windows minidump: %s\n", dump_path);
     uint64_t host[16], host_stack[64];
     uint8_t insn[16];
     uint32_t insn_n = 0, host_stack_n = 0, host_tid = 0;
