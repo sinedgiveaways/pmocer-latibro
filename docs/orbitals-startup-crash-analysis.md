@@ -320,3 +320,19 @@ A caller scan found one direct branch to `main+0xb67a0`, at `main+0xb831c`, with
 4. Capture the rejected pointer from the live crash, plus the live manager pointer/vtable/slot-`+0x50` target and the allocator region key/bucket chain. Without the actual pointer and runtime object, the disassembly cannot distinguish a wrong-manager free, stale pointer, duplicate free, or prior metadata corruption.
 
 No allocator code change or root-cause claim is made by this update.
+
+
+## Runtime instrumentation added on `mco2vie/orbital-crash-trace`
+
+The diagnostic branch now captures the investigated SDK lookup at function entry:
+
+- The entry address is resolved from the loaded `sdk` module base plus `0x16b730`, so ASLR does not change the target.
+- The generated function-entry macro checks that address and records only calls to `GetTlsValue`; it does not log every guest function.
+- A bounded 32-entry lock-free ring stores guest thread identity, `x0` (the `TlsSlot` argument), `x27`, `[x27]` when safely readable, guest LR, TPIDR/TLR, and the memory-region state/end for `x27` and the first pointer.
+- It also samples three candidate table words at offsets `+0x5c`, `+0x38+0x5c`, and `+0x70+0x5c`, using guarded process-memory reads. These are diagnostic samples, not an assertion about the final slot-index formula.
+- On a crash, the report dumps the ring entries belonging to the faulting guest thread before the existing TPIDR, host-register, instruction-byte, guest-register, and guest-frame diagnostics.
+- Windows artifact and zip labels on this branch use the `mco2vie` prefix.
+
+Existing diagnostics remain available: set `ORBITALS_TRACE_TPIDR=1` in the runtime config to record TPIDR reads/writes. Vulkan breadcrumbs are already enabled by default on supported drivers; `ORBITALS_GPU_CRUMBS=0` disables them and `ORBITALS_GPU_CRUMBS_DRAW=1` adds draw-level breadcrumbs.
+
+**Validation status:** source changes are committed to this branch, but they have not yet been compiled or exercised in a Windows game run. The new TLS samples are intended to identify the pointer chain at the failing call; they do not establish the earlier corruption/root cause by themselves.
