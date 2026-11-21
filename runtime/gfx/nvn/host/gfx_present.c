@@ -18,6 +18,7 @@
 #include <string.h>
 
 #include "cfg.h"
+#include "cpu.h"
 #include "flight.h"
 #include "fs.h"
 #include "gfx.h"
@@ -67,6 +68,10 @@ void gfx_window_focus_changed(int in) {
 // done.
 void gfx_window_closed(void) {
     rt_log("gfx: window closed; exiting");
+    /* Keep the TLS diagnostic useful even when the user closes the menu
+     * before reproducing the fault. NULL asks for every retained guest thread. */
+    if (cfg_get("ORBITALS_TLS_DIAG") && strcmp(cfg_get("ORBITALS_TLS_DIAG"), "0"))
+        rt_tls_call_trace_dump(NULL);
     fs_save_flush();
     vk_pipeline_save();
     prof_write();   // plat_exit runs no atexit handlers
