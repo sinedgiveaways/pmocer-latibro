@@ -367,10 +367,10 @@ This is the key capture for identifying the exact values used by a faulting load
 
 ## Crash B: expanded capture on mco2vie/orbital-crash-trace
 
-The previous instruction ring targeted `sdk+0x16b730` (GetTlsValue). That remains a secondary trace only; it is not treated as the faulting function. The new primary ring targets the lifted function `main+0x1759b20` (`f_7001759b20`), which contains the failing host-side lifted instruction sequence documented in the Crash B control-flow follow-up.
+The earlier instruction ring targeted `sdk+0x16b730` (GetTlsValue), not the faulting function. That per-instruction ring has been removed to avoid tracing an unrelated hot path. The GetTlsValue entry/pointer snapshot remains optional when `ORBITALS_TRACE_TPIDR=1`. The new primary ring targets the lifted function `main+0x1759b20` (`f_7001759b20`), which contains the failing host-side lifted instruction sequence documented in the Crash B control-flow follow-up.
 
 - A 64-entry lock-free ring snapshots guest PC, SP, host TID, guest-thread pointer and all `x0..x30` immediately before each guest instruction in that one function.
-- The fatal report prints the Crash B ring first, filtered to the current guest thread, then the older GetTlsValue and TPIDR traces.
+- The fatal report prints the Crash B ring first, filtered to the current guest thread. GetTlsValue entry/pointer snapshots and TPIDR read/write history are optional secondary traces enabled with `ORBITALS_TRACE_TPIDR=1`.
 - On Windows, an additional DbgHelp minidump is written to `%TEMP%\\OrbitalsCrashDumps\\` for faults handled by the runtime. It includes thread information, handles, unloaded modules, data segments, indirectly referenced memory and private read/write memory. It is not a full-memory dump.
 - The path to a successfully written dump is printed in the fatal log. The dump may contain process memory and should be treated as private.
 - The Windows build links DbgHelp and publishes the linker map as a separate `orbitals-crash-symbols-mco2vie` artifact alongside the executable and player package.
