@@ -435,8 +435,8 @@ class Emitter:
             if fp.used:
                 out.append('    ' + fp.decl())
 
-        # Instrument only the one SDK function under investigation. Doing this
-        # in code generation avoids adding a branch or call to every game function.
+        # Instrument only the investigated SDK function. Apply after both emitter
+        # layouts so functions with unresolved branches/setjmp are covered too.
         if mod.name == 'sdk' and entry == mod.base + 0x16b730:
             out.insert(2, f'    rt_tls_call_trace_entry(c, {hx(entry)});')
 
