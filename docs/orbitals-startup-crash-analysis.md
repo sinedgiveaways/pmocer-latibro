@@ -336,3 +336,20 @@ The diagnostic branch now captures the investigated SDK lookup at function entry
 Existing diagnostics remain available: set `ORBITALS_TRACE_TPIDR=1` in the runtime config to record TPIDR reads/writes. Vulkan breadcrumbs are already enabled by default on supported drivers; `ORBITALS_GPU_CRUMBS=0` disables them and `ORBITALS_GPU_CRUMBS_DRAW=1` adds draw-level breadcrumbs.
 
 **Validation status:** source changes are committed to this branch, but they have not yet been compiled or exercised in a Windows game run. The new TLS samples are intended to identify the pointer chain at the failing call; they do not establish the earlier corruption/root cause by themselves.
+
+
+### Additional Windows crash context
+
+The Windows vectored exception handler now snapshots, before entering the crash reporter:
+
+- The host thread ID.
+- Up to 64 pointer-sized words beginning at the exception-time host RSP, copied with `ReadProcessMemory`.
+- The host general-purpose registers and bytes at the faulting RIP (already present).
+
+The fatal report prints this bounded raw stack snapshot with offsets from RSP. It is intentionally labelled as raw stack data rather than an unwound call stack: lifted/JIT frames cannot safely be claimed as symbolicated frames from this snapshot alone.
+
+The `GetTlsValue` entry hook is emitted after both generated-function layouts are selected, so it also covers functions that use unresolved-branch or setjmp dispatch layouts. The hook is limited to the one SDK function and does not add a test to every guest function's hot entry macro.
+
+### Build trigger
+
+The Windows workflow now runs on pushes to `mco2vie/orbital-crash-trace` and pull requests targeting `copilot/orbital-copilot-analyse`, as well as the existing `orbitals-port` events. Manual `workflow_dispatch` remains available.
