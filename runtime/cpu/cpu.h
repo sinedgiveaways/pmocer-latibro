@@ -40,7 +40,8 @@ uint64_t rt_tpidr_read(Cpu *c, uint64_t pc);
 void rt_tpidr_write(Cpu *c, uint64_t pc, uint64_t value);
 void rt_tpidr_trace_dump(void);
 void rt_tls_call_trace_entry(Cpu *c);
-void rt_tls_call_trace_dump(Cpu *c);  // last GetTlsValue entry for the faulting guest thread
+void rt_tls_diag_hit(Cpu *c, uint64_t pc);
+void rt_tls_call_trace_dump(Cpu *c);  // both Crash B target entries for the faulting guest thread
 extern uint64_t g_get_tls_value_pc __attribute__((visibility("hidden")));
 void rt_sj_owner(Cpu *c, GuestFn body, uint64_t lo, uint64_t hi);   // a setjmp caller's body (cpu/sjlj.c)
 void rt_spin_gate(Cpu *c, uint64_t head);  // a pass of a spin wait loop (kernel.c, recomp/patches.py `spin`)
@@ -92,9 +93,9 @@ typedef uint8_t __attribute__((may_alias)) u8a;
 // library reads them directly rather than through an import.
 extern volatile int g_fnprof __attribute__((visibility("hidden")));
 extern uint8_t rt_patch_on[] __attribute__((visibility("hidden")));
-void fnprof_hit(uint64_t addr, uint64_t lr, uint64_t x0);
+void fnprof_hit(Cpu *c, uint64_t addr, uint64_t lr, uint64_t x0);
 #define FN_ENTER(a) do { \
-    if (__builtin_expect(g_fnprof, 0)) fnprof_hit(a, c->x[30], c->x[0]); \
+    if (__builtin_expect(g_fnprof, 0)) fnprof_hit(c, a, c->x[30], c->x[0]); \
 } while (0)
 #define LD8(a)  (*(const u8a *)(uintptr_t)(a))
 #define LD16(a) (*(const u16u *)(uintptr_t)(a))
