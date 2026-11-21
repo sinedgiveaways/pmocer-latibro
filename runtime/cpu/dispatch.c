@@ -122,15 +122,17 @@ void rt_tls_call_trace_dump(Cpu *c) {
             (unsigned long long)__atomic_load_n(&tls_hook_last_thread, __ATOMIC_RELAXED),
             (unsigned long long)__atomic_load_n(&tls_hook_last_cpu, __ATOMIC_RELAXED),
             (unsigned long long)__atomic_load_n(&tls_hook_last_lr, __ATOMIC_RELAXED));
-    if (!c) return;
-    uint64_t thread = (uint64_t)(uintptr_t)c->thread;
+    /* A normal window close has no single current guest CPU. In that case dump
+     * every retained entry, preserving the guest thread identity in each record. */
+    uint64_t thread = c ? (uint64_t)(uintptr_t)c->thread : 0;
     uint64_t end = __atomic_load_n(&tls_call_trace_next, __ATOMIC_ACQUIRE);
     uint64_t begin = end > TLS_CALL_TRACE_CAP ? end - TLS_CALL_TRACE_CAP + 1 : 1;
     uint64_t found = 0;
     for (uint64_t seq = begin; seq <= end && seq; seq++) {
         TlsCallTraceEntry *e = &tls_call_trace[(seq - 1) % TLS_CALL_TRACE_CAP];
         if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
-        if (__atomic_load_n(&e->thread, __ATOMIC_RELAXED) != thread) continue;
+        uint64_t entry_thread = __atomic_load_n(&e->thread, __ATOMIC_RELAXED);
+        if (c && entry_thread != thread) continue;
         uint64_t pc = __atomic_load_n(&e->pc, __ATOMIC_RELAXED);
         uint64_t x[8], x27 = __atomic_load_n(&e->x27, __ATOMIC_RELAXED);
         uint64_t tpidr = __atomic_load_n(&e->tpidr, __ATOMIC_RELAXED);
@@ -139,7 +141,7 @@ void rt_tls_call_trace_dump(Cpu *c) {
         for (int i = 0; i < 8; i++) x[i] = __atomic_load_n(&e->x[i], __ATOMIC_RELAXED);
         if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
         rt_logf("  TLS entry: thread=%#llx pc=%#llx target=%s\n",
-                (unsigned long long)thread, (unsigned long long)pc,
+                (unsigned long long)entry_thread, (unsigned long long)pc,
                 pc == g_get_tls_value_pc ? "nn::os::GetTlsValue" : "main+0x1759b20");
         rt_logf("    x0=%#llx x1=%#llx x2=%#llx x3=%#llx x4=%#llx x5=%#llx x6=%#llx x7=%#llx\n",
                 (unsigned long long)x[0], (unsigned long long)x[1], (unsigned long long)x[2],
@@ -150,7 +152,10 @@ void rt_tls_call_trace_dump(Cpu *c) {
                 (unsigned long long)lr);
         found++;
     }
-    if (!found) rt_logf("  TLS entry: no target entries captured for thread=%#llx\n", (unsigned long long)thread);
+    if (!found) {
+        if (c) rt_logf("  TLS entry: no target entries captured for thread=%#llx\n", (unsigned long long)thread);
+        else rt_log("  TLS entry: no target entries captured in retained ring");
+    }
 }
 
 int rt_tpidr_trace_enabled(void) { return rt_tpidr_trace; }
