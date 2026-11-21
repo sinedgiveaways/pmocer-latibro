@@ -232,7 +232,8 @@ def defaults_glue(exefs: Path, romfs: Path, dist: bool) -> str:
 
 # What the game code library calls in the runtime (runtime/cpu/cpu.h): the executable exports them.
 RT_EXPORTS = ("rt_dispatch", "rt_sj_owner", "rt_svc", "rt_brk", "rt_udf", "rt_ticks", "rt_spin_gate", "fnprof_hit",
-              "rt_tpidr_trace_enabled", "rt_tpidr_read", "rt_tpidr_write")
+              "rt_tpidr_trace_enabled", "rt_tpidr_read", "rt_tpidr_write",
+              "rt_tls_call_trace_entry", "rt_crash_b_trace_begin", "rt_crash_b_instruction_trace")
 
 
 def ninja_file(target: Target, gen: Path, out: Path, rt_extra: list[str], dist: Path | None,
