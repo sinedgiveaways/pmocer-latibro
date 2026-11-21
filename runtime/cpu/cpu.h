@@ -90,6 +90,7 @@ typedef uint8_t __attribute__((may_alias)) u8a;
 extern volatile int g_fnprof __attribute__((visibility("hidden")));
 extern uint8_t rt_patch_on[] __attribute__((visibility("hidden")));
 void rt_tls_call_trace_entry(Cpu *c, uint64_t pc);
+void rt_tls_call_trace_dump(Cpu *c);
 void rt_tls_instruction_trace(Cpu *c, uint64_t pc);
 void rt_tls_instruction_trace_dump(Cpu *c);
 void fnprof_hit(uint64_t addr, uint64_t lr, uint64_t x0);
