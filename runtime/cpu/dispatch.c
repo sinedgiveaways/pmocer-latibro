@@ -442,7 +442,7 @@ void rt_crash_b_instruction_trace_dump(Cpu *c) {
             __atomic_load_n(&e->thread, __ATOMIC_RELAXED) == thread)
             matching++;
     }
-    rt_logf("FATAL: Crash B main+0x1759b20 instruction trace; guest_thread=%#llx entries=%llu (ring max %u)\\n",
+    rt_logf("FATAL: Crash B main+0x1759b20 instruction trace; guest_thread=%#llx entries=%llu (ring max %u)\n",
             (unsigned long long)thread, (unsigned long long)matching, CRASH_B_TRACE_CAP);
     for (uint64_t seq = begin; seq <= end && seq; seq++) {
         CrashBTraceEntry *e = &crash_b_trace[(seq - 1) % CRASH_B_TRACE_CAP];
