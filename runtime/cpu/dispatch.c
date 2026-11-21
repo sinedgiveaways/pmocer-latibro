@@ -110,13 +110,13 @@ void rt_tls_diag_hit(Cpu *c, uint64_t pc) {
 }
 
 void rt_tls_call_trace_dump(Cpu *c) {
-    rt_logf("  TLS hook stats: calls=%llu cpu_ok=%llu cpu_null=%llu GetTlsValue=%llu fault_pc=%llu\\n",
+    rt_logf("  TLS hook stats: calls=%llu cpu_ok=%llu cpu_null=%llu GetTlsValue=%llu fault_pc=%llu\n",
             (unsigned long long)__atomic_load_n(&tls_hook_calls, __ATOMIC_RELAXED),
             (unsigned long long)__atomic_load_n(&tls_hook_cpu_ok, __ATOMIC_RELAXED),
             (unsigned long long)__atomic_load_n(&tls_hook_cpu_null, __ATOMIC_RELAXED),
             (unsigned long long)__atomic_load_n(&tls_hook_get_tls, __ATOMIC_RELAXED),
             (unsigned long long)__atomic_load_n(&tls_hook_fault_pc, __ATOMIC_RELAXED));
-    rt_logf("    configured GetTlsValue=%#llx fault_pc=%#llx last_pc=%#llx last_thread=%#llx last_cpu=%#llx last_lr=%#llx\\n",
+    rt_logf("    configured GetTlsValue=%#llx fault_pc=%#llx last_pc=%#llx last_thread=%#llx last_cpu=%#llx last_lr=%#llx\n",
             (unsigned long long)g_get_tls_value_pc, (unsigned long long)g_tls_fault_pc,
             (unsigned long long)__atomic_load_n(&tls_hook_last_pc, __ATOMIC_RELAXED),
             (unsigned long long)__atomic_load_n(&tls_hook_last_thread, __ATOMIC_RELAXED),
