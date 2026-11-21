@@ -247,6 +247,7 @@ static int readable(uint64_t a, uint64_t n) { return plat_mem_readable(a, n); }
 // Windows-only fault context captured by win32_mem.c's vectored exception handler.
 extern int plat_crash_host_context(uint64_t regs[16], uint8_t insn[16], uint32_t *insn_n,
                                        uint64_t stack[64], uint32_t *stack_n, uint32_t *thread_id);
+extern const char *plat_crash_dump_path(void);
 #endif
 
 static void crash_handler(const PlatCrash *x) {
@@ -256,10 +257,13 @@ static void crash_handler(const PlatCrash *x) {
     uintptr_t rip = x->rip;
     rt_logf("FATAL: %s (%#x) at host %p (%s+%#llx)", x->what, x->code, (void *)rip, x->module ? x->module : "orbitals-recomp",
             (unsigned long long)x->offset);
+    rt_crash_b_instruction_trace_dump(kern_cpu());
     rt_tls_instruction_trace_dump(kern_cpu());
     rt_tls_call_trace_dump(kern_cpu());
     rt_tpidr_trace_dump();
 #ifdef _WIN32
+    const char *dump_path = plat_crash_dump_path();
+    if (dump_path && dump_path[0]) rt_logf("  Windows minidump: %s\\n", dump_path);
     uint64_t host[16], host_stack[64];
     uint8_t insn[16];
     uint32_t insn_n = 0, host_stack_n = 0, host_tid = 0;
