@@ -356,3 +356,10 @@ The Windows workflow now runs on pushes to `mco2vie/orbital-crash-trace` and pul
 
 
 The TLS ring also records the host OS thread ID alongside the guest runtime-thread pointer, plus guest SP and FP (x29) at function entry. This lets the trace be correlated with the Windows exception's thread ID and guest stack state. The fatal report also queries the memory-region state and end address for the exact access-violation address.
+
+
+### Per-instruction ARM64 register trace
+
+The generated `sdk+0x16b730` function now snapshots the live guest register file before each lifted instruction. Register-local optimization is disabled only for this single function so `Cpu.x[0..30]` and `Cpu.sp` are current at every snapshot. A bounded 32-instruction ring retains the immediately preceding guest PCs, all X registers, SP, host thread ID and guest-thread pointer. The fatal report dumps this ring before the function-entry TLS snapshots.
+
+This is the key capture for identifying the exact values used by a faulting load in the SDK function. It is intentionally restricted to the target function; the rest of the game retains its normal recompilation and register-local optimization.
