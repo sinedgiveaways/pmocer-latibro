@@ -29,8 +29,20 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - name: Validate diagnostic recompiler syntax
-        run: python -m py_compile recomp/gen.py
+      - name: Validate diagnostic recompiler and build scripts
+        run: python -m py_compile recomp/gen.py tools/build/build.py
+      - name: Validate generated-game diagnostic imports
+        run: |
+          python - <<'PY'
+          import sys
+          sys.path.insert(0, 'tools/build')
+          import build
+          required = {'rt_tls_call_trace_entry', 'rt_crash_b_trace_begin', 'rt_crash_b_instruction_trace'}
+          missing = required - set(build.RT_EXPORTS)
+          if missing:
+              raise SystemExit(f'missing generated-game runtime exports: {sorted(missing)}')
+          print('all generated-game crash-trace imports are exported')
+          PY
       - name: ccache in the checkout, kept between runs (build.py compiles through it when installed)
         run: echo "CCACHE_DIR=$PWD/.ccache" >> "$GITHUB_ENV"
       - uses: actions/cache@v4
