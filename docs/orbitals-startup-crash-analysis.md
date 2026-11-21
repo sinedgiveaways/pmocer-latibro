@@ -353,3 +353,6 @@ The `GetTlsValue` entry hook is emitted after both generated-function layouts ar
 ### Build trigger
 
 The Windows workflow now runs on pushes to `mco2vie/orbital-crash-trace` and pull requests targeting `copilot/orbital-copilot-analyse`, as well as the existing `orbitals-port` events. Manual `workflow_dispatch` remains available.
+
+
+The TLS ring also records the host OS thread ID alongside the guest runtime-thread pointer, plus guest SP and FP (x29) at function entry. This lets the trace be correlated with the Windows exception's thread ID and guest stack state. The fatal report also queries the memory-region state and end address for the exact access-violation address.
