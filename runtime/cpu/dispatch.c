@@ -431,6 +431,147 @@ void rt_crash_b_instruction_trace(Cpu *c, uint64_t pc) {
     __atomic_store_n(&e->seq, seq, __ATOMIC_RELEASE);
 }
 
+
+/* Targeted Crash B element snapshot at main+0x18f71. This PC is immediately
+ * after the candidate element's +0xd8 field is loaded. Record only the
+ * sentinel state (-1), across all guest threads, so concurrent readers can
+ * be compared without flooding the ordinary instruction ring. */
+#define CRASH_B_ELEMENT_TRACE_CAP 16u
+#define CRASH_B_ELEMENT_QWORDS (0xE8u / 8u)
+typedef struct {
+    uint64_t seq, thread, pc, sp, x[31];
+    uint64_t owner_count, data_base, bitmap_ptr, inline_bitmap_word0;
+    uint64_t secondary_base;
+    uint32_t host_tid, k, element_valid, bitmap_valid, bitmap_word, bitmap_bit;
+    uint32_t bitmap_source, secondary_count, first_word, d8_value;
+    uint64_t element[CRASH_B_ELEMENT_QWORDS];
+} CrashBElementTraceEntry;
+static CrashBElementTraceEntry crash_b_element_trace[CRASH_B_ELEMENT_TRACE_CAP];
+static uint64_t crash_b_element_trace_next;
+
+void rt_crash_b_element_trace(Cpu *c, uint64_t pc) {
+    if (!c) return;
+    uint64_t element = c->x[27];
+    uint32_t d8 = 0;
+    if (!element || element > UINT64_MAX - 0xE8 ||
+        !plat_mem_read(element + 0xD8, &d8, sizeof d8) || d8 != UINT32_MAX)
+        return;
+
+    uint64_t owner = c->x[21];
+    uint64_t owner_count = 0, data_base = 0, bitmap_ptr = 0, inline_bitmap_word0 = 0;
+    uint64_t secondary_base = 0;
+    uint32_t secondary_count = 0;
+    if (owner && owner <= UINT64_MAX - 0x478) {
+        (void)plat_mem_read(owner + 0x160, &owner_count, sizeof owner_count);
+        (void)plat_mem_read(owner + 0x158, &data_base, sizeof data_base);
+        (void)plat_mem_read(owner + 0x178, &bitmap_ptr, sizeof bitmap_ptr);
+        (void)plat_mem_read(owner + 0xE0, &inline_bitmap_word0, sizeof inline_bitmap_word0);
+        (void)plat_mem_read(owner + 0x468, &secondary_base, sizeof secondary_base);
+        (void)plat_mem_read(owner + 0x470, &secondary_count, sizeof secondary_count);
+    }
+
+    int32_t signed_k = (int32_t)c->x[20];
+    uint32_t k = (uint32_t)c->x[20];
+    uint64_t bitmap_base = bitmap_ptr ? bitmap_ptr : (owner ? owner + 0xE0 : 0);
+    uint32_t bitmap_word = 0, bitmap_valid = 0, bitmap_bit = k & 31;
+    uint32_t bitmap_source = bitmap_ptr ? 1u : (owner ? 2u : 0u);
+    uint64_t bitmap_offset = ((uint64_t)k >> 5) * 4;
+    if (signed_k >= 0 && bitmap_base && bitmap_base <= UINT64_MAX - bitmap_offset - 4 &&
+        plat_mem_read(bitmap_base + bitmap_offset, &bitmap_word, sizeof bitmap_word))
+        bitmap_valid = 1;
+
+    uint64_t element_words[CRASH_B_ELEMENT_QWORDS] = {0};
+    uint32_t element_valid = plat_mem_read(element, element_words, sizeof element_words) != 0;
+    uint64_t seq = __atomic_add_fetch(&crash_b_element_trace_next, 1, __ATOMIC_RELAXED);
+    CrashBElementTraceEntry *e = &crash_b_element_trace[(seq - 1) % CRASH_B_ELEMENT_TRACE_CAP];
+    __atomic_store_n(&e->seq, 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->thread, (uint64_t)(uintptr_t)c->thread, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->pc, pc, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->sp, c->sp, __ATOMIC_RELAXED);
+    for (uint32_t i = 0; i < 31; i++)
+        __atomic_store_n(&e->x[i], c->x[i], __ATOMIC_RELAXED);
+    __atomic_store_n(&e->owner_count, owner_count, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->data_base, data_base, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->bitmap_ptr, bitmap_ptr, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->inline_bitmap_word0, inline_bitmap_word0, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->secondary_base, secondary_base, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->host_tid, plat_thread_id(), __ATOMIC_RELAXED);
+    __atomic_store_n(&e->k, k, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->element_valid, element_valid, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->bitmap_valid, bitmap_valid, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->bitmap_word, bitmap_word, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->bitmap_bit, bitmap_bit, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->bitmap_source, bitmap_source, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->secondary_count, secondary_count, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->first_word, element_valid ? (uint32_t)element_words[0] : 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->d8_value, d8, __ATOMIC_RELAXED);
+    for (uint32_t i = 0; i < CRASH_B_ELEMENT_QWORDS; i++)
+        __atomic_store_n(&e->element[i], element_words[i], __ATOMIC_RELAXED);
+    __atomic_store_n(&e->seq, seq, __ATOMIC_RELEASE);
+}
+
+void rt_crash_b_element_trace_dump(void) {
+    uint64_t end = __atomic_load_n(&crash_b_element_trace_next, __ATOMIC_ACQUIRE);
+    uint64_t begin = end > CRASH_B_ELEMENT_TRACE_CAP ? end - CRASH_B_ELEMENT_TRACE_CAP + 1 : 1;
+    rt_logf("FATAL: Crash B element snapshots at main+0x18f71 (d8 == -1), entries=%llu (ring max %u)\n",
+            (unsigned long long)(end - begin + (end ? 1 : 0)), CRASH_B_ELEMENT_TRACE_CAP);
+    for (uint64_t seq = begin; seq <= end && seq; seq++) {
+        CrashBElementTraceEntry *e = &crash_b_element_trace[(seq - 1) % CRASH_B_ELEMENT_TRACE_CAP];
+        if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
+        uint64_t thread = __atomic_load_n(&e->thread, __ATOMIC_RELAXED);
+        uint64_t pc = __atomic_load_n(&e->pc, __ATOMIC_RELAXED);
+        uint64_t sp = __atomic_load_n(&e->sp, __ATOMIC_RELAXED);
+        uint64_t x[31];
+        for (uint32_t i = 0; i < 31; i++)
+            x[i] = __atomic_load_n(&e->x[i], __ATOMIC_RELAXED);
+        uint64_t owner_count = __atomic_load_n(&e->owner_count, __ATOMIC_RELAXED);
+        uint64_t data_base = __atomic_load_n(&e->data_base, __ATOMIC_RELAXED);
+        uint64_t bitmap_ptr = __atomic_load_n(&e->bitmap_ptr, __ATOMIC_RELAXED);
+        uint64_t inline_bitmap_word0 = __atomic_load_n(&e->inline_bitmap_word0, __ATOMIC_RELAXED);
+        uint64_t secondary_base = __atomic_load_n(&e->secondary_base, __ATOMIC_RELAXED);
+        uint32_t host_tid = __atomic_load_n(&e->host_tid, __ATOMIC_RELAXED);
+        uint32_t k = __atomic_load_n(&e->k, __ATOMIC_RELAXED);
+        uint32_t element_valid = __atomic_load_n(&e->element_valid, __ATOMIC_RELAXED);
+        uint32_t bitmap_valid = __atomic_load_n(&e->bitmap_valid, __ATOMIC_RELAXED);
+        uint32_t bitmap_word = __atomic_load_n(&e->bitmap_word, __ATOMIC_RELAXED);
+        uint32_t bitmap_bit = __atomic_load_n(&e->bitmap_bit, __ATOMIC_RELAXED);
+        uint32_t bitmap_source = __atomic_load_n(&e->bitmap_source, __ATOMIC_RELAXED);
+        uint32_t secondary_count = __atomic_load_n(&e->secondary_count, __ATOMIC_RELAXED);
+        uint32_t first_word = __atomic_load_n(&e->first_word, __ATOMIC_RELAXED);
+        uint32_t d8 = __atomic_load_n(&e->d8_value, __ATOMIC_RELAXED);
+        uint64_t words[CRASH_B_ELEMENT_QWORDS];
+        for (uint32_t i = 0; i < CRASH_B_ELEMENT_QWORDS; i++)
+            words[i] = __atomic_load_n(&e->element[i], __ATOMIC_RELAXED);
+        if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
+
+        rt_logf("  snapshot[%llu] host_tid=%u guest_thread=%#llx pc=%#llx SP=%#llx\n",
+                (unsigned long long)seq, host_tid, (unsigned long long)thread,
+                (unsigned long long)pc, (unsigned long long)sp);
+        rt_logf("    k(x20)=%d x12=%#llx x21(owner)=%#llx x27(element)=%#llx x23(list)=%#llx x24(i)=%#llx x22(end)=%#llx\n",
+                (int32_t)k, (unsigned long long)x[12], (unsigned long long)x[21],
+                (unsigned long long)x[27], (unsigned long long)x[23],
+                (unsigned long long)x[24], (unsigned long long)x[22]);
+        rt_logf("    owner count[+0x160]=%#llx data[+0x158]=%#llx bitmap_ptr[+0x178]=%#llx inline_candidate[+0xE0]=%#llx\n",
+                (unsigned long long)owner_count, (unsigned long long)data_base,
+                (unsigned long long)bitmap_ptr, (unsigned long long)inline_bitmap_word0);
+        rt_logf("    bitmap source=%s word=%s%08x bit=%u present=%s; secondary table base[+0x468]=%#llx count[+0x470]=%u\n",
+                bitmap_source == 1 ? "pointer" : bitmap_source == 2 ? "inline-candidate" : "unknown",
+                bitmap_valid ? "" : "unreadable/", bitmap_word, bitmap_bit,
+                bitmap_valid && (bitmap_word & (1u << bitmap_bit)) ? "1" : "0/unknown",
+                (unsigned long long)secondary_base, secondary_count);
+        rt_logf("    element first=%#x d8=%#x dump=%s\n", first_word, d8,
+                element_valid ? "valid" : "unreadable");
+        if (element_valid) {
+            for (uint32_t i = 0; i < CRASH_B_ELEMENT_QWORDS; i += 4) {
+                rt_logf("      +%03x:", i * 8);
+                for (uint32_t j = i; j < CRASH_B_ELEMENT_QWORDS && j < i + 4; j++)
+                    rt_logf(" %016llx", (unsigned long long)words[j]);
+                rt_log_raw("\n", 1);
+            }
+        }
+    }
+}
+
 void rt_crash_b_instruction_trace_dump(Cpu *c) {
     uint64_t thread = c ? (uint64_t)(uintptr_t)c->thread : 0;
     uint64_t end = __atomic_load_n(&crash_b_trace_next, __ATOMIC_ACQUIRE);
