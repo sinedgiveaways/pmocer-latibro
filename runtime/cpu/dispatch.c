@@ -189,13 +189,14 @@ void rt_tls_call_trace_dump(Cpu *c) {
         for (uint32_t i = 0; i < TLS_CANDIDATES; i++)
             slots[i] = __atomic_load_n(&e->slots[i], __ATOMIC_RELAXED);
         if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
-        rt_logf("  GetTlsValue[%llu]: host_tid=%u pc=%#llx lr=%#llx TlsSlot(x0)=%#llx x27=%#llx [x27]=%#llx TPIDR=%#llx TLR=%#llx\\n",
+        rt_logf("  GetTlsValue[%llu]: host_tid=%u pc=%#llx lr=%#llx TlsSlot(x0)=%#llx x27=%#llx [x27]=%#llx TPIDR=%#llx TLR=%#llx\n",
                 (unsigned long long)seq, host_tid, (unsigned long long)pc, (unsigned long long)lr,
                 (unsigned long long)x0, (unsigned long long)x27, (unsigned long long)table,
                 (unsigned long long)tpidr, (unsigned long long)tpidrro);
-        rt_logf("    guest SP=%#llx FP(x29)=%#llx; x27 region: state=%d end=%#llx; table region: state=%d end=%#llx\\n",
+        rt_logf("    guest SP=%#llx FP(x29)=%#llx; x27 region: state=%d end=%#llx; table region: state=%d end=%#llx\n",
                 (unsigned long long)sp, (unsigned long long)fp, xs, (unsigned long long)xe,
                 ts, (unsigned long long)te);
+        rt_logf("    table candidates (+i*0x38+0x5c):");
         for (uint32_t i = 0; i < TLS_CANDIDATES; i++)
             rt_logf(" [%u]=%s%08x", i, valid & (1u << i) ? "" : "unreadable/", slots[i]);
         rt_log_raw("\n", 1);
