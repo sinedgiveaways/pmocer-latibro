@@ -103,6 +103,98 @@ void rt_tpidr_write(Cpu *c, uint64_t pc, uint64_t value) {
     tpidr_trace_record(c, pc, old, value, 1);
 }
 
+/* Always-on, per-call-site snapshot for the SDK's GetTlsValue. The crash under
+ * investigation is sdk+0x16b730; its entry ABI receives TlsSlot in x0 and uses
+ * x27 as the TLS table anchor. This bounded ring records only that function,
+ * not every guest instruction, and is filtered by guest-thread at dump time. */
+#define TLS_CALL_TRACE_CAP 32u
+#define TLS_CANDIDATES 3u
+uint64_t g_get_tls_value_pc __attribute__((visibility("hidden")));
+typedef struct {
+    uint64_t seq, thread, pc, lr, x0, x27, table, tpidr, tpidrro;
+    uint64_t x27_region_end, table_region_end;
+    int32_t x27_region_state, table_region_state;
+    uint32_t slot_valid, slots[TLS_CANDIDATES];
+} TlsCallTraceEntry;
+static TlsCallTraceEntry tls_call_trace[TLS_CALL_TRACE_CAP];
+static uint64_t tls_call_trace_next;
+
+void rt_tls_call_trace_entry(Cpu *c, uint64_t pc) {
+    if (!c || !g_get_tls_value_pc || pc != g_get_tls_value_pc) return;
+    uint64_t seq = __atomic_add_fetch(&tls_call_trace_next, 1, __ATOMIC_RELAXED);
+    TlsCallTraceEntry *e = &tls_call_trace[(seq - 1) % TLS_CALL_TRACE_CAP];
+    __atomic_store_n(&e->seq, 0, __ATOMIC_RELAXED);
+    uint64_t thread = (uint64_t)(uintptr_t)c->thread;
+    uint64_t x27 = c->x[27], table = 0, x27_end = 0, table_end = 0;
+    int x27_state = PLAT_MEM_FREE, table_state = PLAT_MEM_FREE;
+    if (x27) x27_state = plat_mem_state(x27, x27 + 1, &x27_end);
+    int have_table = x27 && plat_mem_read(x27, &table, sizeof table);
+    if (have_table && table) table_state = plat_mem_state(table, table + 1, &table_end);
+    uint32_t valid = 0, slots[TLS_CANDIDATES] = {0};
+    for (uint32_t i = 0; i < TLS_CANDIDATES; i++) {
+        uint64_t at = table + (uint64_t)i * 0x38 + 0x5c;
+        if (have_table && at >= table && plat_mem_read(at, &slots[i], sizeof slots[i]))
+            valid |= 1u << i;
+    }
+    __atomic_store_n(&e->thread, thread, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->pc, pc, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->lr, c->x[30], __ATOMIC_RELAXED);
+    __atomic_store_n(&e->x0, c->x[0], __ATOMIC_RELAXED);
+    __atomic_store_n(&e->x27, x27, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->table, have_table ? table : 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->tpidr, c->tpidr, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->tpidrro, c->tpidrro, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->x27_region_end, x27_end, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->table_region_end, table_end, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->x27_region_state, x27_state, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->table_region_state, table_state, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->slot_valid, valid, __ATOMIC_RELAXED);
+    for (uint32_t i = 0; i < TLS_CANDIDATES; i++)
+        __atomic_store_n(&e->slots[i], slots[i], __ATOMIC_RELAXED);
+    __atomic_store_n(&e->seq, seq, __ATOMIC_RELEASE);
+}
+
+void rt_tls_call_trace_dump(Cpu *c) {
+    if (!c) return;
+    uint64_t thread = (uint64_t)(uintptr_t)c->thread;
+    uint64_t end = __atomic_load_n(&tls_call_trace_next, __ATOMIC_ACQUIRE);
+    uint64_t begin = end > TLS_CALL_TRACE_CAP ? end - TLS_CALL_TRACE_CAP + 1 : 1;
+    rt_logf("FATAL: GetTlsValue entry trace for thread=%#llx (latest %llu entries):\\n",
+            (unsigned long long)thread, (unsigned long long)(end - begin + (end ? 1 : 0)));
+    for (uint64_t seq = begin; seq <= end && seq; seq++) {
+        TlsCallTraceEntry *e = &tls_call_trace[(seq - 1) % TLS_CALL_TRACE_CAP];
+        if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
+        uint64_t owner = __atomic_load_n(&e->thread, __ATOMIC_RELAXED);
+        if (owner != thread || __atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
+        uint64_t pc = __atomic_load_n(&e->pc, __ATOMIC_RELAXED);
+        uint64_t lr = __atomic_load_n(&e->lr, __ATOMIC_RELAXED);
+        uint64_t x0 = __atomic_load_n(&e->x0, __ATOMIC_RELAXED);
+        uint64_t x27 = __atomic_load_n(&e->x27, __ATOMIC_RELAXED);
+        uint64_t table = __atomic_load_n(&e->table, __ATOMIC_RELAXED);
+        uint64_t tpidr = __atomic_load_n(&e->tpidr, __ATOMIC_RELAXED);
+        uint64_t tpidrro = __atomic_load_n(&e->tpidrro, __ATOMIC_RELAXED);
+        uint64_t xe = __atomic_load_n(&e->x27_region_end, __ATOMIC_RELAXED);
+        uint64_t te = __atomic_load_n(&e->table_region_end, __ATOMIC_RELAXED);
+        int xs = __atomic_load_n(&e->x27_region_state, __ATOMIC_RELAXED);
+        int ts = __atomic_load_n(&e->table_region_state, __ATOMIC_RELAXED);
+        uint32_t valid = __atomic_load_n(&e->slot_valid, __ATOMIC_RELAXED);
+        uint32_t slots[TLS_CANDIDATES];
+        for (uint32_t i = 0; i < TLS_CANDIDATES; i++)
+            slots[i] = __atomic_load_n(&e->slots[i], __ATOMIC_RELAXED);
+        if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
+        rt_logf("  GetTlsValue[%llu]: pc=%#llx lr=%#llx TlsSlot(x0)=%#llx x27=%#llx [x27]=%#llx TPIDR=%#llx TLR=%#llx\\n",
+                (unsigned long long)seq, (unsigned long long)pc, (unsigned long long)lr,
+                (unsigned long long)x0, (unsigned long long)x27, (unsigned long long)table,
+                (unsigned long long)tpidr, (unsigned long long)tpidrro);
+        rt_logf("    x27 region: state=%d end=%#llx; table region: state=%d end=%#llx\\n",
+                xs, (unsigned long long)xe, ts, (unsigned long long)te);
+        rt_logf("    table candidates (+i*0x38+0x5c):");
+        for (uint32_t i = 0; i < TLS_CANDIDATES; i++)
+            rt_logf(" [%u]=%s%08x", i, valid & (1u << i) ? "" : "unreadable/", slots[i]);
+        rt_log_raw("\\n", 1);
+    }
+}
+
 void rt_fatal(const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
@@ -171,6 +263,18 @@ void rt_dispatch_init(const RtModule *mods, int count) {
     if (rt_tpidr_trace) rt_log("tpidr: tracing guest TPIDR_EL0 reads and writes (ORBITALS_TRACE_TPIDR)");
     if (g_ready) rt_fatal("rt_dispatch_init called twice");
     if (count <= 0 || count > MAX_MODULES) rt_fatal("rt_dispatch_init: %d modules", count);
+
+    // Pin the investigated SDK entry point by module-relative address, independent of ASLR.
+    for (int i = 0; i < count; i++) {
+        if (mods[i].name && !strcmp(mods[i].name, "sdk")) {
+            g_get_tls_value_pc = mods[i].base + 0x16b730;
+            rt_logf("crash trace: GetTlsValue entry=%#llx (sdk+0x16b730)\\n",
+                    (unsigned long long)g_get_tls_value_pc);
+            break;
+        }
+    }
+    if (!g_get_tls_value_pc)
+        rt_log("crash trace: SDK module not found; GetTlsValue entry hook is unavailable");
 
     // Modules by base, checked for overlap.
     for (int i = 0; i < count; i++) {
