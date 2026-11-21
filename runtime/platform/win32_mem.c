@@ -153,7 +153,8 @@ static void write_crash_minidump(EXCEPTION_POINTERS *ep) {
     if (file == INVALID_HANDLE_VALUE) return;
     MINIDUMP_EXCEPTION_INFORMATION ex = {GetCurrentThreadId(), ep, FALSE};
     MINIDUMP_TYPE type = (MINIDUMP_TYPE)(MiniDumpWithDataSegs | MiniDumpWithHandleData |
-        MiniDumpWithUnloadedModules | MiniDumpWithThreadInfo | MiniDumpWithIndirectlyReferencedMemory |
+        MiniDumpWithUnloadedModules | MiniDumpWithThreadInfo | MiniDumpWithFullMemoryInfo |
+        MiniDumpWithIndirectlyReferencedMemory |
         MiniDumpWithPrivateReadWriteMemory);
     BOOL ok = MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), file, type, &ex, NULL, NULL);
     CloseHandle(file);
