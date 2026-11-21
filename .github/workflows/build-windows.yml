@@ -26,6 +26,8 @@ jobs:
     steps:
       - name: Tools
         run: pacman -Syu --noconfirm --needed git ccache ninja cmake binutils uv python curl
+      - name: Validate diagnostic recompiler syntax
+        run: python -m py_compile recomp/gen.py
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
