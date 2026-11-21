@@ -7,6 +7,7 @@
 | `logo.svg` | The fallback icon (`tools/build/icon.py docs/logo.svg`), used when the Orbitals picture is absent ([branding.md](branding.md)) |
 | [images/](images/README.md) | Screenshots of the start screen for the README |
 | [roadmap.md](roadmap.md) | Where the game is, the open problems with what was measured and ruled out, and the work in order of priority |
+| [orbitals-startup-crash-analysis.md](orbitals-startup-crash-analysis.md) | The crash at `main+0x1759b20` (read of 0x104): the fault in the generated code, the TLS evidence, what is established and what is not |
 | [shaders.md](shaders.md) | Orbitals' shaders: how programs reach SPIR-V, the translator and runtime additions with their commits, the colony's frame pass by pass, the findings in order, the tools |
 | [workflow.md](workflow.md) | How the work is done with a player's machine: branches, builds, the player's commands, exchanging data without leaking the game's, diagnosing, checking a change without the game |
 | [log-analyzer.md](log-analyzer.md) | `shader_analyzer.exe`: a report of a whole `orbitals.log` (how the run ended, key threads, missing shaders, NVN sync call sites), its patterns and how to add one |

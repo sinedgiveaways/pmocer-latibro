@@ -61,7 +61,7 @@ jobs:
       - name: Steam's steam_api64.dll for Remote Play Together (pinned sha256, docs/remote-play.md)
         run: uv run tools/build/steamlib.py --target windows
       - name: Zip
-        run: uv run tools/build/release.py --target windows --version "0.2.0-${GITHUB_SHA::7}-gpt-sined"
+        run: uv run tools/build/release.py --target windows --version "0.2.0-${GITHUB_SHA::7}"
       - name: orbitals-recomp.exe out of the zip
         run: |
           mkdir -p build/exe
@@ -98,11 +98,11 @@ jobs:
           EOF
       - uses: actions/upload-artifact@v4
         with:
-          name: orbitals-recomp-exe-gpt-sined
+          name: orbitals-recomp-exe
           path: build/exe/orbitals-recomp.exe
           retention-days: 14
       - uses: actions/upload-artifact@v4
         with:
-          name: orbitals-recomp-windows-x64-gpt-sined
+          name: orbitals-recomp-windows-x64
           path: build/release/*.zip
           retention-days: 14

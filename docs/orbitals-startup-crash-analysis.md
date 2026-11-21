@@ -95,3 +95,10 @@ Instrument the faulting path to capture, for the **same guest thread and at the 
 3. The caller's guest PC/LR and the `TlsSlot` argument passed to `GetTlsValue`.
 
 This distinguishes a valid per-thread TLS base from a separate null slot-table pointer, and tells whether the failure comes from a bad argument/register, missing SDK initialization, or a layout mismatch. Do not alter TLS allocation sizes or fiber copying until those values are captured.
+
+## Build note (21/11/2026)
+
+The lifter's TPIDR_EL0 hook (`rt_tpidr_trace_enabled() ? rt_tpidr_read(...)`, every guest TLS register access a call
+into the executable) is taken out again: it forced a full game recompile and slowed every TLS access, for a trace that
+showed nothing on the faulting thread. `ORBITALS_TRACE_TPIDR` therefore records nothing from lifted code; the crash
+report's host context, TLS chain and `GetTlsValue` entry dump stay. Put the two lifter lines back to trace again.
