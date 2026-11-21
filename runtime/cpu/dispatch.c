@@ -158,6 +158,61 @@ void rt_tls_call_trace_entry(Cpu *c, uint64_t pc) {
     __atomic_store_n(&e->seq, seq, __ATOMIC_RELEASE);
 }
 
+#define TLS_INSN_TRACE_CAP 32u
+typedef struct {
+    uint64_t seq, thread, pc, sp;
+    uint32_t host_tid;
+    uint64_t x[31];
+} TlsInsnTraceEntry;
+static TlsInsnTraceEntry tls_insn_trace[TLS_INSN_TRACE_CAP];
+static uint64_t tls_insn_trace_next;
+
+/* Called before each lifted instruction in GetTlsValue only. The generator disables
+ * register locals for this one function so c->x[]/c->sp are the live guest values. */
+void rt_tls_instruction_trace(Cpu *c, uint64_t pc) {
+    if (!c) return;
+    uint64_t seq = __atomic_add_fetch(&tls_insn_trace_next, 1, __ATOMIC_RELAXED);
+    TlsInsnTraceEntry *e = &tls_insn_trace[(seq - 1) % TLS_INSN_TRACE_CAP];
+    __atomic_store_n(&e->seq, 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->thread, (uint64_t)(uintptr_t)c->thread, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->pc, pc, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->sp, c->sp, __ATOMIC_RELAXED);
+    __atomic_store_n(&e->host_tid, plat_thread_id(), __ATOMIC_RELAXED);
+    for (uint32_t i = 0; i < 31; i++)
+        __atomic_store_n(&e->x[i], c->x[i], __ATOMIC_RELAXED);
+    __atomic_store_n(&e->seq, seq, __ATOMIC_RELEASE);
+}
+
+void rt_tls_instruction_trace_dump(Cpu *c) {
+    if (!c) return;
+    uint64_t thread = (uint64_t)(uintptr_t)c->thread;
+    uint64_t end = __atomic_load_n(&tls_insn_trace_next, __ATOMIC_ACQUIRE);
+    uint64_t begin = end > TLS_INSN_TRACE_CAP ? end - TLS_INSN_TRACE_CAP + 1 : 1;
+    rt_logf("FATAL: GetTlsValue instruction trace for guest thread=%#llx (up to %u instructions):\\n",
+            (unsigned long long)thread, TLS_INSN_TRACE_CAP);
+    for (uint64_t seq = begin; seq <= end && seq; seq++) {
+        TlsInsnTraceEntry *e = &tls_insn_trace[(seq - 1) % TLS_INSN_TRACE_CAP];
+        if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
+        uint64_t owner = __atomic_load_n(&e->thread, __ATOMIC_RELAXED);
+        if (owner != thread || __atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
+        uint64_t pc = __atomic_load_n(&e->pc, __ATOMIC_RELAXED);
+        uint64_t sp = __atomic_load_n(&e->sp, __ATOMIC_RELAXED);
+        uint32_t tid = __atomic_load_n(&e->host_tid, __ATOMIC_RELAXED);
+        uint64_t x[31];
+        for (uint32_t i = 0; i < 31; i++)
+            x[i] = __atomic_load_n(&e->x[i], __ATOMIC_RELAXED);
+        if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
+        rt_logf("  sdk+%#llx host_tid=%u SP=%#llx\\n",
+                (unsigned long long)(pc - g_get_tls_value_pc), tid, (unsigned long long)sp);
+        for (uint32_t i = 0; i < 31; i += 4) {
+            rt_logf("    x%-2u=%016llx", i, (unsigned long long)x[i]);
+            for (uint32_t j = i + 1; j < 31 && j < i + 4; j++)
+                rt_logf(" x%-2u=%016llx", j, (unsigned long long)x[j]);
+            rt_log_raw("\\n", 1);
+        }
+    }
+}
+
 void rt_tls_call_trace_dump(Cpu *c) {
     if (!c) return;
     uint64_t thread = (uint64_t)(uintptr_t)c->thread;
