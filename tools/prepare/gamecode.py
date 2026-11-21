@@ -63,6 +63,7 @@ def compile_game(game: Path, exefs: Path, work: Path, cc: list[str], target: str
     total, done = len(jobs_c) + 1, 0  # the link is the last unit: a progress bar full before it hid it (issue #2)
     # Windows: the import library names the program the DLL's imports come from, orbitals-recomp.exe on this branch
     # (dist.py); a change here changes the compile step's key, so a library linked against orbitals-recomp.exe is linked again
+    lib = game / ("orbitalgame.dll" if windows else "orbitalgame.so")
     extra = ([str(package_dir(game) / "lib/liborbitals-recomp.dll.a"), f"-Wl,--Map={lib.with_name(lib.name + '.map')}"]
             if windows else ["-Wl,-z,noexecstack"])
     base = common_key(cc, gen)
@@ -82,7 +83,6 @@ def compile_game(game: Path, exefs: Path, work: Path, cc: list[str], target: str
         stamp.write_text(key)
         return ""
 
-    lib = game / ("orbitalgame.dll" if windows else "orbitalgame.so")
     part = lib.with_name(lib.name + ".part")
     rsp = obj / "link.rsp"  # ~360 objects: past the Windows command line limit
     link = crt_link(game, cc, lib, part, obj, [f"@{rsp}", *extra]) if windows else None
