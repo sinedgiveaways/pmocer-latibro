@@ -74,7 +74,8 @@ def crt_link(game: Path, cc: list[str], lib: Path, out: Path, obj: Path, inputs:
         return None
     pdb = lib.with_name(lib.name + ".pdb")  # the name zig cc gave it
     return lld_link(
-        cc[0], spec, out, inputs, f"-PDB:{pdb}", f"-PDBALTPATH:{pdb.name}", f"-IMPLIB:{obj / 'orbitalgame.lib'}"
+        cc[0], spec, out, inputs, f"-PDB:{pdb}", f"-PDBALTPATH:{pdb.name}", f"-IMPLIB:{obj / 'orbitalgame.lib'}",
+        f"-MAP:{lib.with_name(lib.name + '.map')}"
     )
 
 
