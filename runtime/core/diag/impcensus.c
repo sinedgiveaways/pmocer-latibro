@@ -26,6 +26,7 @@ static uint64_t keys[HSIZE];   // callee address, 0 = free; claimed once by CAS,
 static uint64_t calls[HSIZE], first_frame[HSIZE];
 static const char *out_path;
 static int live;                        // port mode: each function's first call logged as it happens
+static int tls_diag_on;                 // ORBITALS_TLS_DIAG=1: capture both Crash B guest entry points
 static volatile int64_t live_lines;
 volatile int impcensus_on;
 
@@ -33,12 +34,19 @@ static uint32_t h(uint64_t a) { return (uint32_t)((a >> 2) * 0x9E3779B1u) & (HSI
 
 void impcensus_init(void) {
     const char *p = cfg_get("ORBITALS_IMPORT_CENSUS");
+    const char *tls = cfg_get("ORBITALS_TLS_DIAG");
+    tls_diag_on = tls && *tls && strcmp(tls, "0");
+    if (tls_diag_on) {
+        rt_fnprof_set(1);
+        rt_log("tls: capturing main+0x1759b20 and sdk+0x16b730 (ORBITALS_TLS_DIAG)");
+    }
     // Another game (port mode): on without a file, and each SDK function's first call from main is logged when it
     // happens, so a run that stops (Orbitals' Unreal PreInit failed with no file opened) shows what it called last
     live = rt_game_present() && rt_game()->port;
     // and the host replacements' first calls (ORBITALS_TRACE=host's "host call" lines), which the census does not see:
     // the two in one order say what the game did up to where it stops
     if (live) rt_trace |= RT_TRACE_HOSTCALL;
+    if ((!p || !*p) && !live && !tls_diag_on) return;
     if ((!p || !*p) && !live) return;
     const RtLoaded *m = ldr_module(0);
     if (strcmp(m->name, "main")) rt_fatal("impcensus: module 0 is %s, not main", m->name);
@@ -49,8 +57,9 @@ void impcensus_init(void) {
 }
 
 // The function-entry hook of the lifted code (cpu.h FN_ENTER, on while g_fnprof): the census is its only user.
-void fnprof_hit(uint64_t addr, uint64_t lr, uint64_t x0) {
+void fnprof_hit(Cpu *c, uint64_t addr, uint64_t lr, uint64_t x0) {
     (void)x0;
+    if (tls_diag_on) rt_tls_diag_hit(c, addr);
     if (impcensus_on) impcensus_hit(addr, lr);
 }
 
