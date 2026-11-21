@@ -557,6 +557,9 @@ class Emitter:
                 emit(None, f'L_{a:x}:;')
             if trace_crash_b:
                 emit(i, f'    rt_crash_b_instruction_trace(c, {hx(a)});')
+            # Capture the suspected default/free element immediately after its +0xd8 load.
+            if mod.name == 'main' and a == mod.base + 0x18f71:
+                emit(i, f'    rt_crash_b_element_trace(c, {hx(a)});')
             k = ins.kind
             if a in self.patched:
                 emit(i, patch(i, ins, a))
