@@ -7,7 +7,7 @@ name: Build Windows
 
 on:
   push:
-    branches: [orbitals-port]
+    branches: [orbitals-port, tls-crash-b-capture-gpt-sined]
   pull_request:
     branches: [orbitals-port]
   workflow_dispatch:
