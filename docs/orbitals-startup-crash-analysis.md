@@ -358,11 +358,9 @@ The Windows workflow now runs on pushes to `mco2vie/orbital-crash-trace` and pul
 The TLS ring also records the host OS thread ID alongside the guest runtime-thread pointer, plus guest SP and FP (x29) at function entry. This lets the trace be correlated with the Windows exception's thread ID and guest stack state. The fatal report also queries the memory-region state and end address for the exact access-violation address.
 
 
-### Per-instruction ARM64 register trace
+### Historical instrumentation (superseded)
 
-The generated `sdk+0x16b730` function now snapshots the live guest register file before each lifted instruction. Register-local optimization is disabled only for this single function so `Cpu.x[0..30]` and `Cpu.sp` are current at every snapshot. A bounded 32-instruction ring retains the immediately preceding guest PCs, all X registers, SP, host thread ID and guest-thread pointer. The fatal report dumps this ring before the function-entry TLS snapshots.
-
-This is the key capture for identifying the exact values used by a faulting load in the SDK function. It is intentionally restricted to the target function; the rest of the game retains its normal recompilation and register-local optimization.
+An earlier revision traced every instruction in `sdk+0x16b730` (GetTlsValue). That per-instruction ring was removed because Crash B's faulting lifted function is `main+0x1759b20`, not the SDK helper. Only the bounded GetTlsValue entry snapshot remains available as an optional secondary trace (`ORBITALS_TRACE_TPIDR=1`). The active per-instruction trace is the 64-entry Crash B ring described below.
 
 
 ## Crash B: expanded capture on mco2vie/orbital-crash-trace
@@ -373,7 +371,7 @@ The earlier instruction ring targeted `sdk+0x16b730` (GetTlsValue), not the faul
 - The fatal report prints the Crash B ring first, filtered to the current guest thread. GetTlsValue entry/pointer snapshots and TPIDR read/write history are optional secondary traces enabled with `ORBITALS_TRACE_TPIDR=1`.
 - On Windows, an additional DbgHelp minidump is written to `%TEMP%\\OrbitalsCrashDumps\\` for faults handled by the runtime. It includes thread information, handles, unloaded modules, data segments, indirectly referenced memory and private read/write memory. It is not a full-memory dump.
 - The path to a successfully written dump is printed in the fatal log. The dump may contain process memory and should be treated as private.
-- The Windows build links DbgHelp and publishes the linker map as a separate `orbitals-crash-symbols-mco2vie` artifact alongside the executable and player package.
+- The Windows build links DbgHelp and publishes the runtime linker map as `orbitals-runtime-symbols-mco2vie`. The player setup also emits `orbitalgame.dll.map` when it links the generated game-code DLL.
 
 The minidump is supplementary host-side evidence. The guest ARM64 ring is the key evidence for reconstructing the Crash B branch and the values consumed by the faulting load. Neither trace alone proves the upstream cause.
 
@@ -387,3 +385,12 @@ The minidump is supplementary host-side evidence. The guest ARM64 ring is the ke
 5. Also keep the `orbitals-runtime-symbols-mco2vie` artifact (linker map for `orbitals-recomp.exe`). A separate `orbitalgame.dll.map` is now emitted alongside a game DLL built by the player build, and should be collected if present.
 
 The next analysis will correlate the trace's guest instruction PCs and `x0..x30` snapshots with the two predecessor branches of the fallback block, then inspect the actual pointer and indexed record in the dump. The run must reproduce the crash with this instrumented build; a successful CI build alone does not validate runtime capture.
+
+
+### Generated game-code import and symbol validation
+
+The generated `orbitalgame.dll` calls three diagnostic entry points implemented by the runtime: `rt_tls_call_trace_entry`, `rt_crash_b_trace_begin`, and `rt_crash_b_instruction_trace`. They must be present in `RT_EXPORTS`, because the Windows package creates `setup/lib/liborbitals-recomp.dll.a` from that export list and the game-code DLL links against that import library. This was corrected on the diagnostic branch.
+
+The Windows workflow now syntax-checks the recompiler and player build scripts and asserts that all three generated-game diagnostic imports are exported. The player game-code link emits `orbitalgame.dll.map` (including the packaged-CRT/lld-link path and the fallback compiler-link path). The runtime executable map is collected as a separate CI artifact.
+
+CI builds the runtime executable and validates the export list, but does not compile the game's generated C: that requires the user's local game files and generated objects. A successful CI run therefore does not replace the first-launch game-code generation check.
