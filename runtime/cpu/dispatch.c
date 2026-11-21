@@ -127,13 +127,13 @@ void rt_tls_call_trace_entry(Cpu *c, uint64_t pc) {
     uint64_t thread = (uint64_t)(uintptr_t)c->thread;
     uint64_t x27 = c->x[27], table = 0, x27_end = 0, table_end = 0;
     int x27_state = PLAT_MEM_FREE, table_state = PLAT_MEM_FREE;
-    if (x27) x27_state = plat_mem_state(x27, x27 + 1, &x27_end);
+    if (x27 && x27 != UINT64_MAX) x27_state = plat_mem_state(x27, x27 + 1, &x27_end);
     int have_table = x27 && plat_mem_read(x27, &table, sizeof table);
-    if (have_table && table) table_state = plat_mem_state(table, table + 1, &table_end);
+    if (have_table && table && table != UINT64_MAX) table_state = plat_mem_state(table, table + 1, &table_end);
     uint32_t valid = 0, slots[TLS_CANDIDATES] = {0};
     for (uint32_t i = 0; i < TLS_CANDIDATES; i++) {
         uint64_t at = table + (uint64_t)i * 0x38 + 0x5c;
-        if (have_table && at >= table && plat_mem_read(at, &slots[i], sizeof slots[i]))
+        if (have_table && at >= table && at <= UINT64_MAX - sizeof slots[i] && plat_mem_read(at, &slots[i], sizeof slots[i]))
             valid |= 1u << i;
     }
     __atomic_store_n(&e->thread, thread, __ATOMIC_RELAXED);
@@ -159,7 +159,7 @@ void rt_tls_call_trace_dump(Cpu *c) {
     uint64_t thread = (uint64_t)(uintptr_t)c->thread;
     uint64_t end = __atomic_load_n(&tls_call_trace_next, __ATOMIC_ACQUIRE);
     uint64_t begin = end > TLS_CALL_TRACE_CAP ? end - TLS_CALL_TRACE_CAP + 1 : 1;
-    rt_logf("FATAL: GetTlsValue entry trace for thread=%#llx (latest %llu entries):\\n",
+    rt_logf("FATAL: GetTlsValue entry trace for thread=%#llx (latest %llu entries):\n",
             (unsigned long long)thread, (unsigned long long)(end - begin + (end ? 1 : 0)));
     for (uint64_t seq = begin; seq <= end && seq; seq++) {
         TlsCallTraceEntry *e = &tls_call_trace[(seq - 1) % TLS_CALL_TRACE_CAP];
@@ -182,16 +182,16 @@ void rt_tls_call_trace_dump(Cpu *c) {
         for (uint32_t i = 0; i < TLS_CANDIDATES; i++)
             slots[i] = __atomic_load_n(&e->slots[i], __ATOMIC_RELAXED);
         if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
-        rt_logf("  GetTlsValue[%llu]: pc=%#llx lr=%#llx TlsSlot(x0)=%#llx x27=%#llx [x27]=%#llx TPIDR=%#llx TLR=%#llx\\n",
+        rt_logf("  GetTlsValue[%llu]: pc=%#llx lr=%#llx TlsSlot(x0)=%#llx x27=%#llx [x27]=%#llx TPIDR=%#llx TLR=%#llx\n",
                 (unsigned long long)seq, (unsigned long long)pc, (unsigned long long)lr,
                 (unsigned long long)x0, (unsigned long long)x27, (unsigned long long)table,
                 (unsigned long long)tpidr, (unsigned long long)tpidrro);
-        rt_logf("    x27 region: state=%d end=%#llx; table region: state=%d end=%#llx\\n",
+        rt_logf("    x27 region: state=%d end=%#llx; table region: state=%d end=%#llx\n",
                 xs, (unsigned long long)xe, ts, (unsigned long long)te);
         rt_logf("    table candidates (+i*0x38+0x5c):");
         for (uint32_t i = 0; i < TLS_CANDIDATES; i++)
             rt_logf(" [%u]=%s%08x", i, valid & (1u << i) ? "" : "unreadable/", slots[i]);
-        rt_log_raw("\\n", 1);
+        rt_log_raw("\n", 1);
     }
 }
 
@@ -268,7 +268,7 @@ void rt_dispatch_init(const RtModule *mods, int count) {
     for (int i = 0; i < count; i++) {
         if (mods[i].name && !strcmp(mods[i].name, "sdk")) {
             g_get_tls_value_pc = mods[i].base + 0x16b730;
-            rt_logf("crash trace: GetTlsValue entry=%#llx (sdk+0x16b730)\\n",
+            rt_logf("crash trace: GetTlsValue entry=%#llx (sdk+0x16b730)\n",
                     (unsigned long long)g_get_tls_value_pc);
             break;
         }
