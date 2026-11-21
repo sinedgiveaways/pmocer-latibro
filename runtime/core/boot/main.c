@@ -284,9 +284,16 @@ static void crash_handler(const PlatCrash *x) {
         }
     }
 #endif
-    if (x->access >= 0)
+    if (x->access >= 0) {
         rt_logf(", %s address %#llx", x->access == 1 ? "writing" : x->access == 8 ? "executing" : "reading",
                 (unsigned long long)x->addr);
+        if (x->addr != UINT64_MAX) {
+            uint64_t region_end = 0;
+            int region_state = plat_mem_state(x->addr, x->addr + 1, &region_end);
+            rt_logf("\\n  fault address region: state=%d end=%#llx", region_state,
+                    (unsigned long long)region_end);
+        }
+    }
     rt_log_raw("\n", 1);
     if (x->ret) {   // a wild jump: who made it, if it was a call
         uint64_t from = lifted_function(x->ret);
