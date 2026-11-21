@@ -376,3 +376,14 @@ The previous instruction ring targeted `sdk+0x16b730` (GetTlsValue). That remain
 - The Windows build links DbgHelp and publishes the linker map as a separate `orbitals-crash-symbols-mco2vie` artifact alongside the executable and player package.
 
 The minidump is supplementary host-side evidence. The guest ARM64 ring is the key evidence for reconstructing the Crash B branch and the values consumed by the faulting load. Neither trace alone proves the upstream cause.
+
+
+### Reproduction and collection
+
+1. Download the newest `orbitals-recomp-windows-x64-mco2vie` artifact from the successful run of this branch and install its contents over the existing player files, preserving the game's required data folders.
+2. Start the game and allow the generated game-code library to rebuild with the updated recompiler instrumentation. Do not reuse an old `orbitalgame.dll` if the launcher indicates that it must be regenerated.
+3. Reproduce the same Crash B scenario.
+4. Collect the fatal log and the newest `.dmp` from `%TEMP%\\OrbitalsCrashDumps\\`. The dump may contain private process memory; do not post it publicly.
+5. Also keep the `orbitals-runtime-symbols-mco2vie` artifact (linker map for `orbitals-recomp.exe`). A separate `orbitalgame.dll.map` is now emitted alongside a game DLL built by the player build, and should be collected if present.
+
+The next analysis will correlate the trace's guest instruction PCs and `x0..x30` snapshots with the two predecessor branches of the fallback block, then inspect the actual pointer and indexed record in the dump. The run must reproduce the crash with this instrumented build; a successful CI build alone does not validate runtime capture.
