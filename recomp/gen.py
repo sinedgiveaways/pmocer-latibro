@@ -555,8 +555,6 @@ class Emitter:
                 self.uses_patches = True
             if a in labels:
                 emit(None, f'L_{a:x}:;')
-            if trace_tls:
-                emit(i, f'    rt_tls_instruction_trace(c, {hx(a)});')
             if trace_crash_b:
                 emit(i, f'    rt_crash_b_instruction_trace(c, {hx(a)});')
             k = ins.kind
@@ -614,7 +612,7 @@ class Emitter:
                      and (ins.kind in ('bl', 'blr') or (ins.kind == 'op' and regs.RELOAD in texts[i]))}
             # Keep guest registers in Cpu for traced functions so pre-instruction snapshots
             # contain live ARM64 values rather than stale/spilled register locals.
-            rp = regs.plan(texts, succ, clean, 0 if (trace_tls or trace_crash_b) else self.reg_locals, self.kept)
+            rp = regs.plan(texts, succ, clean, 0 if trace_crash_b else self.reg_locals, self.kept)
             if rp.regs:
                 out.append('    ' + rp.decl())
             self.stats['local_reg_functions'] += bool(rp.regs)
