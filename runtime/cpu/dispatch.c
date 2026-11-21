@@ -490,7 +490,7 @@ void rt_crash_b_instruction_trace_dump(Cpu *c) {
     uint64_t thread = c ? (uint64_t)(uintptr_t)c->thread : 0;
     uint64_t end = __atomic_load_n(&crash_b_trace_next, __ATOMIC_ACQUIRE);
     uint64_t begin = end > CRASH_B_TRACE_CAP ? end - CRASH_B_TRACE_CAP + 1 : 1;
-    rt_logf("FATAL: Crash B main+0x1759b20 instruction trace; guest_thread=%#llx entries=%llu (max %u)\\n",
+    rt_logf("FATAL: Crash B main+0x1759b20 instruction trace; guest_thread=%#llx entries=%llu (max %u)\n",
             (unsigned long long)thread, (unsigned long long)(end ? end - begin + 1 : 0), CRASH_B_TRACE_CAP);
     for (uint64_t seq = begin; seq <= end && seq; seq++) {
         CrashBTraceEntry *e = &crash_b_trace[(seq - 1) % CRASH_B_TRACE_CAP];
@@ -504,14 +504,14 @@ void rt_crash_b_instruction_trace_dump(Cpu *c) {
         for (uint32_t i = 0; i < 31; i++)
             x[i] = __atomic_load_n(&e->x[i], __ATOMIC_RELAXED);
         if (__atomic_load_n(&e->seq, __ATOMIC_ACQUIRE) != seq) continue;
-        rt_logf("  main+%#llx host_tid=%u guest_thread=%#llx SP=%#llx\\n",
+        rt_logf("  main+%#llx host_tid=%u guest_thread=%#llx SP=%#llx\n",
                 (unsigned long long)(pc - crash_b_trace_pc), tid,
                 (unsigned long long)owner, (unsigned long long)sp);
         for (uint32_t i = 0; i < 31; i += 4) {
             rt_logf("    x%-2u=%016llx", i, (unsigned long long)x[i]);
             for (uint32_t j = i + 1; j < 31 && j < i + 4; j++)
                 rt_logf(" x%-2u=%016llx", j, (unsigned long long)x[j]);
-            rt_log_raw("\\n", 1);
+            rt_log_raw("\n", 1);
         }
     }
 }
