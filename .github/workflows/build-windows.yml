@@ -98,6 +98,16 @@ jobs:
               tail = d[i + 2 * len(key) : i + 2 * len(key) + 120].decode("utf-16le", "replace") if i >= 0 else None
               print(key, "->", tail.lstrip("\x00").split("\x00")[0] if tail is not None else "NOT FOUND")
           EOF
+      - name: Collect Windows linker map
+        run: |
+          mkdir -p build/diagnostics
+          cp build/obj-win/orbitals-recomp.map build/diagnostics/ 2>/dev/null || true
+          test -s build/diagnostics/orbitals-recomp.map
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orbitals-crash-symbols-mco2vie
+          path: build/diagnostics/orbitals-recomp.map
+          retention-days: 14
       - uses: actions/upload-artifact@v4
         with:
           name: orbitals-recomp-exe-mco2vie
