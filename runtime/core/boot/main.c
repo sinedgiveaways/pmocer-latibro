@@ -245,7 +245,9 @@ static int readable(uint64_t a, uint64_t n) { return plat_mem_readable(a, n); }
 
 #ifdef _WIN32
 // Windows-only fault context captured by win32_mem.c's vectored exception handler.
-extern int plat_crash_host_context(uint64_t regs[16], uint8_t insn[16], uint32_t *insn_n);
+extern int plat_crash_host_context(uint64_t regs[16], uint8_t insn[16], uint32_t *insn_n,
+                                       uint64_t stack[64], uint32_t *stack_n, uint32_t *thread_id);
+extern const char *plat_crash_dump_path(void);
 #endif
 
 static void crash_handler(const PlatCrash *x) {
@@ -255,12 +257,24 @@ static void crash_handler(const PlatCrash *x) {
     uintptr_t rip = x->rip;
     rt_logf("FATAL: %s (%#x) at host %p (%s+%#llx)", x->what, x->code, (void *)rip, x->module ? x->module : "orbitals-recomp",
             (unsigned long long)x->offset);
+    rt_crash_b_instruction_trace_dump(kern_cpu());
+    rt_tls_call_trace_dump(kern_cpu());
     rt_tpidr_trace_dump();
 #ifdef _WIN32
-    uint64_t host[16];
+    const char *dump_path = plat_crash_dump_path();
+    if (dump_path && dump_path[0]) rt_logf("  Windows minidump: %s\n", dump_path);
+    uint64_t host[16], host_stack[64];
     uint8_t insn[16];
-    uint32_t insn_n = 0;
-    if (plat_crash_host_context(host, insn, &insn_n)) {
+    uint32_t insn_n = 0, host_stack_n = 0, host_tid = 0;
+    if (plat_crash_host_context(host, insn, &insn_n, host_stack, &host_stack_n, &host_tid)) {
+        rt_logf("  host thread id=%u; raw stack snapshot from fault RSP (%u qwords):\n",
+                host_tid, host_stack_n);
+        for (uint32_t i = 0; i < host_stack_n; i += 4) {
+            rt_logf("    rsp+%03x:", i * 8);
+            for (uint32_t j = i; j < host_stack_n && j < i + 4; j++)
+                rt_logf(" %016llx", (unsigned long long)host_stack[j]);
+            rt_log_raw("\n", 1);
+        }
         static const char *const names[16] = {
             "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi",
             "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
@@ -274,9 +288,16 @@ static void crash_handler(const PlatCrash *x) {
         }
     }
 #endif
-    if (x->access >= 0)
+    if (x->access >= 0) {
         rt_logf(", %s address %#llx", x->access == 1 ? "writing" : x->access == 8 ? "executing" : "reading",
                 (unsigned long long)x->addr);
+        if (x->addr != UINT64_MAX) {
+            uint64_t region_end = 0;
+            int region_state = plat_mem_state(x->addr, x->addr + 1, &region_end);
+            rt_logf("\n  fault address region: state=%d end=%#llx", region_state,
+                    (unsigned long long)region_end);
+        }
+    }
     rt_log_raw("\n", 1);
     if (x->ret) {   // a wild jump: who made it, if it was a call
         uint64_t from = lifted_function(x->ret);

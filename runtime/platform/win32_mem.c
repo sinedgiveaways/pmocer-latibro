@@ -2,6 +2,7 @@
 #include <io.h>
 #include <stdio.h>
 #include <windows.h>
+#include <dbghelp.h>
 #include <bcrypt.h>
 #include <pdh.h>
 #include <pdhmsg.h>
@@ -123,16 +124,55 @@ static void (*crash_fn)(const PlatCrash *c);
 
 // The VEH copies the faulting host context before calling runtime code. Keep it thread-local: the crash
 // reporter runs synchronously on the faulting thread and must not inspect a CONTEXT after the VEH returns.
+#define CRASH_HOST_STACK_WORDS 64u
 static _Thread_local uint64_t crash_host_regs[16];
 static _Thread_local uint8_t crash_host_insn[16];
 static _Thread_local uint32_t crash_host_insn_n;
+static _Thread_local uint64_t crash_host_stack[CRASH_HOST_STACK_WORDS];
+static _Thread_local uint32_t crash_host_stack_n;
+static _Thread_local uint32_t crash_host_tid;
 static _Thread_local int crash_host_context_valid;
+static _Thread_local char crash_dump_path_utf8[1024];
+static volatile LONG crash_dump_once;
 
-int plat_crash_host_context(uint64_t regs[16], uint8_t insn[16], uint32_t *insn_n) {
+const char *plat_crash_dump_path(void) { return crash_dump_path_utf8; }
+
+static void write_crash_minidump(EXCEPTION_POINTERS *ep) {
+    if (InterlockedCompareExchange(&crash_dump_once, 1, 0) != 0) return;
+    wchar_t dir[MAX_PATH], path[MAX_PATH];
+    DWORD n = GetTempPathW(MAX_PATH, dir);
+    if (!n || n >= MAX_PATH) return;
+    if (wcscat_s(dir, MAX_PATH, L"OrbitalsCrashDumps\\") != 0) return;
+    if (!CreateDirectoryW(dir, NULL) && GetLastError() != ERROR_ALREADY_EXISTS) return;
+    SYSTEMTIME st; GetLocalTime(&st);
+    _snwprintf_s(path, MAX_PATH, _TRUNCATE,
+        L"%sOrbitals-%04u%02u%02u-%02u%02u%02u-p%lu-t%lu.dmp", dir,
+        st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond,
+        GetCurrentProcessId(), GetCurrentThreadId());
+    HANDLE file = CreateFileW(path, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (file == INVALID_HANDLE_VALUE) return;
+    MINIDUMP_EXCEPTION_INFORMATION ex = {GetCurrentThreadId(), ep, FALSE};
+    MINIDUMP_TYPE type = (MINIDUMP_TYPE)(MiniDumpWithDataSegs | MiniDumpWithHandleData |
+        MiniDumpWithUnloadedModules | MiniDumpWithThreadInfo | MiniDumpWithFullMemoryInfo |
+        MiniDumpWithIndirectlyReferencedMemory |
+        MiniDumpWithPrivateReadWriteMemory);
+    BOOL ok = MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), file, type, &ex, NULL, NULL);
+    CloseHandle(file);
+    if (!ok) { DeleteFileW(path); return; }
+    WideCharToMultiByte(CP_UTF8, 0, path, -1, crash_dump_path_utf8,
+                        (int)sizeof crash_dump_path_utf8, NULL, NULL);
+}
+
+int plat_crash_host_context(uint64_t regs[16], uint8_t insn[16], uint32_t *insn_n,
+                            uint64_t stack[CRASH_HOST_STACK_WORDS], uint32_t *stack_n,
+                            uint32_t *thread_id) {
     if (!crash_host_context_valid) return 0;
     memcpy(regs, crash_host_regs, sizeof crash_host_regs);
     memcpy(insn, crash_host_insn, sizeof crash_host_insn);
+    memcpy(stack, crash_host_stack, sizeof crash_host_stack);
     *insn_n = crash_host_insn_n;
+    *stack_n = crash_host_stack_n;
+    *thread_id = crash_host_tid;
     return 1;
 }
 
@@ -160,6 +200,16 @@ static LONG CALLBACK crash_veh(EXCEPTION_POINTERS *ep) {
     if (ReadProcessMemory(GetCurrentProcess(), (const void *)rip, crash_host_insn,
                           sizeof crash_host_insn, &insn_got))
         crash_host_insn_n = (uint32_t)insn_got;
+    // Preserve the faulting thread's raw stack words before entering the crash reporter.
+    // This is deliberately a bounded snapshot, not a guessed unwind of JIT/lifted frames.
+    crash_host_stack_n = 0;
+    crash_host_tid = GetCurrentThreadId();
+    SIZE_T stack_got = 0;
+    uintptr_t fault_sp = (uintptr_t)ctx->Rsp;
+    if (fault_sp && !(fault_sp & (sizeof(uintptr_t) - 1)) &&
+        ReadProcessMemory(GetCurrentProcess(), (const void *)fault_sp, crash_host_stack,
+                          sizeof crash_host_stack, &stack_got))
+        crash_host_stack_n = (uint32_t)(stack_got / sizeof(uint64_t));
     crash_host_context_valid = 1;
     // Ours: orbitals-recomp.exe, the game code library (orbitalgame.dll), or no module at all (a jump to a wild address). Faults in
     // other modules (drivers) are left to the handler that expects them.
@@ -175,6 +225,7 @@ static LONG CALLBACK crash_veh(EXCEPTION_POINTERS *ep) {
     if (!in_module && sp && !(sp & 7) && plat_mem_readable(sp, 8)) c.ret = *(const uintptr_t *)sp;
     if (code == EXCEPTION_ACCESS_VIOLATION && ep->ExceptionRecord->NumberParameters >= 2)
         c.access = (int)ep->ExceptionRecord->ExceptionInformation[0], c.addr = ep->ExceptionRecord->ExceptionInformation[1];
+    write_crash_minidump(ep);
     crash_fn(&c);
     return EXCEPTION_CONTINUE_SEARCH;
 }

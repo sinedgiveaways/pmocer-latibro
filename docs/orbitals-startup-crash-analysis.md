@@ -320,3 +320,77 @@ A caller scan found one direct branch to `main+0xb67a0`, at `main+0xb831c`, with
 4. Capture the rejected pointer from the live crash, plus the live manager pointer/vtable/slot-`+0x50` target and the allocator region key/bucket chain. Without the actual pointer and runtime object, the disassembly cannot distinguish a wrong-manager free, stale pointer, duplicate free, or prior metadata corruption.
 
 No allocator code change or root-cause claim is made by this update.
+
+
+## Runtime instrumentation added on `mco2vie/orbital-crash-trace`
+
+The diagnostic branch now captures the investigated SDK lookup at function entry:
+
+- The entry address is resolved from the loaded `sdk` module base plus `0x16b730`, so ASLR does not change the target.
+- The generated function-entry macro checks that address and records only calls to `GetTlsValue`; it does not log every guest function.
+- A bounded 32-entry lock-free ring stores guest thread identity, `x0` (the `TlsSlot` argument), `x27`, `[x27]` when safely readable, guest LR, TPIDR/TLR, and the memory-region state/end for `x27` and the first pointer.
+- It also samples three candidate table words at offsets `+0x5c`, `+0x38+0x5c`, and `+0x70+0x5c`, using guarded process-memory reads. These are diagnostic samples, not an assertion about the final slot-index formula.
+- On a crash, the report dumps the ring entries belonging to the faulting guest thread before the existing TPIDR, host-register, instruction-byte, guest-register, and guest-frame diagnostics.
+- Windows artifact and zip labels on this branch use the `mco2vie` prefix.
+
+Existing diagnostics remain available: set `ORBITALS_TRACE_TPIDR=1` in the runtime config to record TPIDR reads/writes. Vulkan breadcrumbs are already enabled by default on supported drivers; `ORBITALS_GPU_CRUMBS=0` disables them and `ORBITALS_GPU_CRUMBS_DRAW=1` adds draw-level breadcrumbs.
+
+**Validation status:** source changes are committed to this branch, but they have not yet been compiled or exercised in a Windows game run. The new TLS samples are intended to identify the pointer chain at the failing call; they do not establish the earlier corruption/root cause by themselves.
+
+
+### Additional Windows crash context
+
+The Windows vectored exception handler now snapshots, before entering the crash reporter:
+
+- The host thread ID.
+- Up to 64 pointer-sized words beginning at the exception-time host RSP, copied with `ReadProcessMemory`.
+- The host general-purpose registers and bytes at the faulting RIP (already present).
+
+The fatal report prints this bounded raw stack snapshot with offsets from RSP. It is intentionally labelled as raw stack data rather than an unwound call stack: lifted/JIT frames cannot safely be claimed as symbolicated frames from this snapshot alone.
+
+The `GetTlsValue` entry hook is emitted after both generated-function layouts are selected, so it also covers functions that use unresolved-branch or setjmp dispatch layouts. The hook is limited to the one SDK function and does not add a test to every guest function's hot entry macro.
+
+### Build trigger
+
+The Windows workflow now runs on pushes to `mco2vie/orbital-crash-trace` and pull requests targeting `copilot/orbital-copilot-analyse`, as well as the existing `orbitals-port` events. Manual `workflow_dispatch` remains available.
+
+
+The TLS ring also records the host OS thread ID alongside the guest runtime-thread pointer, plus guest SP and FP (x29) at function entry. This lets the trace be correlated with the Windows exception's thread ID and guest stack state. The fatal report also queries the memory-region state and end address for the exact access-violation address.
+
+
+### Historical instrumentation (superseded)
+
+An earlier revision traced every instruction in `sdk+0x16b730` (GetTlsValue). That per-instruction ring was removed because Crash B's faulting lifted function is `main+0x1759b20`, not the SDK helper. Only the bounded GetTlsValue entry snapshot remains available as an optional secondary trace (`ORBITALS_TRACE_TPIDR=1`). The active per-instruction trace is the 64-entry Crash B ring described below.
+
+
+## Crash B: expanded capture on mco2vie/orbital-crash-trace
+
+The earlier instruction ring targeted `sdk+0x16b730` (GetTlsValue), not the faulting function. That per-instruction ring has been removed to avoid tracing an unrelated hot path. The GetTlsValue entry/pointer snapshot remains optional when `ORBITALS_TRACE_TPIDR=1`. The new primary ring targets the lifted function `main+0x1759b20` (`f_7001759b20`), which contains the failing host-side lifted instruction sequence documented in the Crash B control-flow follow-up.
+
+- A 256-entry lock-free ring snapshots guest PC, SP, host TID, guest-thread pointer and all `x0..x30` immediately before each guest instruction in that one function.
+- The fatal report prints the Crash B ring first, filtered to the current guest thread. GetTlsValue entry/pointer snapshots and TPIDR read/write history are optional secondary traces enabled with `ORBITALS_TRACE_TPIDR=1`.
+- On Windows, an additional DbgHelp minidump is written to `%TEMP%\\OrbitalsCrashDumps\\` for faults handled by the runtime. It includes thread information, handles, unloaded modules, data segments, virtual-memory region metadata, indirectly referenced memory and private read/write memory. It is not a full-memory dump.
+- The path to a successfully written dump is printed in the fatal log. The dump may contain process memory and should be treated as private.
+- The Windows build links DbgHelp and publishes the runtime linker map as `orbitals-runtime-symbols-mco2vie`. The player setup also emits `orbitalgame.dll.map` when it links the generated game-code DLL.
+
+The minidump is supplementary host-side evidence. The guest ARM64 ring is the key evidence for reconstructing the Crash B branch and the values consumed by the faulting load. Neither trace alone proves the upstream cause.
+
+
+### Reproduction and collection
+
+1. Download the newest `orbitals-recomp-windows-x64-mco2vie` artifact from the successful run of this branch and install its contents over the existing player files, preserving the game's required data folders.
+2. Start the game and allow the generated game-code library to rebuild with the updated recompiler instrumentation. Do not reuse an old `orbitalgame.dll` if the launcher indicates that it must be regenerated.
+3. Reproduce the same Crash B scenario.
+4. Collect the fatal log and the newest `.dmp` from `%TEMP%\\OrbitalsCrashDumps\\`. The dump may contain private process memory; do not post it publicly.
+5. Also keep the `orbitals-runtime-symbols-mco2vie` artifact (linker map for `orbitals-recomp.exe`). A separate `orbitalgame.dll.map` is now emitted alongside a game DLL built by the player build, and should be collected if present.
+
+The next analysis will correlate the trace's guest instruction PCs and `x0..x30` snapshots with the two predecessor branches of the fallback block, then inspect the actual pointer and indexed record in the dump. The run must reproduce the crash with this instrumented build; a successful CI build alone does not validate runtime capture.
+
+
+### Generated game-code import and symbol validation
+
+The generated `orbitalgame.dll` calls three diagnostic entry points implemented by the runtime: `rt_tls_call_trace_entry`, `rt_crash_b_trace_begin`, and `rt_crash_b_instruction_trace`. They must be present in `RT_EXPORTS`, because the Windows package creates `setup/lib/liborbitals-recomp.dll.a` from that export list and the game-code DLL links against that import library. This was corrected on the diagnostic branch.
+
+The Windows workflow now syntax-checks the recompiler and player build scripts and asserts that all three generated-game diagnostic imports are exported. The player game-code link emits `orbitalgame.dll.map` (including the packaged-CRT/lld-link path and the fallback compiler-link path). The runtime executable map is collected as a separate CI artifact.
+
+CI builds the runtime executable and validates the export list, but does not compile the game's generated C: that requires the user's local game files and generated objects. A successful CI run therefore does not replace the first-launch game-code generation check.
