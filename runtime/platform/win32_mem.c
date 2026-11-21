@@ -142,7 +142,7 @@ static void write_crash_minidump(EXCEPTION_POINTERS *ep) {
     wchar_t dir[MAX_PATH], path[MAX_PATH];
     DWORD n = GetTempPathW(MAX_PATH, dir);
     if (!n || n >= MAX_PATH) return;
-    if (wcscat_s(dir, MAX_PATH, L"OrbitalsCrashDumps\\\\") != 0) return;
+    if (wcscat_s(dir, MAX_PATH, L"OrbitalsCrashDumps\\") != 0) return;
     if (!CreateDirectoryW(dir, NULL) && GetLastError() != ERROR_ALREADY_EXISTS) return;
     SYSTEMTIME st; GetLocalTime(&st);
     _snwprintf_s(path, MAX_PATH, _TRUNCATE,
