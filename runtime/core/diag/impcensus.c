@@ -57,9 +57,9 @@ void impcensus_init(void) {
 }
 
 // The function-entry hook of the lifted code (cpu.h FN_ENTER, on while g_fnprof): the census is its only user.
-void fnprof_hit(Cpu *c, uint64_t addr, uint64_t lr, uint64_t x0) {
+void fnprof_hit(uint64_t addr, uint64_t lr, uint64_t x0) {
     (void)x0;
-    if (tls_diag_on) rt_tls_diag_hit(c, addr);
+    if (tls_diag_on) rt_tls_diag_hit(kern_cpu(), addr);
     if (impcensus_on) impcensus_hit(addr, lr);
 }
 
