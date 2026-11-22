@@ -210,6 +210,9 @@ void rt_fatal(const char *fmt, ...) {
     rt_vlogf(fmt, ap);
     rt_log_raw("\n", 1);
     va_end(ap);
+    // FMallocBinned3 aborts through rt_fatal, not necessarily the Windows exception handler.
+    // Dump the bounded Crash B ring here as well so allocator aborts retain the guest-side lead-up.
+    rt_crash_b_instruction_trace_dump(NULL);
     // whether the system was out of memory then: a fatal from a failed allocation reads the same otherwise
     uint64_t res, prv;
     float used, total, proc;
