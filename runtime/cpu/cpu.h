@@ -34,6 +34,7 @@ typedef void (*GuestFn)(Cpu *);
 
 // ---- runtime services (runtime/*.c)
 void rt_dispatch(Cpu *c);                 // call function at c->pc
+void rt_crash_b_probe(Cpu *c, uint64_t pc);  // opt-in, generated-code probe; ORBITALS_CRASH_B_PROBE=1
 // Optional TPIDR_EL0 trace (ORBITALS_TRACE_TPIDR=1): guest PC and old/new values.
 int rt_tpidr_trace_enabled(void);
 uint64_t rt_tpidr_read(Cpu *c, uint64_t pc);
