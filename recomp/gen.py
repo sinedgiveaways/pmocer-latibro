@@ -628,6 +628,8 @@ def chunk_text(name, number, emitter, fns):
         refs |= r
     # Every referenced function gets a prototype, including ones defined later in this chunk.
     protos = ''.join(f'void {fname(r)}(Cpu *c);\n' for r in sorted(refs))
+    if any(entry <= pc < end for entry, end in fns for pc in CRASH_B_PROBE_PCS):
+        protos += 'void rt_crash_b_probe(Cpu *c, uint64_t pc);\n'
     if emitter.uses_patches:
         protos += 'extern uint8_t rt_patch_on[];\n'
     return (header(f'{name} chunk {number:04d}') + '#include "cpu.h"\n#include "simd.h"\n\n' + protos + '\n'
