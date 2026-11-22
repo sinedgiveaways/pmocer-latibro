@@ -7,7 +7,7 @@ name: Build Windows
 
 on:
   push:
-    branches: [orbitals-port, mco2vie/orbital-crash-trace]
+    branches: [orbitals-port, mco2vie/orbital-crash-trace, diag/crash-investigation-run-44850170708]
   pull_request:
     branches: [orbitals-port, copilot/orbital-copilot-analyse]
   workflow_dispatch:
