@@ -538,9 +538,6 @@ class Emitter:
         k = None
         for i, ins in enumerate(insns):
             a = entry + 4 * i
-            if a in CRASH_B_PROBE_PCS:
-                # Spill register locals first: the probe reads the live guest state from Cpu.
-                emit(i, f'    {spill}rt_crash_b_probe(c, {hx(a)});')
             if open_span is not None and a == open_span:
                 emit(None, '    }')
                 open_span = None
@@ -551,6 +548,10 @@ class Emitter:
                 self.uses_patches = True
             if a in labels:
                 emit(None, f'L_{a:x}:;')
+            if a in CRASH_B_PROBE_PCS:
+                # Put the probe after the label so every branch into this instruction executes it.
+                # Spill register locals first: the probe reads the live guest state from Cpu.
+                emit(i, f'    {spill}rt_crash_b_probe(c, {hx(a)});')
             k = ins.kind
             if a in self.patched:
                 emit(i, patch(i, ins, a))
