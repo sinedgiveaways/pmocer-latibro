@@ -11,7 +11,7 @@ except `texpre_probe.c` and `fg_probe.c`.
 | `fg_probe.c` | `--probe-framegen` | MKW's own: frame generation's passes (`vk_framegen.c`) on two pictures in `ORBITALS_FG_PROBE` (from `tools/imagen/fg_check.py`), the frame halfway and the vectors of each level written back, and its GPU time |
 | `gfx_abi_probe.c` | `--probe-gfx-abi` | Our objects fit in NVN's and the fields the game reads are where it expects them |
 | `gfx_window_probe.c` | `--probe-window` | Window present, vsync, focus, cursor and resize |
-| `kernel_probe.c` | `--probe-kernel` | Waits, wakeups, virtual cores and their arguments (cores 0-5), fibers (also one moved between threads) and translated code on four threads |
+| `kernel_probe.c` | `--probe-kernel` | Waits, wakeups, virtual cores and their arguments (cores 0-5), fibers (also one moved between threads), contended mutex stress (8 threads x 2,000 increments), and translated code on four threads |
 | `nvn_probe.c` | `--probe-nvn` | The NVN front end over the null back end, called as the game calls it |
 | `nvn_tex_probe.c` | `--probe-nvn-tex` | Size, alignment and mip offsets of textures (`nvn_tex.c`) |
 | `ov_probe.c`, `ov_probe.h` | `--probe-services` | Each replacement of `runtime/sdk/` and NVN2's native images called through its synthetic address; a linked one the loaded game imports and no probe calls fails it |
