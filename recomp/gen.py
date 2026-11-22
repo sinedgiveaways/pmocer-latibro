@@ -845,6 +845,11 @@ def main():
                       flush=True)
 
     if only_addresses:
+        if errors:
+            print(f'{len(errors)} probe chunks could not be written:', file=sys.stderr)
+            for error in errors:
+                print(f'  {error}', file=sys.stderr)
+            return 1
         for name in info:
             rs = sorted(results[name], key=lambda r: r['number'])
             print(f'{name}: emitted only chunks ' + ', '.join(r['file'] for r in rs) +
