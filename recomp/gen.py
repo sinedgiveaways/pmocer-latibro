@@ -742,6 +742,7 @@ def main():
     ap.add_argument('--exefs', type=Path, required=True)
     ap.add_argument('--out', type=Path, required=True)
     ap.add_argument('--modules', default='', help='comma-separated; default: every module of the ExeFS')
+    ap.add_argument('--only-addresses', default='', help='comma-separated guest PCs; emit only the existing chunks containing them, without rewriting the manifest or function table')
     ap.add_argument('--jobs', type=int, default=os.cpu_count() or 4)
     ap.add_argument('--limit', type=int, default=0, help='emit only the first N functions of each module')
     ap.add_argument('--chunk-fns', type=int, default=3000, help='functions per chunk at most')
@@ -760,6 +761,8 @@ def main():
                     help='reload X19-X29 and SP after every call too, instead of trusting AAPCS64 (slower; for '
                          'telling a broken callee from a generator bug)')
     args = ap.parse_args()
+    only_addresses = [int(x.strip(), 0) for x in args.only_addresses.split(',') if x.strip()]
+    seen_addresses = set()
     opts = {'reg_locals': args.reg_locals, 'callee_saved': not args.no_callee_saved_trust}
 
     t0 = time.perf_counter()
@@ -792,9 +795,22 @@ def main():
         n = len(starts) if not args.limit else min(args.limit, len(starts))
         ends = np.append(abs_starts[1:], mod.hi)
         chunks = partition(est[:n], args.chunk_fns, args.chunk_bytes, args.big_fn)
+        selected_chunks = set(range(len(chunks)))
+        if only_addresses:
+            selected_chunks = set()
+            for address in only_addresses:
+                if mod.lo <= address < mod.hi:
+                    fn_i = int(np.searchsorted(abs_starts[:n], address, side='right') - 1)
+                    if fn_i < 0 or address >= ends[fn_i]:
+                        raise SystemExit(f'no emitted function contains {address:#x} in {name}')
+                    chunk_i = next(k for k, (i0, i1) in enumerate(chunks) if i0 <= fn_i < i1)
+                    selected_chunks.add(chunk_i)
+                    seen_addresses.add(address)
         moddir = args.out / name
         moddir.mkdir(parents=True, exist_ok=True)
         for number, (i0, i1) in enumerate(chunks):
+            if number not in selected_chunks:
+                continue
             fns = list(zip(abs_starts[i0:i1].tolist(), ends[i0:i1].tolist()))
             tasks.append((int(est[i0:i1].sum()), (name, number, str(moddir / f'{name}_{number:04d}.c'), fns)))
         paths[name] = (str(path), base)
@@ -806,6 +822,10 @@ def main():
               f'{len(chunks)} chunks, discovery {time.perf_counter() - t:.1f}s', file=sys.stderr, flush=True)
         del mod
 
+    if only_addresses:
+        missing = sorted(set(only_addresses) - seen_addresses)
+        if missing:
+            raise SystemExit('addresses not found in selected modules: ' + ', '.join(f'{a:#x}' for a in missing))
     # Largest chunks first, so the pool does not end on a long tail.
     tasks.sort(key=lambda t: -t[0])
     results = {name: [] for name in info}
@@ -821,6 +841,14 @@ def main():
             if (i + 1) % 200 == 0 or i + 1 == len(tasks):
                 print(f'emitted {i + 1}/{len(tasks)} chunks, {time.perf_counter() - t_emit:.0f}s', file=sys.stderr,
                       flush=True)
+
+    if only_addresses:
+        for name in info:
+            rs = sorted(results[name], key=lambda r: r['number'])
+            print(f'{name}: emitted only chunks ' + ', '.join(r['file'] for r in rs) +
+                  f' ({sum(r["functions"] for r in rs)} functions); manifest and function table left untouched',
+                  file=sys.stderr)
+        return
 
     for name, d in info.items():
         rs = sorted(results[name], key=lambda r: r['number'])
