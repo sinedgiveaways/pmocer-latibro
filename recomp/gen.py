@@ -374,6 +374,9 @@ class Emitter:
     def function(self, entry, end):
         """(lines of C, referenced function starts) for the guest function [entry, end)."""
         mod, starts = self.mod, self.starts
+        trace_tls = mod.name == 'sdk' and entry == mod.base + 0x16b730
+        # Crash B's faulting lifted function: main+0x1759b20 (f_7001759b20).
+        trace_crash_b = mod.name == 'main' and entry == mod.base + 0x1759b20
         insns = [mod.lift(a) for a in range(entry, end, 4)]
         labels, tables = self.scan(insns, entry, end)
         refs = set()
@@ -434,6 +437,13 @@ class Emitter:
             out = [f'void {fname(entry)}(Cpu *c) {{', f'    FN_ENTER({hx(entry)});']
             if fp.used:
                 out.append('    ' + fp.decl())
+
+        # Instrument only the investigated SDK function. Apply after both emitter
+        # layouts so functions with unresolved branches/setjmp are covered too.
+        if trace_tls:
+            out.insert(2, f'    rt_tls_call_trace_entry(c, {hx(entry)});')
+        if trace_crash_b:
+            out.insert(2, f'    rt_crash_b_trace_begin(c, {hx(entry)});')
 
         def call(t, a):
             if t in starts:
@@ -545,6 +555,8 @@ class Emitter:
                 self.uses_patches = True
             if a in labels:
                 emit(None, f'L_{a:x}:;')
+            if trace_crash_b:
+                emit(i, f'    rt_crash_b_instruction_trace(c, {hx(a)});')
             k = ins.kind
             if a in self.patched:
                 emit(i, patch(i, ins, a))
@@ -598,7 +610,9 @@ class Emitter:
                     texts[i] += line
             clean = {i for i, ins in enumerate(insns) if entry + 4 * i not in self.patched
                      and (ins.kind in ('bl', 'blr') or (ins.kind == 'op' and regs.RELOAD in texts[i]))}
-            rp = regs.plan(texts, succ, clean, self.reg_locals, self.kept)
+            # Keep guest registers in Cpu for traced functions so pre-instruction snapshots
+            # contain live ARM64 values rather than stale/spilled register locals.
+            rp = regs.plan(texts, succ, clean, 0 if trace_crash_b else self.reg_locals, self.kept)
             if rp.regs:
                 out.append('    ' + rp.decl())
             self.stats['local_reg_functions'] += bool(rp.regs)
