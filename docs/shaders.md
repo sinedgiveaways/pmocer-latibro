@@ -12,12 +12,18 @@ continues. The open problems are in [roadmap.md](roadmap.md); how to work with t
    trimmed code (`nvn2_program_key`, `runtime/gfx/nvn/procs/nvn2.c`).
 3. Missing, the runtime dumps the program into `<game>/spirv-dump/<key>.{ctl,code}` (default since `ffce7da`;
    `ORBITALS_SPIRV_DUMP=0` turns it off) and draws without it (logged `no prepared SPIR-V <key>`).
-4. On the player's side, `tools/prepare/dumped_shaders.py --dumped spirv-dump` translates every dumped program with
-   `sm86/translate` (Python 3.14, the SM86 spec from NVIDIA's nvdisasm) into `spirv/`, then the next run uses them.
+4. `tools/prepare/dumped_shaders.py --dumped spirv-dump` translates every dumped program with `sm86/translate`
+   (Python 3.14, the SM86 spec from NVIDIA's nvdisasm, a download on its first run) into `spirv/`. Since 21/11/2026 the
+   runtime runs it itself in the background, a few seconds after the last dump (`gfx_shader_auto.c`,
+   `ORBITALS_SHADERS_AUTO=0` turns it off), and the replay looks the programs up again when it finishes: a fresh
+   installation draws after a short black spell at the logos, and each new place a short while after it is reached.
+   Its output goes to `logs/shaders-auto.log`. The command still works by hand.
 5. The runtime checks the `.res.json` (`gfx_shader.c reflection_valid`): its `"stage"` must be one it knows (`vs`, `ps`,
    `cs`, `gs`, `task`, `mesh`). A stage missing there makes a translated program look absent; it happened to `gs`.
 
-Each run that reaches new places dumps more. The loop "run, translate, run" took the first level from 211 to 753
+The programs and their SPIR-V stay on the player's machine: they are the game's and are not distributed (AGENTS.md);
+keep a copy of `spirv/` and `spirv-dump/` before replacing an installation (an emptied folder drew a black screen,
+21/11/2026). Each run that reaches new places dumps more. The loop "run, translate, run" took the first level from 211 to 753
 programs; 751 translate (19/11/2026).
 
 | Stage | Dumped (colony run) | Translated |

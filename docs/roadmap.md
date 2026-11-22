@@ -234,7 +234,7 @@ numbers for Orbitals come from `tools/run/ab.py` runs (`ORBITALS_AB`).
 
 ## 5. The player's side
 
-- Shaders are translated by hand after a run (`dumped_shaders.py`); the setup could do it at each start when
-  `spirv-dump` grew.
+- Shaders are translated in the background during a run (`runtime/gfx/nvn/host/gfx_shader_auto.c`, 21/11/2026);
+  not yet checked on the player's machine.
 - A Linux package that starts on non-rolling distributions, and the launcher tested on more Windows machines.
 - Steam Remote Play Together checked with Orbitals ([remote-play.md](remote-play.md)).

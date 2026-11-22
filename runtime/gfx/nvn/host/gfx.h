@@ -42,6 +42,10 @@ typedef struct GfxShader GfxShader;                        // SPIR-V words + par
 // The prepared SPIR-V of a program (tools/shaders/translate.py), as its integer-input variant for the attribute types
 // in a; NULL when the program has none (logged). Loads it on its first use.
 const GfxShader *gfx_shader_get(const uint8_t *control, const uint8_t *code, const GfxShaderAnswers *a);
+// gfx_shader_auto.c: a program dumped without SPIR-V (dump_dir: where), and how many background translations have
+// finished; a lookup that found nothing under an older count may find the program now
+void gfx_shader_auto_dumped(const char *dump_dir, const uint8_t key[32]);
+uint32_t gfx_shader_gen(void);
 // The integer variant of a prepared vertex or fragment shader for the attribute or target types in a, or s (pipeline
 // key records).
 const GfxShader *gfx_shader_int_variant(const GfxShader *s, const GfxShaderAnswers *a);

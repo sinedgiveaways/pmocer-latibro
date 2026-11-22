@@ -296,6 +296,8 @@ static const GfxShader *prepared_get(const uint8_t *control, const uint8_t *code
             uint32_t ctl_size = 0xd8, size;
             memcpy(&size, control + 0x44, 4);
             plat_file_mkdir_p(dump);
+            // translated in the background (gfx_shader_auto.c), also when an earlier run dumped it already
+            gfx_shader_auto_dumped(dump, key);
             snprintf(p, sizeof p, "%s/%s.ctl", dump, hex);
             if (plat_file_exists(p)) return s;
             plat_file_write(p, control, ctl_size);
