@@ -95,7 +95,7 @@ WINDOWS = Target(
     [f"-I{WIN / 'deps/include'}"],
     # 16 MiB main-thread stack, as the Linux runtime; the map as on Linux.
     [f"-L{WIN / 'deps/lib'}", "-fuse-ld=lld", "-Wl,--stack,16777216", "-Wl,--Map=$builddir/orbitals-recomp.map"],
-    ["-lpsapi", "-lbcrypt", "-ladvapi32", "-lws2_32", "-liphlpapi", "-luser32", "-lole32", "-luuid", "-lshell32", "-lgdi32", "-ldwmapi", "-lruntimeobject", "-lwinmm", "-lvulkan-1", "-lSDL3", "-lopus",
+    ["-lpsapi", "-ldbghelp", "-lbcrypt", "-ladvapi32", "-lws2_32", "-liphlpapi", "-luser32", "-lole32", "-luuid", "-lshell32", "-lgdi32", "-ldwmapi", "-lruntimeobject", "-lwinmm", "-lvulkan-1", "-lSDL3", "-lopus",
      "-l:libvpx.a", "-l:libzstd.a", "-l:libc++.a", "-l:libc++abi.a", "-l:libunwind.a", "-l:libwinpthread.a"],
     WIN / "deps/include/vma",
     str(WIN / "llvm-mingw/bin/x86_64-w64-mingw32-windres"),
@@ -232,7 +232,8 @@ def defaults_glue(exefs: Path, romfs: Path, dist: bool) -> str:
 
 # What the game code library calls in the runtime (runtime/cpu/cpu.h): the executable exports them.
 RT_EXPORTS = ("rt_dispatch", "rt_sj_owner", "rt_svc", "rt_brk", "rt_udf", "rt_ticks", "rt_spin_gate", "fnprof_hit",
-              "rt_tpidr_trace_enabled", "rt_tpidr_read", "rt_tpidr_write")
+              "rt_tpidr_trace_enabled", "rt_tpidr_read", "rt_tpidr_write",
+              "rt_tls_call_trace_entry", "rt_crash_b_trace_begin", "rt_crash_b_instruction_trace")
 
 
 def ninja_file(target: Target, gen: Path, out: Path, rt_extra: list[str], dist: Path | None,
@@ -280,7 +281,7 @@ def ninja_file(target: Target, gen: Path, out: Path, rt_extra: list[str], dist: 
         ),
         f"rule ar\n  command = rm -f $out && {target.ar} rcs $out $in\n  description = ar $out",
         (
-            f"rule solink\n  command = {' '.join([target.cc, *(sys_flags or [])])} -shared -fuse-ld=lld -o $out $in $solibs"
+            f"rule solink\n  command = {' '.join([target.cc, *(sys_flags or [])])} -shared -fuse-ld=lld -Wl,--Map=$out.map -o $out $in $solibs"
             "\n  description = link $out"
         ),
         (
