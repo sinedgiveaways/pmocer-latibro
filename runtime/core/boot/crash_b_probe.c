@@ -72,7 +72,7 @@ void rt_crash_b_probe(Cpu *c, uint64_t pc) {
             rt_logf("  [probe] x21+0x158 slot=%#llx array=%#llx index(x20)=%#llx record(x27)=%#llx\n",
                     (unsigned long long)slot, (unsigned long long)array,
                     (unsigned long long)c->x[20], (unsigned long long)c->x[27]);
-            dump_words("array-header", array, 0x40);
+            dump_words("array-base-first-0x40", array, 0x40);
         } else {
             rt_logf("  [probe] x21+0x158 slot=%#llx unreadable; x20=%#llx x27=%#llx\n",
                     (unsigned long long)slot, (unsigned long long)c->x[20],
