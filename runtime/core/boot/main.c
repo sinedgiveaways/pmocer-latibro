@@ -297,15 +297,63 @@ static void crash_handler(const PlatCrash *x) {
         rt_tls_call_trace_dump(c);
         uint64_t tls_indirect = 0;
         if (c->x[27] && plat_mem_read(c->x[27], &tls_indirect, sizeof tls_indirect))
-            rt_logf("  TLS x27 chain: x27=%#llx [x27]=%#llx\n", (unsigned long long)c->x[27],
+            rt_logf("  x27 chain (record 0xE8 at [x21+0x158]+idx*0xE8): x27=%#llx [x27]=%#llx\n", (unsigned long long)c->x[27],
                     (unsigned long long)tls_indirect);
         else
-            rt_logf("  TLS x27 chain: x27=%#llx [x27] unreadable\n", (unsigned long long)c->x[27]);
+            rt_logf("  x27 chain (record 0xE8 at [x21+0x158]+idx*0xE8): x27=%#llx [x27] unreadable\n", (unsigned long long)c->x[27]);
         rt_logf("  guest thread=%p TPIDR_EL0=%#llx TLR=%#llx\n", c->thread,
                 (unsigned long long)c->tpidr, (unsigned long long)c->tpidrro);
         uint64_t thread_obj = 0;
         if (c->tpidrro && plat_mem_read(c->tpidrro + 0x1F8, &thread_obj, sizeof thread_obj))
             rt_logf("  TLR[+0x1f8] current-thread object=%#llx\n", (unsigned long long)thread_obj);
+        // Diagnostic build for the crash in f_7001759b20 = main+0x1759b20 (the read of 0x104): the faulting
+        // load is ldr w9, [x25, #0x5c], x25 = [x27] + (2 - w8) * 0x38 with x27 = [x21+0x158] + idx * 0xE8.
+        // At the 22/11/2026 crash [x27] was null and w8 was -1. Dump the record and its owner's headers,
+        // plus the presence bitmap, to tell an unconstructed record from a valid-but-empty one, and the index.
+        {
+            uint64_t rec = c->x[27], arr = 0, cnt = 0, cap = 0, bmp = 0;
+            if (c->x[21] && readable(c->x[21] + 0x158, 0x28)) {
+                arr = LD64(c->x[21] + 0x158);
+                cnt = LD64(c->x[21] + 0x160);
+                cap = LD64(c->x[21] + 0x168);
+                bmp = LD64(c->x[21] + 0x178);
+            }
+            rt_logf("  x21=%#llx: records array=%#llx count=%llu cap=%llu presence bitmap=%#llx\n",
+                    (unsigned long long)c->x[21], (unsigned long long)arr, (unsigned long long)cnt,
+                    (unsigned long long)cap, (unsigned long long)bmp);
+            if (arr && rec >= arr && (rec - arr) % 0xE8 == 0)
+                rt_logf("  record at x27 = records[%llu]\n", (unsigned long long)((rec - arr) / 0xE8));
+            uint64_t dump1 = (arr && rec >= arr + 0xE8) ? rec - 0xE8 : 0;   // the previous record, for comparison
+            const uint64_t dumps[2] = {rec, dump1};
+            for (int r = 0; r < 2; r++) {
+                if (!dumps[r] || !readable(dumps[r], 0xE8)) continue;
+                rt_logf("  record at %#llx (0xE8 bytes):\n", (unsigned long long)dumps[r]);
+                for (uint64_t o = 0; o < 0xE8; o += 16) {
+                    uint8_t b[16];
+                    if (!plat_mem_read(dumps[r] + o, b, 16)) break;
+                    char line[140];
+                    int n = snprintf(line, sizeof line, "    +%02llx:", (unsigned long long)o);
+                    if (n > 0)
+                        for (int i = 0; i < 16; i++) n += snprintf(line + n, sizeof line - (size_t)n, " %02x", b[i]);
+                    uint64_t q0 = 0, q1 = 0;
+                    memcpy(&q0, b, 8);
+                    memcpy(&q1, b + 8, 8);
+                    rt_logf("%s  %016llx %016llx\n", line, (unsigned long long)q0, (unsigned long long)q1);
+                }
+            }
+            if (bmp && cnt) {   // the presence bitmap: its first (cnt+7)/8 bytes, 64 at most
+                uint64_t nb = (cnt + 7) / 8 < 64 ? (cnt + 7) / 8 : 64;
+                if (readable(bmp, nb)) {
+                    rt_logf("  presence bitmap (%llu bytes):\n    ", (unsigned long long)nb);
+                    for (uint64_t o = 0; o < nb; o++) {
+                        uint8_t b;
+                        if (!plat_mem_read(bmp + o, &b, 1)) break;
+                        rt_logf("%02x%s", b, (o + 1) % 32 ? "" : "\n    ");
+                    }
+                    rt_logf("\n");
+                }
+            }
+        }
         for (int i = 0; i < 31; i++)
             rt_logf("  x%-2d %016llx%s", i, (unsigned long long)c->x[i], i % 4 == 3 ? "\n" : "");
         char p[160];
