@@ -113,7 +113,13 @@ static void wait_enqueue(RtThread **list, RtThread *t, int kind, uint64_t seq) {
 // ends after 1 ms. ORBITALS_WAIT_NS=1 waits the exact time (Linux futex): three in-race A/B runs gave +3.8, -0.9 and
 // +1.0 ms per frame (waitns-ab1..3, 06/11/2026), and with the address queues +0.7 mean, -1.0 median (waitns-ab4): no
 // gain over the noise, so it stays off.
-static int g_wait_ns = -1;
+static int g_wait_ns;
+static PlatOnce g_wait_ns_once = PLAT_ONCE_INIT;
+
+static void init_wait_ns(void *unused) {
+    (void)unused;
+    g_wait_ns = rt_knob("WAIT_NS", "0");
+}
 
 // Sleeps until woken or ns pass (ns < 0: no limit), holding m, which guards list (t is on it).
 static uint32_t wait_woken(RtThread *t, int64_t ns, PlatMutex *m, RtThread **list) {
@@ -131,7 +137,7 @@ static uint32_t wait_woken(RtThread *t, int64_t ns, PlatMutex *m, RtThread **lis
             t->wkind = W_NONE;
             return R_TIMEOUT;
         }
-        if (g_wait_ns < 0) g_wait_ns = rt_knob("WAIT_NS", "0");
+        plat_once(&g_wait_ns_once, init_wait_ns, NULL);
         uint64_t left = deadline - now;
         if (!RT_KNOB_ON(g_wait_ns)) left = (left + 999999) / 1000000 * 1000000;
         plat_cond_wait_ns(&t->cv, m, left);
@@ -164,11 +170,17 @@ uint32_t block_inner(RtThread *t, int kind, int64_t ns) {   // holding G
 // ORBITALS_ADDR_QUEUES=0 keeps them on G and g_wait as before; read once, since a run cannot switch with threads waiting.
 #define ADDR_QUEUES 256
 static struct { PlatMutex m; RtThread *head; } g_aq[ADDR_QUEUES];
-static int g_aq_on = -1;
+static int g_aq_on;
+static PlatOnce g_aq_once = PLAT_ONCE_INIT;
 static volatile uint64_t g_aseq;
 
+static void init_addr_queues(void *unused) {
+    (void)unused;
+    g_aq_on = rt_knob("ADDR_QUEUES", "1") == 1;
+}
+
 AddrQueue addr_queue(uint64_t addr) {
-    if (g_aq_on < 0) g_aq_on = rt_knob("ADDR_QUEUES", "1") == 1;
+    plat_once(&g_aq_once, init_addr_queues, NULL);
     if (!g_aq_on) return (AddrQueue){&G, &g_wait};
     unsigned i = (unsigned)(((addr >> 2) * 0x9E3779B97F4A7C15ull) >> 56) % ADDR_QUEUES;
     return (AddrQueue){&g_aq[i].m, &g_aq[i].head};
