@@ -50,6 +50,9 @@ from module import Module  # noqa: E402
 GENERATED_MARKER = 'ORBITALS_RECOMP_' + 'GENERATED_FROM_GAME_CODE'
 
 TERMINATORS = ('b', 'br', 'ret', 'trap')
+
+# Temporary, opt-in Crash B probes. These are guest PCs in the 1.2.1 main module.
+CRASH_B_PROBE_PCS = frozenset({0x700174E180, 0x700174E20C, 0x700174E4A8, 0x700175A01C, 0x700175A030})
 MUSTTAIL = '__attribute__((musttail)) return'
 
 # Estimated bytes of C per instruction, by class, for chunking (estimate_sizes()).
@@ -535,6 +538,9 @@ class Emitter:
         k = None
         for i, ins in enumerate(insns):
             a = entry + 4 * i
+            if a in CRASH_B_PROBE_PCS:
+                # Spill register locals first: the probe reads the live guest state from Cpu.
+                emit(i, f'    {spill}rt_crash_b_probe(c, {hx(a)});')
             if open_span is not None and a == open_span:
                 emit(None, '    }')
                 open_span = None
