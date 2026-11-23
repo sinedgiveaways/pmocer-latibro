@@ -281,9 +281,16 @@ static int owned_dirty(uint64_t addr, uint64_t size, Tex **hit) {
 
 // A storage image may be written by the shaders of the submission being recorded (texture lock held, vk_exec_bind.c
 // tex_info). Its storage is not marked GPU-owned: only the write fence for ReadTexels.
-void vk_texture_storage_bound_locked(const VkTexImage *img) {
+void vk_texture_storage_bound_locked(const VkTexImage *img, int written) {
     Tex *e = (Tex *)img;   // pub is the first member
-    alias_wrote(e);        // the shaders may write it: its aliases take its image at their next use (alias_sync)
+    if (written) {
+        // GfxShaderRes.flags bit 2 (value 4) is set only for an image the shader may store into.
+        // Reuse the full GPU-write path: ownership, dirty generation, write-back fence and alias ordering.
+        // The texture lock is recursive and is already held by descriptor construction.
+        vk_texture_gpu_written(&e->t);
+        return;
+    }
+    alias_wrote(e);        // a read-only storage image still participates in alias ordering
     uint64_t f = vk_exec_recording_fence();
     if (f > e->wr_fence) e->wr_fence = f;
 }
