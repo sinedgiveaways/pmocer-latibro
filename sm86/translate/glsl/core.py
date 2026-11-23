@@ -20,6 +20,7 @@ import flow
 from program import Insn, Sph
 
 from glsl import subroutines
+from glsl.shared_fence import shared_load_fences
 from glsl.alu import AluOps
 from glsl.geom import GeomOps
 from glsl.common import FMUL_SCALE, MUFU, PT, RZ, TURNS, URZ, Unsupported, pred, reg
@@ -403,6 +404,7 @@ def translate(
         raise Unsupported(f"stage {stage}")
     b = Builder(sph, stage)
     insns = inline_single_call(insns)
+    fence_pcs = shared_load_fences(insns, brx_targets(insns, c1)) if any(i.op in ("BRX", "BRXU") for i in insns) else shared_load_fences(insns)
     writes = [i for i in insns if i.op == "ISBEWR"]
     # a VS header with payload writes only (no per-vertex SKEW writes, no index bytes) is a task program
     b.task = stage == "vs" and bool(writes) and all(i.sym("base") == "ATTR" and i.sym("skew") != "SKEW" for i in writes)
@@ -504,6 +506,8 @@ def translate(
         else:
             b.fold_new.clear()
             stmt = b.insn(i)
+            if i.pc in fence_pcs:
+                stmt = "groupMemoryBarrier(); " + stmt
             b.track_ssbo(i)
             for n in {int(x) for x in re.findall(r"\br(\d+) = ", stmt or "")} - b.fold_new:
                 b.fold.pop(n, None)  # written outside dst() (pairs, vectors): no longer what the fold knew

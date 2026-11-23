@@ -1,7 +1,29 @@
-# Orbitals startup crash: TLS lookup in GetTlsValue
+# Orbitals startup crash: the game's record walk over an unpopulated sub-table
 
-**Status:** diagnosis of the immediate fault; the initialization root cause is not yet established.  
-**Scope:** analysis of the Windows crash dump, guest ARM64 register/stack snapshot, and disassembly from the matching generated object and DLL. No source or runtime code was changed as part of this investigation.
+**Status:** root cause established by the 22/11/2026 instrumented crash log (build b7f50da / PR #14).
+**Scope:** the sections dated 20-22/11/2026 below keep the earlier draft analysis; the newest section supersedes its conclusions.
+
+## Root cause confirmed (22/11/2026)
+
+The diagnostic build's record dump settled which of the three candidate causes the fault is.
+
+**Not GetTlsValue, not TPIDR.** The `nn::os::GetTlsValue` name in the crash report was the nearest symbol on the faulting page, a red herring (the lifted-symbols note in "What is established" below stands, but its framing was wrong). The faulting code is game code in `f_7001759b20 = main+0x1759b20`.
+
+**What the dump showed.** At the crash, `x27` pointed at a 0xE8-byte record that is alive and well formed, not an unconstructed one:
+
+- `x27 = 0x84014d000`; the back pointer at the record's +0x38 matches `x21 = 0xb40012810`.
+- +0x20/+0x28 hold the owner object's corner (`0x119454520`, twice); +0xb8 points at the next record (`0x84014d100`), so the record sits in a live list.
+- The record's sub-table pointer at +0x00 is null, and its state field at +0x50 is 0xFFFFFFFF (-1): the record exists but has no sub-table allocated, i.e. a valid-but-empty element.
+- The faulting sequence is `x27 = [x21+0x158] + idx*0xE8`; `[x27] = 0`; `x25 = [x27] + (2 - w8) * 0x38` with `w8 = -1`, so `x25 = 0xa8`; `ldr w9, [x25, #0x5c]` reads address **0x104** from a null base.
+- The generated code right after the load already tests the loaded word for zero (`testq %rcx,%rcx` and a conditional jump back): only the sub-table pointer itself lacks a guard.
+
+So: not a race of initialization (the record is constructed), not a stale hint (the list entry is current), but a valid-but-empty element read without the guard its state field calls for. The type of fix therefore is a guard on the null sub-table pointer (or the -1 state) in that one lifted site, through the generator's code patch table (`recomp/patches.py`: a switchable `site` patch, checked against the original instruction word), not a generic change in `lifter.py`. The deeper question, whether the runtime should have had that sub-table pointer populated for a freshly created thread (compare the `SetTlsValue` site at `main+0x1ba10`), stays open and should be answered before or alongside the patch.
+
+**One caveat on the 21/11 extension:** the guessed count/capacity header offsets printed garbage (`count=0x400000002 cap=0x600000003`, bitmap 0) on a record known to be valid, so +0x160/+0x168/+0x178 are not the right fields of the owner object. The record dump itself is what settled the diagnosis; the presence-bitmap fields need the real object layout before being reused.
+
+## Draft analysis (20-22/11/2026), historical
+
+The rest of this document keeps the earlier draft: its register evidence, the runtime cross-check and the generated-object disassembly remain valid; its "GetTlsValue" framing is superseded by the section above.
 
 ## Summary
 
@@ -102,3 +124,23 @@ The lifter's TPIDR_EL0 hook (`rt_tpidr_trace_enabled() ? rt_tpidr_read(...)`, ev
 into the executable) is taken out again: it forced a full game recompile and slowed every TLS access, for a trace that
 showed nothing on the faulting thread. `ORBITALS_TRACE_TPIDR` therefore records nothing from lifted code; the crash
 report's host context, TLS chain and `GetTlsValue` entry dump stay. Put the two lifter lines back to trace again.
+
+
+## Phenomenology (23/11/2026)
+
+Player-side launch pattern: logo x3 (no audio) -> loading -> random crash -> menu -> character select ->
+loading -> random crash -> cutscene -> gameplay. Four launches out of five run clean; back-to-back relaunches
+can crash every time. Both known faulting sites sit in the game-side loading windows.
+
+This random, load-correlated timing keeps a parallel-initialization race on the table, and it is still compatible
+with the record dump: the record is fully formed except its sub-table pointer at +0x00, exactly the footprint of a
+record another thread is still constructing (pointer stored last) while the walker reads it. The rec-null-guard
+site patch covers that read window too: the null pointer becomes the patch page, the word reads 0 and the
+function's own cbz skips the element, so a walker racing the constructor soft-lands instead of faulting on 0x104.
+
+To tell the race from a genuinely missing sub-table:
+
+- when it crashes again, capture whether the faulting site is always the same 0x104 / main+0x1759b20 read or the
+  crash moves (a moving fault argues for a separate second bug, the GPU device-lost profile of the 20/11 log);
+- the per-record state field (the -1 seen at +0x50 in the one crash we have) and a dump of the same record a few
+  frames later on a clean run would settle whether +0x00 gets filled in later by another thread.
