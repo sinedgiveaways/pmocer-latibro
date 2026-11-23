@@ -353,6 +353,48 @@ static void crash_handler(const PlatCrash *x) {
                     rt_logf("\n");
                 }
             }
+        // Site capture for the same crash: the code stopped in f_7001759b20 while its pending guest
+        // call target sat in c->pc (at the 22/11/2026 crash that was nn::os::GetTlsValue). The guest `bl` to
+        // that target is at or before c->pc inside the function code. Dump the instruction stream around it:
+        // the exact words and addresses a patch site (recomp/patches.py) needs to guard the null sub-table
+        // read of ldr w9, [x25, #0x5c] with x25 built from a null [x27].
+        if (f && c->pc) {
+            uint64_t fstart = f & ~3ull, found = 0;
+            for (uint64_t a = fstart; a < fstart + 0x4000; a += 4) {
+                uint32_t w;
+                if (!plat_mem_read(a, &w, 4)) break;
+                if ((w & 0xFC000000u) == 0x94000000u) {   // bl
+                    int64_t imm = (int64_t)(int32_t)((w & 0x03FFFFFFu) << 6) >> 6;
+                    if (a + imm * 4 == c->pc) found = a;
+                }
+            }
+            rt_logf("  guest code capture in f_%llx (pending call target %#llx):\n",
+                    (unsigned long long)f, (unsigned long long)c->pc);
+            if (found)
+                rt_logf("  bl at %#llx (fstart+%#llx) targets it\n", (unsigned long long)found,
+                        (unsigned long long)(found - fstart));
+            else
+                rt_logf("  (no bl to the pending target in the first 0x4000 bytes; dumping the head)\n");
+            uint64_t from = found > fstart + 32 * 4 ? found - 32 * 4 : fstart;   // 32 words before the bl, else the head
+            for (uint64_t a = from, k = 0; k < 48; a += 4, k++) {
+                uint32_t w;
+                if (!plat_mem_read(a, &w, 4)) break;
+                char note[96] = "";
+                if ((w & 0xFC000000u) == 0x94000000u || (w & 0xFC000000u) == 0x14000000u) {   // bl / b
+                    int64_t off = (int64_t)(int32_t)((w & 0x03FFFFFFu) << 6) >> 6;
+                    snprintf(note, sizeof note, "  %s -> fstart+%#llx", (w & 0xFC000000u) == 0x94000000u ? "bl" : "b",
+                             (unsigned long long)(a + off * 4 - fstart));
+                } else if ((w & 0xFF000010u) == 0x54000000u) {   // b.cond
+                    int64_t off = (int64_t)(int32_t)(((w >> 5) & 0x7FFFFu) << 13) >> 13;
+                    snprintf(note, sizeof note, "  b.%llx -> fstart+%#llx", (unsigned long long)((w >> 24) & 0xF),
+                             (unsigned long long)(a + off * 4 - fstart));
+                } else if ((w & 0x3B000000u) == 0x08000000u) {   // the load/store (immediate) class
+                    snprintf(note, sizeof note, "  (load/store imm)");
+                }
+                rt_logf("  code fstart+%#llx (=%#llx): %08llx%s\n", (unsigned long long)(a - fstart),
+                        (unsigned long long)a, (unsigned long long)w, note);
+            }
+        }
         }
         for (int i = 0; i < 31; i++)
             rt_logf("  x%-2d %016llx%s", i, (unsigned long long)c->x[i], i % 4 == 3 ? "\n" : "");
