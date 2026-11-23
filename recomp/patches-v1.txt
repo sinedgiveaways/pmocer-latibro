@@ -14,11 +14,16 @@
 #
 # Replacement at main+0x175a01c (branchless, no flag reuse after the cmp):
 #   ldr  x9, [x27]        ; the original load
-#   cmp  x9, #0           ; flag the null sub-table
-#   adrp x13, <page>      ; the runtime-owned zero page (@page:x13)
-#   csel x9, x9, x13, ne  ; null base out, page base in
-# x13 is scratch on this stretch (nothing between the load and the cbz reads it).
+#   neg  x13, x9          ; -base
+#   orr  x13, x13, x9     ; base | -base: 0 only when the base is null
+#   lsr  x13, x13, #63    ; x13 = 1 when the base is valid, else 0
+#   sub  x13, x13, #1     ; the run-time mask: 0 (valid base) or ~0 (null base)
+#   adrp x16, <page>      ; the runtime-owned zero page (@page:x16)
+#   and  x16, x16, x13    ; the page when the base is null, else 0
+#   orr  x9, x9, x16      ; null base out, page base in; a valid base passes untouched
+# x13 and x16 are scratch on this stretch (nothing between the load and the cbz reads them; page&1
+# without the sub would be 0 either way, the guard needs the mask, not the flag).
 
 set  rec-null-guard  ORBITALS_PATCH_REC_NULL_GUARD  1
 
-site rec-null-guard main 0x175a01c f9400369 f9400369 f100013f @page:x13 9a8d1129
+site rec-null-guard main 0x175a01c f9400369 f9400369 cb0903ed aa0901ad 937ffdad d10005ad @page:x16 8a0d0210 aa100129
