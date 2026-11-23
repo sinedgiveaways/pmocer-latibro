@@ -487,7 +487,7 @@ int vk_mem_phys_load(uint64_t addr, const void *p, uint64_t n);
 // it is made again (a replay's MapVirtual and first use).
 uint64_t vk_sparse_dump(void (*emit)(const void *key, uint32_t klen, const void *p, uint64_t n, void *ctx), void *ctx);
 void vk_sparse_load(const void *key, uint32_t klen, const void *p, uint64_t n);
-void vk_texture_storage_bound_locked(const VkTexImage *img);   // bound as a storage image in the recording submission
+void vk_texture_storage_bound_locked(const VkTexImage *img, int written);   // bound as a storage image; written: shader declares image stores
 uint64_t vk_texture_last_write(const tex_t *t);    // timeline value of the newest submission recorded to write it; 0: none
 size_t vk_texture_texel_span(const tex_t *t, const view_t *v, const NVNcopyRegion *r, uint64_t row, uint64_t img);   // bytes ReadTexels spans; 0 for a bad region
 int vk_texture_small_dirty(void);                   // a small or pitch mirrored target holds GPU texels its storage lacks
