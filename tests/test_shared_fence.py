@@ -50,9 +50,9 @@ def test_store_at_bottom_of_loop_reaches_load_at_top():
 def test_store_on_one_branch_reaches_join_load():
     # BRA.P0 to the join; STS; BRA to join; LDS
     code = prog(
-        ("BRA", {"sImm": 2, "Pg": 0}),
+        ("BRA", {"sImm": 12, "Pg": 0}),
         ("STS", {}),
-        ("BRA", {"sImm": 1}),
+        ("BRA", {"sImm": 4}),
         ("LDS", {}),
         ("EXIT", {}),
     )
