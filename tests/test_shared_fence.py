@@ -43,16 +43,16 @@ def test_explicit_membar_and_bar_cover_the_load():
 
 def test_store_at_bottom_of_loop_reaches_load_at_top():
     # LDS; STS; BRA back to LDS; EXIT
-    code = prog(("LDS", {}), ("STS", {}), ("BRA", {"sImm": -2}), ("EXIT", {}))
+    code = prog(("LDS", {}), ("STS", {}), ("BRA", {"sImm": -12}), ("EXIT", {}))
     assert shared_load_fences(code) == {0}
 
 
 def test_store_on_one_branch_reaches_join_load():
     # BRA.P0 to the join; STS; BRA to join; LDS
     code = prog(
-        ("BRA", {"sImm": 12, "Pg": 0}),
+        ("BRA", {"sImm": 8, "Pg": 0}),
         ("STS", {}),
-        ("BRA", {"sImm": 4}),
+        ("BRA", {"sImm": 0}),
         ("LDS", {}),
         ("EXIT", {}),
     )
