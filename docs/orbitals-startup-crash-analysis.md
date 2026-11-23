@@ -124,3 +124,23 @@ The lifter's TPIDR_EL0 hook (`rt_tpidr_trace_enabled() ? rt_tpidr_read(...)`, ev
 into the executable) is taken out again: it forced a full game recompile and slowed every TLS access, for a trace that
 showed nothing on the faulting thread. `ORBITALS_TRACE_TPIDR` therefore records nothing from lifted code; the crash
 report's host context, TLS chain and `GetTlsValue` entry dump stay. Put the two lifter lines back to trace again.
+
+
+## Phenomenology (23/11/2026)
+
+Player-side launch pattern: logo x3 (no audio) -> loading -> random crash -> menu -> character select ->
+loading -> random crash -> cutscene -> gameplay. Four launches out of five run clean; back-to-back relaunches
+can crash every time. Both known faulting sites sit in the game-side loading windows.
+
+This random, load-correlated timing keeps a parallel-initialization race on the table, and it is still compatible
+with the record dump: the record is fully formed except its sub-table pointer at +0x00, exactly the footprint of a
+record another thread is still constructing (pointer stored last) while the walker reads it. The rec-null-guard
+site patch covers that read window too: the null pointer becomes the patch page, the word reads 0 and the
+function's own cbz skips the element, so a walker racing the constructor soft-lands instead of faulting on 0x104.
+
+To tell the race from a genuinely missing sub-table:
+
+- when it crashes again, capture whether the faulting site is always the same 0x104 / main+0x1759b20 read or the
+  crash moves (a moving fault argues for a separate second bug, the GPU device-lost profile of the 20/11 log);
+- the per-record state field (the -1 seen at +0x50 in the one crash we have) and a dump of the same record a few
+  frames later on a clean run would settle whether +0x00 gets filled in later by another thread.
