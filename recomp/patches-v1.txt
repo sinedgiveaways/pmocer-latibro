@@ -24,7 +24,25 @@
 #   orr  x25, x16, x17    ; the address the load below actually uses
 #   ldr  w9, [x25, #0x5c] ; the original load, now safe
 # x13, x14 and x16/x17 are scratch on this stretch (nothing between the load and the cbz reads them).
-
+#
+# rec-null-guard-vector: the second record helper f_700175dbd0 reads a 0x38-byte sub-table entry.
+# The 23/11 22:58 crash has x0=0x84017c400, x1=0, and the first qword at [x0] is null. The helper
+# calculates x11 = [x0] + (2 - w1) * 0x38, then main+0x175dc04 executes
+#   ldr d17, [x11, #0x28]
+# which reads 0x98 from a null base. This is a different site from rec-null-guard above.
+#
+# At main+0x175dbec, redirect a null sub-table base to the runtime-owned, zero-filled patch page.
+# The helper's later reads (through offset 0x54 and index 2) then stay inside that 4 KiB page and
+# return zero sub-table values. A non-null base is unchanged. This is a containment fallback: the
+# current log does not dump this x0 record's +0x50 state, so it does not establish whether the missing
+# sub-table is a valid empty record or an initialization race. x14/x15 are unused in this helper;
+# the mask is branchless and does not alter NZCV. The generator checks the original instruction word.
+#
+#   main+0x175dbec: 08 00 40 f9   ldr x8, [x0]
+#   main+0x175dc04: 71 15 40 fd   ldr d17, [x11, #0x28] ; host fault was a read at 0x98
+#
 set  rec-null-guard  ORBITALS_PATCH_REC_NULL_GUARD  1
-
 site rec-null-guard main 0x175a030 b9405f29 cb0903ed aa0901ad 937ffdad d10005ad d101736e 8a2d0330 8a0d01d1 aa102239 b9405f29
+
+set  rec-null-guard-vector  ORBITALS_PATCH_REC_NULL_GUARD_VECTOR  1
+site rec-null-guard-vector main 0x175dbec f9400008 f9400008 cb0803ee aa0801ce d37ffdce d10005ce @page:x15 8a0e01ef aa0f0108
