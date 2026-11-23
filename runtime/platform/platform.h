@@ -78,7 +78,7 @@ static inline void plat_pause(void) {     // spin-wait hint
     __asm__ volatile("yield");
 #endif
 }
-// A cheap cycle-like counter for diagnostic timings (ratios between parts of one operation): the TSC on x86-64, the
+// A cheap cycle-like counter for diagnostic timings (ticks between parts of one operation): the TSC on x86-64, the
 // generic timer's virtual count on AArch64 (CNTVCT_EL0, tens of MHz: coarser, the same use).
 static inline uint64_t plat_cycles(void) {
 #if defined(__x86_64__) || defined(_M_X64)
@@ -280,47 +280,24 @@ long plat_tz_west(void);                  // the local zone's standard offset, s
 // expect the child to stop with a fatal. Its stdout and stderr go into out (NUL-terminated, the rest discarded); waits
 // at most timeout_ms (0: no limit) and kills it after that. Returns the exit code, -1 when it could not start.
 int plat_run_self(const char *env_name, const char *env_value, char *out, size_t cap, uint32_t timeout_ms);
+int plat_process_alive(uint32_t pid);     // 1 when a process with that id exists
+int plat_random(void *out, size_t n);     // cryptographically strong bytes; 1 on success
 
-// ---- randomness
-int plat_random(void *out, size_t n);     // cryptographically random bytes; 1 on success
-
-// ---- files. Paths are UTF-8 with either separator; each implementation converts to what the OS wants.
-int plat_file_exists(const char *path);                   // 1 for a file (not a directory)
-int plat_dir_exists(const char *path);                    // 1 for a directory
-// path made absolute against the working directory (not resolved further); 0 when it does not fit cap.
-int plat_full_path(const char *path, char *out, size_t cap);
-void plat_file_mkdir_p(const char *path);                 // creates every missing directory of path, itself included
-// Whole file into a malloc'd buffer with a NUL after the last byte; NULL when missing, empty or over 1 GiB.
-uint8_t *plat_file_read(const char *path, uint64_t *size);
-int plat_file_write(const char *path, const void *data, size_t n);   // create or truncate; 1 when all n bytes landed
-int plat_file_replace(const char *from, const char *to);  // rename, replacing to (write-through); 1 on success
-// Writes path.<pid>.<tid>.tmp, flushes it to the disk and renames it over path: a crash leaves the old file or the new
-// one, never a torn or zero-filled one. 1 on success.
-int plat_file_write_atomic(const char *path, const void *data, size_t n);
-// Deletes the path.<pid>.<tid>.tmp files plat_file_write_atomic left behind in processes that are gone (killed while
-// writing: 410 MB of pipeline caches in build/ on 06/11/2026). Returns how many.
-int plat_file_atomic_cleanup(const char *path);
-int plat_process_alive(uint32_t pid);                     // 1 while a process with that id exists
-int plat_file_sync(FILE *f);                              // fflush, then the file's data to the disk; 1 on success
-// fseek and ftell with 64-bit offsets (a long is 32 bits on Windows).
-#ifdef _WIN32
-static inline int plat_fseek64(FILE *f, int64_t off, int whence) { return _fseeki64(f, off, whence); }
-static inline int64_t plat_ftell64(FILE *f) { return _ftelli64(f); }
-#else
-static inline int plat_fseek64(FILE *f, int64_t off, int whence) { return fseeko(f, (off_t)off, whence); }
-static inline int64_t plat_ftell64(FILE *f) { return (int64_t)ftello(f); }
-#endif
-void plat_file_delete(const char *path);
-int64_t plat_file_size(const char *path);                 // bytes of a file, -1 when missing or unreadable
-int plat_file_set_readonly(const char *path, int on);     // sets or clears the read-only attribute; 1 on success
-// An exclusive lock on path (created if missing), held until the process ends: 1 taken, 0 when another process holds
-// it, -1 when the file cannot be opened. The OS drops it when the process dies, however it dies.
-int plat_file_lock(const char *path);
-// A file that only grows and other processes may read meanwhile: each write lands whole at its end, from any thread,
+// ---- files and paths (UTF-8 paths; separators may be / or \\ on Windows)
+#define PLAT_PATH_MAX 1024
+int plat_file_exists(const char *path);
+int plat_dir_exists(const char *path);
+int plat_full_path(const char *path, char *out, size_t cap);   // absolute form of path; 1 on success
+void plat_file_mkdir_p(const char *path); // creates path and every missing parent
+uint8_t *plat_file_read(const char *path, uint64_t *size);   // whole file; free the pointer; NULL on failure
+int plat_file_write(const char *path, const void *data, size_t n);  // creates or truncates; 1 on success
+// An append-only stream that several threads may write at once. Each write is atomic at the end of the file
 // and reaches the file even if the process dies right after (no user-space buffer, no flush to the disk).
 typedef struct PlatAppend PlatAppend;
 PlatAppend *plat_append_open(const char *path);           // creates or truncates path; NULL on failure
 int plat_append_write(PlatAppend *f, const void *data, size_t n);   // 1 when all n bytes landed
+// Force the append stream to the disk (crash path). No-op if f is NULL.
+void plat_append_flush(PlatAppend *f);
 // Calls cb(name, ctx) for each file in dir whose name ends in ext (".in"); name has no directory part. cb returns 0 to
 // stop. Returns 0 when dir cannot be listed.
 int plat_file_list(const char *dir, const char *ext, int (*cb)(const char *name, void *ctx), void *ctx);
@@ -328,117 +305,70 @@ int plat_file_list(const char *dir, const char *ext, int (*cb)(const char *name,
 typedef struct PlatFile PlatFile;
 PlatFile *plat_file_open(const char *path);               // read-only; NULL when missing or unreadable
 // The same without the OS's file cache (reads go to the disk into the buffer): offsets, sizes and buffers aligned to
-// the sector size.
+// the volume's sector size (typically 512 or 4096). NULL when the path cannot be opened that way.
 PlatFile *plat_file_open_unbuffered(const char *path);
 void plat_file_close(PlatFile *f);
-// Bytes read at off (0 at or past the end of the file), -1 on an I/O error, -2 when the OS refused to write into buf
-// (a read-only page).
+// Reads n bytes at off into buf; returns the number read (0 at EOF), -1 on error, -2 when the range is not readable
+// (a hole or an inaccessible page of a mapping).
 int64_t plat_file_pread(PlatFile *f, void *buf, uint32_t n, uint64_t off);
-// What changes when the file is replaced or written: its volume, file id, size, last write and creation (on Linux,
-// status change) times in the OS's units. 0 on failure.
-typedef struct { uint64_t volume, file_id, size, write_time, create_time; } PlatFileId;
-int plat_file_id(PlatFile *f, PlatFileId *out);
-const void *plat_file_map(PlatFile *f);                   // a read-only view of the whole file, kept until exit; NULL
+typedef struct { uint64_t volume, inode, size, mtime_ns, ctime_ns; } PlatFileId;
+int plat_file_id(PlatFile *f, PlatFileId *out);            // identity for cache keys; 1 on success
+const void *plat_file_map(PlatFile *f);                    // the whole file read-only; NULL on failure; kept until close
+int plat_file_replace(const char *from, const char *to);  // renames from to to, replacing to; 1 on success
+// Writes data to path atomically (a temp file then a replace); 1 on success.
+int plat_file_write_atomic(const char *path, const void *data, size_t n);
+// Deletes the path.<pid>.<tid>.tmp files plat_file_write_atomic left behind in processes that are gone (killed while
+// writing).
+void plat_file_cleanup_temps(const char *path);
+int plat_file_sync(FILE *f);              // fflush and commit the underlying descriptor; 1 on success
+void plat_file_delete(const char *path);
+int64_t plat_file_size(const char *path); // -1 when missing
+int plat_file_set_readonly(const char *path, int on);   // 1 on success
+int plat_file_lock(const char *path);     // exclusive lock on path; 1 held, 0 already locked, -1 error
 
-// ---- the host file system under the game's save data (fs_host.c). Calls that can fail return PLAT_FS_OK (0) or the
-// reason; other processes may open the same files meanwhile.
-enum { PLAT_FS_OK, PLAT_FS_NOT_FOUND, PLAT_FS_EXISTS, PLAT_FS_NOT_EMPTY, PLAT_FS_BUSY, PLAT_FS_ERROR };
-enum { PLAT_FS_MISSING = -1, PLAT_FS_FILE, PLAT_FS_DIR, PLAT_FS_LINK };   // plat_fs_kind; LINK: a symbolic link or
-                                                                         // reparse point, never followed
-int plat_fs_kind(const char *path);
-int plat_fs_mkdir(const char *path);                      // PLAT_FS_EXISTS when something is there
-int plat_fs_os_error(void);   // the OS error code (GetLastError, errno) of this thread's last failed plat_fs_* call
-int plat_fs_rmdir(const char *path);                      // an empty directory (a read-only one too), or a link to one
-int plat_fs_unlink(const char *path);                     // a file or a link; a read-only one too
-// Renames a file or directory; never replaces (PLAT_FS_EXISTS). durable: the change is on the disk at return.
-int plat_fs_rename(const char *from, const char *to, int durable);
-int plat_fs_link(const char *existing, const char *path); // a hard link
-int plat_fs_links(const char *path);                      // the file's hard link count, 0 when unknown
-void plat_fs_sync_dir(const char *path);                  // a directory's entries to the disk, as far as the FS allows
-// Why dir could not be renamed, for the log: into out "no permission to rename it" when this process may not delete
-// it, else the programs holding a file under it ("explorer.exe 1234, ..."), else an empty string. Windows refuses to
-// rename a directory with any file open under it; elsewhere out is always empty.
-void plat_fs_busy_reason(const char *dir, char *out, size_t cap);
-// cb(name, kind, size, ctx) for each entry of dir but "." and ".."; cb returns 0 to stop. The listing's error.
+// ---- file system (save data, etc.): more operations than the log and config paths above
+enum { PLAT_FS_OK = 0, PLAT_FS_NOT_FOUND, PLAT_FS_EXISTS, PLAT_FS_NOT_EMPTY, PLAT_FS_BUSY, PLAT_FS_ERROR, PLAT_FS_MISSING = -1 };
+enum { PLAT_FS_FILE = 1, PLAT_FS_DIR = 2, PLAT_FS_LINK = 3 };
+int plat_fs_kind(const char *path);       // PLAT_FS_FILE/DIR/LINK, or PLAT_FS_MISSING
+int plat_fs_mkdir(const char *path);
+int plat_fs_rmdir(const char *path);
+int plat_fs_unlink(const char *path);
+int plat_fs_rename(const char *from, const char *to, int durable);  // durable: fsync the parent dirs
+int plat_fs_link(const char *existing, const char *path);
+int plat_fs_links(const char *path);      // hard-link count, 0 on error
+void plat_fs_sync_dir(const char *path);
+void plat_fs_busy_reason(const char *dir, char *out, size_t cap);  // who holds files under dir open (Windows)
 int plat_fs_list(const char *dir, int (*cb)(const char *name, int kind, uint64_t size, void *ctx), void *ctx);
-// An existing file for reading and, with write, writing; *err (may be NULL) gets the reason on failure.
 PlatFile *plat_fs_open(const char *path, int write, int *err);
-PlatFile *plat_fs_create(const char *path, int *err);     // a new file for writing; PLAT_FS_EXISTS when there
-int64_t plat_file_pwrite(PlatFile *f, const void *buf, uint32_t n, uint64_t off);   // bytes written, -1 on error
-int plat_file_set_size(PlatFile *f, uint64_t size);       // PLAT_FS_*
-int plat_file_fsync(PlatFile *f);                         // the file's data to the disk; 1 on success
-int plat_temp_dir(char *out, size_t cap);                 // the user's temporary directory, no trailing separator
-int plat_exe_path(char *out, size_t cap);                 // path of the running executable; 0 on failure
-uintptr_t plat_exe_base(void);                            // where the executable is loaded
-// The module (executable or library) holding code address addr: its file name without directories into name, its load
-// address into *base. 0 when none.
-int plat_module_of(uintptr_t addr, char *name, size_t cap, uintptr_t *base);
-#define PLAT_PATH_MAX 1024   // path buffers of the runtime
-// The last directory separator in path ('/' or '\\'), NULL when there is none.
-static inline char *plat_last_sep(const char *path) {
-    char *last = NULL;
-    for (const char *p = path; *p; p++)
-        if (*p == '/' || *p == '\\') last = (char *)p;
-    return last;
-}
-// Environment variable as UTF-8 into out; its length, or 0 when unset, empty or too long for cap.
-size_t plat_getenv(const char *name, char *out, size_t cap);
-// The user's UI language as a BCP-47 tag ("ru-RU", "en-US"); "" when the system gives none. Valid for the process.
-const char *plat_ui_language(void);
-// The user's regional format (locale) as a BCP-47 tag; "" when the system gives none. Valid for the process.
-const char *plat_user_locale(void);
-uint32_t plat_thread_id(void);                            // id of the calling thread, for unique file names
-// The host's time zone as an IANA name ("Europe/Madrid") into out; 0 when the system gives none.
-int plat_time_zone(char *out, size_t cap);
-// A system font file with the glyphs of a language ("ja", "ko", "zh-Hans", "zh-Hant", "th"): the menu shows each
-// language's name in its own script. Copies the UTF-8 path into out; 0 when the system has none.
-int plat_font_path(const char *lang, char *out, size_t cap);
-// The operating system and its build ("Windows 10.0.28000") into out; 0 when unknown.
-int plat_os_version(char *out, size_t cap);
-// The file the process's stderr (the log) goes to, as a UTF-8 path; 0 when stderr is not a file (a console, a pipe).
-int plat_stderr_path(char *out, size_t cap);
+PlatFile *plat_fs_create(const char *path, int *err);
+int64_t plat_file_pwrite(PlatFile *f, const void *buf, uint32_t n, uint64_t off);
+int plat_file_set_size(PlatFile *f, uint64_t size);
+int plat_file_fsync(PlatFile *f);
+int plat_temp_dir(char *out, size_t cap);
+int plat_fs_os_error(void);               // the last OS error code for a PLAT_FS_* failure
 
-// ---- desktop: the in-game menu's "Copy system info" and "Open log folder"
-int plat_clipboard_set(const char *utf8);                 // replaces the clipboard's text; 1 on success
-int plat_open_folder(const char *path);                   // shows the folder in the file manager; 1 on success
-// A desktop shortcut named name that starts exe with dir as its working directory, each system in its own way: a .lnk
-// made by the shell's IShellLink on Windows; a .desktop entry on the XDG desktop folder on Linux, executable and marked
-// trusted so KDE and GNOME start it without asking, with a copy in ~/.local/share/applications for the menu. Writes the
-// shortcut's path to out. 1 on success.
-int plat_desktop_shortcut(const char *name, const char *exe, const char *dir, char *out, size_t cap);
+// ---- modules and the executable
+uintptr_t plat_exe_base(void);
+int plat_module_of(uintptr_t addr, char *name, size_t cap, uintptr_t *base);  // name of the module holding addr; 1 on success
+int plat_exe_path(char *out, size_t cap); // absolute path of this executable; 1 on success
+size_t plat_getenv(const char *name, char *out, size_t cap);  // length written (without NUL), 0 when unset
+uint32_t plat_thread_id(void);
 
-// ---- dynamic libraries: a library some machines lack (a GPU vendor's), loaded at run time. A bare name is searched
-// in the system directories only. NULL when missing.
-void *plat_lib_open(const char *name);
-void *plat_lib_sym(void *lib, const char *name);
-// The process's signal handlers before a library that may install its own crash handler starts (Steam's client at
-// SteamAPI_Init, steam/steam_rpt.c), and back after it: the runtime's fault handler (linux_mem.c) must keep SIGSEGV.
-// plat_handlers_restore puts back every handler that changed, frees h and returns how many. Windows: nothing to do,
-// the runtime's vectored handlers run before any filter a library sets (NULL, 0).
-typedef struct PlatHandlers PlatHandlers;
-PlatHandlers *plat_handlers_save(void);
-int plat_handlers_restore(PlatHandlers *h);
+// ---- dynamic libraries
+typedef struct PlatLib PlatLib;
+PlatLib *plat_lib_open(const char *path); // NULL on failure
+void *plat_lib_sym(PlatLib *lib, const char *name);
+void plat_lib_close(PlatLib *lib);
 
-// ---- machine load for the performance overlay (perfmon.c's sampling thread; each call can take milliseconds). A number
-// the system does not give is -1.
-typedef struct PlatLoad PlatLoad;
-// Opens the counters: CPU times, the thermal zones, and the GPU engine and memory counters of the adapter whose LUID is
-// gpu_luid (8 bytes, Vulkan's deviceLUID; NULL: the busiest adapter). Never NULL.
-PlatLoad *plat_load_open(const uint8_t *gpu_luid);
-void plat_load_close(PlatLoad *l);
-// Since the previous call on l (the first call gives -1): CPU use of the machine and of this process, percent of all
-// logical processors, and the hottest ACPI thermal zone in degrees Celsius.
-void plat_cpu_load(PlatLoad *l, float *total_pct, float *proc_pct, float *temp_c);
-// Since the previous call on l: the busiest GPU engine type in percent (as Task Manager shows it), and the adapter's
-// dedicated memory in use in MB. Any GPU vendor.
-void plat_gpu_load(PlatLoad *l, float *load_pct, float *vram_used_mb);
-// The GPU's own memory in MiB (an integrated GPU's carve-out, set in the firmware: memory the system does not count as
-// its RAM), for the adapter with Vulkan's vendor and device ids (Linux: amdgpu's mem_info_vram_total) or deviceLUID
-// (Windows: DXGI's DedicatedVideoMemory). 0 when unknown.
-uint64_t plat_gpu_vram_mib(uint32_t vendor, uint32_t device, const uint8_t *luid);
-// Physical memory in MB: in use and installed on the machine, and this process's working set.
-void plat_mem_info(float *used_mb, float *total_mb, float *proc_mb);
-// This process's memory in bytes: resident (the working set) and private (Windows: committed private bytes; Linux: the
-// resident anonymous pages). 0 when unknown.
+// ---- stderr path (for the log file decision)
+int plat_stderr_path(char *out, size_t cap);  // 1 when stderr is a real file (redirected); its path in out
+
+// ---- desktop (window title, clipboard, message box)
+void plat_set_window_title(const char *title);
+int plat_clipboard_get(char *out, size_t cap);  // UTF-8; 1 on success
+int plat_clipboard_set(const char *text);
+void plat_message_box(const char *title, const char *text);
+
+// ---- system info for the log header
 void plat_process_memory(uint64_t *resident, uint64_t *private_bytes);
-
+void plat_mem_info(float *used_mib, float *total_mib, float *proc_mib);
