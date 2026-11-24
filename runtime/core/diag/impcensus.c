@@ -19,6 +19,10 @@
 #include "nvn_api.h"
 #include "platform/platform.h"
 
+extern volatile int g_orbitals_entry_probe;
+extern void rt_patch_record_entry(uint64_t lr, uint64_t x0);
+extern void rt_patch_free_entry(uint64_t lr, uint64_t x0);
+
 #define HSIZE 8192   // power of two; main imports 1 289 functions
 
 static uint64_t main_lo, main_hi;
@@ -50,8 +54,11 @@ void impcensus_init(void) {
 
 // The function-entry hook of the lifted code (cpu.h FN_ENTER, on while g_fnprof): the census is its only user.
 void fnprof_hit(uint64_t addr, uint64_t lr, uint64_t x0) {
-    (void)x0;
     if (impcensus_on) impcensus_hit(addr, lr);
+    if (__builtin_expect(g_orbitals_entry_probe, 0)) {
+        if (addr == 0x7001759b20ull) rt_patch_record_entry(lr, x0);
+        else if (addr == 0x70000bf040ull) rt_patch_free_entry(lr, x0);
+    }
 }
 
 void impcensus_hit(uint64_t addr, uint64_t lr) {
