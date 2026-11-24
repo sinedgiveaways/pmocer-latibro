@@ -479,3 +479,58 @@ Before adding a guard or changing game data, capture the guest-side instruction 
 Do not add a null-only guard: the failing address is non-null and lies before the allocation. The vcall probe already produced its useful 32-call sample; it should not be treated as the crash fix.
 
 **Build impact:** this update documents the new log only. It changes no runtime code, patch table, generated guest code, or build inputs; no rebuild is required for this documentation commit.
+
+
+## 24/11/2026 follow-up: exact guest instruction and source chain for the 03:42 crash
+
+The uploaded `main(3)` NSO (build ID `d6efcc0a51c1c792`) was decompressed and disassembled directly. This resolves the guest instruction behind the host access violation.
+
+### Exact faulting instruction
+
+At `main+0x1759d8c`, the NSO contains word `0xb8434328`:
+
+```asm
+main+0x1759d8c: LDUR W8, [X25, #0x34]
+```
+
+The crash log's host instruction begins with `8b 52 34`, which is the corresponding 32-bit load from host register `RDX+0x34`. At the exception, `RDX=0x0ff2d8ffa4`, so the attempted address is `0x0ff2d8ffd8`. This is now an instruction-level match, not an inference from the nearest lifted-function symbol.
+
+### Static producer chain
+
+The same NSO establishes the incoming pointer chain:
+
+```asm
+main+0x1750524  LDR X25, [X22, #8]
+main+0x175052c  MOV W19, #0x3810
+main+0x1750630  ADD X0, X25, X19
+main+0x175064c  BL  main+0x17508e0
+main+0x1750908  MOV X25, X0
+main+0x1750b80  MOV X0, X25
+main+0x1750b84  BL  main+0x1759b20
+...
+main+0x1759d8c  LDUR W8, [X25, #0x34]
+```
+
+Therefore, statically, the pointer used by the failing load is derived from `*[X22+8] + 0x3810` in the caller. The runtime value of `X22` and the pointer loaded from its +8 field still need to be captured to decide whether the source field is already wrong or the offset/owner is wrong.
+
+### Important correction to the previous log interpretation
+
+The crash handler's `Cpu.x[]` fields are a snapshot, not a guaranteed live copy of every guest register at an arbitrary host instruction. The generated code keeps guest registers in host-side locals between call/dispatch boundaries.
+
+In particular, `main+0x1759d8c` occurs **before** this function computes its current `X27` record pointer at `main+0x1759df0`. Therefore the reported `X27=0xff2d90000`, record-array base, count, and capacity from the generic crash dump cannot be treated as live values at the faulting load. The earlier statement that the fault address is exactly 0x28 before the current records array is **not established** and is withdrawn.
+
+Likewise, the printed `pc=main+0x151b350` is not the exact faulting guest PC. The generator updates `Cpu.pc` at dispatch/indirect-branch boundaries; direct calls to lifted functions do not publish every intervening instruction address. The exact faulting instruction is instead established by matching the NSO word at `main+0x1759d8c` to the host fault bytes.
+
+### New targeted source probe
+
+A diagnostic patch set `orbitals-record-source-probe` is added at `main+0x1750524`. It preserves the original `LDR X25,[X22,#8]`, then passes the live loaded pointer and live `X22` to a host probe. The probe logs:
+- live `X22` and the value at `[X22+8]`;
+- live `X25`;
+- the derived pointer `X25+0x3810`;
+- whether the later field address `X25+0x3810+0x34` is readable, and its value if so.
+
+The probe does not change the guest registers or the game's pointer calculation. It logs the first 32 calls. It is enabled by default and can be disabled with `ORBITALS_TRACE_RECORD_SOURCE=0`.
+
+**Next step:** build once with this patch, run until the same crash, and inspect the `record-source probe` lines. They will show whether `[X22+8]` is already invalid or whether the fixed `+0x3810` calculation produces the bad pointer.
+
+**Build impact:** this adds one generated-code patch site and one runtime host probe. It requires one code-generation/compile pass for the changed patch table and runtime; it does not require ROMFS extraction or a full game-file preparation cycle. Reuse the existing game setup and cached assets.
