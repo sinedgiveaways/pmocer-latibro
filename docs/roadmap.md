@@ -255,7 +255,7 @@ Cette section fait foi sur les conclusions les plus récentes et corrige les hyp
 
 - Le log du 24/11 (build 0.2.0-g1617c23, fichier daté 20261124-002310) ne montre plus le read AV à 0x104. Il se termine plus tard, au chargement / choix du personnage (~15 s), par FMallocBinned3 Attempt to free an unrecognized pointer %p.
 - Chemin relevé : main+0x175a16c -> main+0xb9214 -> main+0x181cc8 -> main+0x1f9878, puis AbortImpl. Le dump hexadécimal de pile ajouté par la PR #18 permet de retrouver l'argument variadique %p.
-- Dans le log du 24/11, le pointeur transmis à Free est 0x11e2b4f1c et le SP du thread qui avorte vaut 0x11e2b4e00 : le pointeur vaut exactement SP + 0x11c. Le log du 23/11 présente la même forme (x1=0x115eaef1c). C'est donc une adresse dans la pile du thread, pas une allocation heap valide.
+- Dans le log du 24/11, le pointeur transmis à Free est 0x1183f9f1c et le SP du thread qui avorte vaut 0x1183f9e00 : le pointeur vaut exactement SP + 0x11c. Le log du 23/11 présente la même forme (x1=0x115eaef1c). C'est donc une adresse dans la pile du thread, pas une allocation heap valide.
 - Conclusion actuelle : le parcours de records fournit à Free une valeur de pile résidente / indéfinie à la place d'un pointeur heap. La cause exacte dans le code généré reste à localiser. Les adresses 0x84014a400, 0x84014a410 et 0x84014a4dc repérées comme voisines dans le dump ne sont pas le pointeur fautif confirmé ; ne pas les utiliser comme cible de patch.
 - Outil ajouté : recomp/peek_words.py, lecture seule du .text NSO, pour extraire les mots d'instruction au format patches-v1. Il faut l'exécuter sur l'ExeFS local aux trois fenêtres main+0x1f9878, main+0xb9214 et main+0x181cc8. Le patch ne doit être écrit qu'après identification de l'instruction qui propage la valeur de pile vers Free.
 - Aucun correctif Crash A n'est encore établi. Ne pas confondre ce problème avec le Crash B et ne pas présenter le garde 0x104 comme une correction du Binned3.
@@ -281,3 +281,6 @@ Cette section fait foi sur les conclusions les plus récentes et corrige les hyp
 2. Suivre la valeur SP+0x11c en remontant le code généré jusqu'à l'écriture fautive ou au champ de record mal initialisé ; proposer ensuite un patch local validé par mot original.
 3. Garder Crash A et Crash B comme deux défauts distincts dans les rapports, les branches et les tests.
 4. Pour les graphismes, capturer le fragment d18042401d56bbea et ses ressources au même passage/frame que les traces 3D ; comparer avec Lichii avant de modifier le shader ou le suivi mémoire.
+
+
+**Correction du log exact fourni (20261124-002310) :** SP fatal = `0x1183f9e00`, x1 = `0x1183f9f1c`, soit exactement `SP+0x11c`. La paire `0x11e2b4...` ne correspond pas à ce fichier de log. L'analyse NSO précise désormais la chaîne : `main+0x1759e38` lit X9 depuis `[X8-0x10]`, `main+0x1759e4c` le copie dans `[SP+0x80]`, `main+0x1759e50` efface le champ source, puis `main+0x175a160/168` recharge cette valeur et appelle `FMemory::Free`. Le code qui écrit initialement `[X8-0x10]` reste à identifier.
