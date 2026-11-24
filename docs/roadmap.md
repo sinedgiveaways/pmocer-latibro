@@ -251,6 +251,14 @@ Cette section fait foi sur les conclusions les plus récentes et corrige les hyp
 - La PR #19 (fix/record-subtable-175dc04) ajoute un second garde indépendant à main+0x175dbec, validé contre le mot d'instruction original f9400008. Le fallback redirige la base nulle vers la page zéro ; il doit encore être validé dans le jeu.
 - Ne pas modifier TPIDR, l'allocation TLS ou le scheduler sur la seule base de ce crash : les éléments recueillis ne démontrent pas une panne de TLS.
 
+### 6.2a Nouveau chemin memcpy (24/11/2026)
+
+- Le dump relie l'appel fautif à `ucrtbase!memcpy` via le wrapper `orbitalgame.dll+0x1C11DF00`, le slot synthétique `0x700900A008`, le helper natif et le thunk. Les trois arguments sont déjà invalides à l'entrée du helper : ne pas modifier le résolveur d'imports ni `memcpy` globalement.
+- La pile et les objets compilés relient ce chemin à `f_7001759b20`, au descripteur `0x1C92EAB0540`, au buffer `0x11C51F7A0` et à la taille `0x298`. Le wrapper défini dans `main_main_0768.o` confirme le slot memcpy ; il n'est pas le producteur des mauvais arguments.
+- Le calcul `(2 - EDX) * 0x38` pourrait donner l'index -3 si EDX=5, en écho à la valeur -3 observée dans l'objet `0x0CE01F2C00`, mais cette correspondance n'est pas prouvée.
+- **Prochaine étape :** désassembler le caller autour de `orbitalgame.dll+0x1B5A8FF0..0x1B5A939A`, relever destination/source/taille au point d'appel, puis remonter chaque valeur jusqu'à son producteur. Analyse lecture seule : pas de `prepare.py` ni de régénération complète.
+- Détails et limites : [analyse détaillée du chemin memcpy](orbitals-startup-crash-analysis.md#24112026-follow-up-invalid-memcpy-arguments-traced-to-the-game-side-caller).
+
 ### 6.2 Crash A : le Binned3 tente de libérer sa propre pile
 
 - Le log du 24/11 (build 0.2.0-g1617c23, fichier daté 20261124-002310) ne montre plus le read AV à 0x104. Il se termine plus tard, au chargement / choix du personnage (~15 s), par FMallocBinned3 Attempt to free an unrecognized pointer %p.
