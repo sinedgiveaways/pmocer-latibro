@@ -251,13 +251,15 @@ Cette section fait foi sur les conclusions les plus récentes et corrige les hyp
 - La PR #19 (fix/record-subtable-175dc04) ajoute un second garde indépendant à main+0x175dbec, validé contre le mot d'instruction original f9400008. Le fallback redirige la base nulle vers la page zéro ; il doit encore être validé dans le jeu.
 - Ne pas modifier TPIDR, l'allocation TLS ou le scheduler sur la seule base de ce crash : les éléments recueillis ne démontrent pas une panne de TLS.
 
-### 6.2a Nouveau chemin memcpy (24/11/2026)
+### 6.2a Nouveau chemin memcpy : bloc d'arguments identifié (24/11/2026)
 
-- Le dump relie l'appel fautif à `ucrtbase!memcpy` via le wrapper `orbitalgame.dll+0x1C11DF00`, le slot synthétique `0x700900A008`, le helper natif et le thunk. Les trois arguments sont déjà invalides à l'entrée du helper : ne pas modifier le résolveur d'imports ni `memcpy` globalement.
-- La pile et les objets compilés relient ce chemin à `f_7001759b20`, au descripteur `0x1C92EAB0540`, au buffer `0x11C51F7A0` et à la taille `0x298`. Le wrapper défini dans `main_main_0768.o` confirme le slot memcpy ; il n'est pas le producteur des mauvais arguments.
-- Le calcul `(2 - EDX) * 0x38` pourrait donner l'index -3 si EDX=5, en écho à la valeur -3 observée dans l'objet `0x0CE01F2C00`, mais cette correspondance n'est pas prouvée.
-- **Prochaine étape :** désassembler le caller autour de `orbitalgame.dll+0x1B5A8FF0..0x1B5A939A`, relever destination/source/taille au point d'appel, puis remonter chaque valeur jusqu'à son producteur. Analyse lecture seule : pas de `prepare.py` ni de régénération complète.
-- Détails et limites : [analyse détaillée du chemin memcpy](orbitals-startup-crash-analysis.md#24112026-follow-up-invalid-memcpy-arguments-traced-to-the-game-side-caller).
+- Les fichiers déjà présents dans l'espace de travail ont été réutilisés : dump extrait, fenêtres de code hôte, rapport des références, runtime et exécutable PE. Aucun nouvel upload n'était nécessaire.
+- Correction du chemin natif : `orbitals-recomp.exe+0x40CE0` = `ov_memcpy`; `+0x70C420` = thunk `memcpy`; `+0x70C430` = thunk `memmove`. L'override nommé `ov_memcpy` appelle donc `memmove` en interne.
+- `ov_memcpy` lit trois qwords à `[RCX]`, `[RCX+8]`, `[RCX+0x10]` (destination, source, taille) puis les transmet à `memmove`.
+- Le bloc de pile à `0x19AFFFF160` donne comme candidats destination `0x01460149013D0140`, source `0x05240500`, taille `0x05240500` (86 246 656 octets). Le `0x298` et le buffer `0x11C51F7A0` apparaissent à d'autres offsets et ne sont pas les trois arguments du bloc.
+- Le candidat destination est identique au qword du descripteur `0x1C92EAB0540+0x40`. Cela suggère une copie directe depuis ce champ, mais le load exact dans le caller reste à prouver.
+- **Prochaine étape :** retrouver l'instruction qui remplit le qword +0 du bloc d'arguments et remonter aussi source/taille. La fenêtre actuellement extraite commence à `+0x1B5A929F` et ne couvre pas `+0x1B5A8FF0`; il faut extraire cette fenêtre manquante du dump existant. Ne pas modifier memcpy/memmove globalement.
+- Analyse détaillée : [bloc d'arguments et désassemblage ov_memcpy](orbitals-startup-crash-analysis.md#24112026-follow-up-inspect-the-saved-call-block-and-ov_memcpy-implementation).
 
 ### 6.2 Crash A : le Binned3 tente de libérer sa propre pile
 
