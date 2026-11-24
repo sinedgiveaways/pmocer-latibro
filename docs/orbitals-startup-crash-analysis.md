@@ -405,6 +405,19 @@ It could still mutate the descriptor indirectly through a pointer reachable from
 
 **Still missing to identify the method:** the runtime value of the selected receiver's vptr (and thus the actual target loaded from vtable slot +8), plus the receiver's relevant fields. The static DATA table at `0x803d6c0` is not enough to prove this preceding call uses that table.
 
+### Targeted vcall probe added
+
+The main NSO confirms the instruction words at this site:
+- `main+0x1d761c8`: `ldr x8, [x0]` (`0xf9400008`)
+- `main+0x1d761cc`: `ldr x8, [x8, #8]` (`0xf9400508`)
+- `main+0x1d761d0`: `blr x8` (`0xd63f0100`)
+
+A targeted, switchable patch is now defined in `recomp/patches-v1.txt` under `ORBITALS_TRACE_VCALL`. At the call site it saves the original target in x16, loads a registered runtime probe from patch-page slot +0x100, and calls it. The probe logs the receiver, vptr, vtable slot+8 target, x1/x2, x21/x23, SP/LR, the object rooted at [x21+8], and that object's +0x30/+0x58 fields. It then restores x8 and invokes the original virtual target through `rt_call`. The first 32 invocations are logged to avoid flooding.
+
+The runtime side is in `runtime/core/boot/patches.c`; it registers the probe before the dispatch table is sealed and writes its synthetic host-function address into the committed patch page. The patch is enabled by default, and can be disabled with `ORBITALS_TRACE_VCALL=0`.
+
+**Build impact:** this patch changes the generated guest-code patch table, so it must be included in the next code-generation/build pass once. It does not alter the NSO or require a full setup/ROMFS preparation cycle. Subsequent runs use the same built artifact; no regeneration is needed per run.
+
 ### Required runtime capture at the call site
 
 At `main+0x1d761d4` (immediately before `blr x8`), capture guest registers `x0`, `x1`, `x2`, `x8`, `x21`, `x23`, `sp`, and the qwords at:
