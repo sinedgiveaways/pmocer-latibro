@@ -719,3 +719,42 @@ The existing caller archive has a complete window `[0x1B5A929F, 0x1B5A941F)`, bu
 Accordingly, no claim is made that the earlier `1B5A8FF0` window has been extracted. To finish that exact extraction, the dump asset must be downloaded/materialized into the analysis runtime (or the requested 4-KiB window extracted on the user's PC and supplied). This is a data-access blocker, not a need to regenerate or rebuild the game.
 
 Do not apply a patch yet. The current caller window is useful evidence, but does not establish the producer of the failing source/size values.
+
+
+## 24/11/2026: exact caller window extracted from the published dump
+
+The GitHub Actions run `sinedgiveaways/tool#45475145880` successfully downloaded the published 1.71-GB ZIP, extracted the minidump, and produced a fully captured 4-KiB code window (4096/4096 bytes) for `orbitalgame.dll`. Module base in this dump: `0x7FFA44970000`; target VA for RVA `0x1B5A8FF0`: `0x7FFA5FF18FF0`.
+
+The exact instruction sequence at the reported index calculation is:
+
+```asm
+7FFA5FF18FD7  mov  r8,  [rsi+0xD8]
+7FFA5FF18FDE  mov  r9,  [r8]
+7FFA5FF18FE1  mov  qword ptr [rsi+0x58], 0x38
+7FFA5FF18FE9  mov  eax, 2
+7FFA5FF18FEE  sub  eax, edx
+7FFA5FF18FF0  imul rcx, rax, 0x38
+7FFA5FF18FF4  add  rcx, r9
+7FFA5FF18FF7  mov  [rsi+0xC8], rcx
+```
+
+This definitively establishes the calculation:
+- base pointer = `*(uint64_t *)(RSI+0xD8)`, then dereference once more to obtain R9;
+- signed 32-bit index = `2 - EDX` (because EAX is 32-bit and SUB writes EAX);
+- byte offset = sign-extended result multiplied by `0x38` in RCX;
+- result stored at `[RSI+0xC8]`.
+
+If (and only if) EDX=5 at this point, the effective offset is `-3 * 0x38 = -0xA8`. The code bytes prove the formula, but the saved code-window artifact alone does not prove the live EDX value or the contents of the base table. Do not call the -3/object-`0x0CE01F2C00` match proven yet.
+
+The control-flow paths into `0x7FFA5FF18FD7` are also visible:
+- `0x7FFA5FF18F43` branches there when the signed value loaded from `[RCX+0x470]` is zero;
+- `0x7FFA5FF18F74` branches there when the computed scan-size value equals `0x50`.
+The register EDX is not assigned on these two short branch edges, so its reaching definition is earlier in the function and must be traced through the preceding basic blocks / call-clobber behavior.
+
+The same 4-KiB window is fully captured and disassembled in artifact `orbitals-caller-1B5A8FF0` from run `45475145880`. This is real dump-derived code, not a guessed reconstruction.
+
+### What this resolves and what remains
+
+Resolved: the missing caller window has been obtained from the GitHub release; the exact index formula and the two visible branch conditions are now known. No further extraction of that code window is needed.
+
+Remaining: obtain a trustworthy exception CONTEXT for the failing thread and correlate its EDX, RSI, R8/R9, and stack to the branch at `0x7FFA5FF18FD7`. Then read the memory at `[RSI+0xD8]` and the resulting table entry at the computed signed offset. The first exception-context extractor revision used the wrong field within the context-location descriptor and was corrected; its follow-up run is `45475825616`. Until that run succeeds and yields validated context bytes, do not claim a runtime value for EDX or propose a patch.
