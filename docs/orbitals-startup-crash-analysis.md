@@ -412,7 +412,7 @@ The main NSO confirms the instruction words at this site:
 - `main+0x1d761cc`: `ldr x8, [x8, #8]` (`0xf9400508`)
 - `main+0x1d761d0`: `blr x8` (`0xd63f0100`)
 
-A targeted, switchable patch is now defined in `recomp/patches-v1.txt` under `ORBITALS_TRACE_VCALL`. At the call site it saves the original target in x16, loads a registered runtime probe from patch-page slot +0x100, and calls it. The probe logs the receiver, vptr, vtable slot+8 target, x1/x2, x21/x23, SP/LR, the object rooted at [x21+8], and that object's +0x30/+0x58 fields. It then restores x8 and invokes the original virtual target through `rt_call`. The first 32 invocations are logged to avoid flooding.
+A targeted, switchable patch is now defined in `recomp/patches-v1.txt` under `ORBITALS_TRACE_VCALL`. At main+0x1d761cc it replaces the vtable-target load with a load into x16 (preserving the original target), then loads a registered runtime probe from patch-page slot +0x100 into x8. The original BLR at main+0x1d761d0 remains unchanged and calls the probe. The probe logs the receiver, vptr, vtable slot+8 target, x1/x2, x21/x23, SP/LR, the object rooted at [x21+8], and that object's +0x30/+0x58 fields. It then restores x8 and invokes the original virtual target through `rt_call`. The first 32 invocations are logged to avoid flooding.
 
 The runtime side is in `runtime/core/boot/patches.c`; it registers the probe before the dispatch table is sealed and writes its synthetic host-function address into the committed patch page. The patch is enabled by default, and can be disabled with `ORBITALS_TRACE_VCALL=0`.
 
