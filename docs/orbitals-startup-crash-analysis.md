@@ -144,3 +144,17 @@ To tell the race from a genuinely missing sub-table:
   crash moves (a moving fault argues for a separate second bug, the GPU device-lost profile of the 20/11 log);
 - the per-record state field (the -1 seen at +0x50 in the one crash we have) and a dump of the same record a few
   frames later on a clean run would settle whether +0x00 gets filled in later by another thread.
+
+
+## 24/11: the follow-up abort is a free of the thread's own stack
+
+The build with rec-null-guard v2 no longer access-violates: the record walk proceeds and the run dies at the
+loader/character-select (~15 s, reproduced in the 23/11 and 24/11 logs) in an engine abort,
+"FMallocBinned3 Attempt to free an unrecognized pointer %p", from main+0x1f9878 over the same record-walker
+chain (main+0x175a16c -> main+0xb9214 -> main+0x181cc8). The stack-hex dump at the abort (svc.c) captures the
+value: the 24/11 log frees 0x11e2b4f1c while the aborting thread's sp is 0x11e2b4e00, so the pointer is
+sp+0x11c, an address in the caller's own stack frame. The 23/11 run's x1 (0x115eaef1c) fits the same shape.
+So the record entry the walk lands on holds a stack-resident garbage value (uninitialized field) instead of a
+heap pointer; the engine's Free then refuses it. Next step: the exact instruction words around
+main+0x1f9878 / main+0xb9214 / main+0x181cc8 (recomp/peek_words.py against the local extracted NSO) to state
+the patch site, same process as rec-null-guard.
