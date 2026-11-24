@@ -684,3 +684,38 @@ The older `orbitals_memcpy_runtime.zip` reports exception-context registers such
 4. Only after the producer and field semantics are proven, patch that caller-side load/index/bounds logic. Do not patch the import resolver or generic memcpy/memmove implementation.
 
 No `prepare.py`, ROMFS extraction, guest regeneration, or full recompilation is needed for these analysis steps.
+
+
+## 24/11/2026 follow-up: disassembly of the caller window already extracted
+
+The existing `orbitals_memcpy_callers.zip` was reopened and its 384-byte window at VA `0x00007FFA5FF1929F` was disassembled. This is the window containing the call whose return address is `orbitalgame.dll+0x1B5A939F`.
+
+Verified instructions:
+
+```asm
+; first memcpy-wrapper call
+1B5A9328  mov  [rsi+0x98], r13
+1B5A932F  mov  rcx, rsi
+1B5A9332  call orbitalgame.dll+0x1C11DF00
+1B5A9337  mov  r8,  [rsi+0x40]
+...
+; second memcpy-wrapper call
+1B5A938C  mov  [rsi], rdx
+1B5A938F  mov  [rsi+0x40], r8
+1B5A9393  mov  [rsi+0x48], rcx
+1B5A9397  mov  rcx, rsi
+1B5A939A  call orbitalgame.dll+0x1C11DF00
+1B5A939F  mov  rcx, [rsi+0x48]
+```
+
+This proves the second call passes the address in RSI as the wrapper's context pointer and writes the qwords at offsets 0, 0x40 and 0x48 immediately before the call. It does **not** show the writes to context offsets +8 and +0x10, which are needed to reconstruct all three values consumed by `ov_memcpy`; those may have been set earlier in the function.
+
+The same window also contains a branch that derives values from `[rsi+0xD0]` and writes fields at +8/+0x10, but it is not safe to equate those with the failing call's arguments without the missing earlier control-flow and the runtime RSI value at the call.
+
+### The requested earlier window is still not present in the saved extracted files
+
+The existing caller archive has a complete window `[0x1B5A929F, 0x1B5A941F)`, but no bytes for `orbitalgame.dll+0x1B5A8FF0`. The original dump is a 8,798,186,414-byte minidump; its release asset is a 1,711,267,101-byte ZIP. The ZIP is listed in the public `analysis-data` release, but its binary contents are not available in the mounted workspace in this session. The existing partial extraction cannot reconstruct omitted bytes.
+
+Accordingly, no claim is made that the earlier `1B5A8FF0` window has been extracted. To finish that exact extraction, the dump asset must be downloaded/materialized into the analysis runtime (or the requested 4-KiB window extracted on the user's PC and supplied). This is a data-access blocker, not a need to regenerate or rebuild the game.
+
+Do not apply a patch yet. The current caller window is useful evidence, but does not establish the producer of the failing source/size values.
