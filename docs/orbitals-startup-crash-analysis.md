@@ -418,12 +418,12 @@ The runtime side is in `runtime/core/boot/patches.c`; it registers the probe bef
 
 **Build impact:** this patch changes the generated guest-code patch table, so it must be included in the next code-generation/build pass once. It does not alter the NSO or require a full setup/ROMFS preparation cycle. Subsequent runs use the same built artifact; no regeneration is needed per run.
 
-### Required runtime capture at the call site
+### What to inspect in the next log
 
-At `main+0x1d761d4` (immediately before `blr x8`), capture guest registers `x0`, `x1`, `x2`, `x8`, `x21`, `x23`, `sp`, and the qwords at:
-- `[x0]` (receiver vptr),
-- `[[x0]+8]` (actual virtual target),
-- `[sp]` and `[sp+8]` (descriptor values before the wrapper),
-- `[x21+8]`, `[x21+8]+0x30`, `[x21+8]+0x58`.
+The probe runs automatically when the patched build reaches this call. The first 32 calls should produce `vcall probe #N` lines. The decisive fields are:
+- `saved_target` and `slot+8`: must match; the name resolved by `ldr_describe` identifies the virtual method.
+- `receiver` and `vptr`: identify the dynamic object type/vtable.
+- `object`, `+30`, and `+58`: identify the parent callback and optional receiver selection.
+- `returned x0`: confirms the original virtual method was invoked and returned through the probe.
 
-This single snapshot identifies the method, tests whether its receiver can alias the descriptor, and shows whether the descriptor changes between the constructor return and wrapper entry. No rebuild or speculative patch is justified yet.
+The interception preserves the original `blr x8` instruction and its return address. The vtable target is saved in caller-saved `x16`; the probe restores `x8` before invoking the original target. The original descriptor/stack state is not rewritten by the probe.
