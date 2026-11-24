@@ -28,6 +28,73 @@
 // LDUR W8,[X25,#0x34] faults in the 24/11 capture. The patch passes the
 // live values in x0/x1 so this probe does not rely on Cpu's stale register
 // snapshot. It only observes; it does not change the guest registers.
+
+// Entry probes called by FN_ENTER for the two functions on the failing Free path.
+// Unlike the old indirect-call hooks, these are attached to function entries that
+// are present in the captured guest backtrace and do not depend on guessed call sites.
+static void orbitals_log_read64(const char *name, uint64_t address) {
+    uint64_t value = 0;
+    int ok = address <= UINT64_MAX - sizeof value &&
+             plat_mem_read(address, &value, sizeof value);
+    rt_log("  %s[%#llx] = %#llx (%s)", name, (unsigned long long)address,
+           (unsigned long long)value, ok ? "readable" : "unmapped");
+}
+
+static void orbitals_log_read32(const char *name, uint64_t address) {
+    uint32_t value = 0;
+    int ok = address <= UINT64_MAX - sizeof value &&
+             plat_mem_read(address, &value, sizeof value);
+    rt_log("  %s[%#llx] = %#x (%s)", name, (unsigned long long)address,
+           value, ok ? "readable" : "unmapped");
+}
+
+void rt_patch_record_entry(Cpu *c) {
+    static uint64_t calls;
+    uint64_t n = __atomic_add_fetch(&calls, 1, __ATOMIC_RELAXED);
+    if (n > 64) return;
+
+    char lr[96];
+    ldr_describe(c->x[30], lr, sizeof lr);
+    rt_log("record-entry #%llu at main+0x1759b20: x0=%#llx x19=%#llx x20=%#llx x21=%#llx x22=%#llx x23=%#llx x24=%#llx x25=%#llx x26=%#llx x27=%#llx x28=%#llx sp=%#llx lr=%s",
+           (unsigned long long)n, (unsigned long long)c->x[0],
+           (unsigned long long)c->x[19], (unsigned long long)c->x[20],
+           (unsigned long long)c->x[21], (unsigned long long)c->x[22],
+           (unsigned long long)c->x[23], (unsigned long long)c->x[24],
+           (unsigned long long)c->x[25], (unsigned long long)c->x[26],
+           (unsigned long long)c->x[27], (unsigned long long)c->x[28],
+           (unsigned long long)c->sp, lr);
+    orbitals_log_read64("x22+8", c->x[22] + 8);
+    orbitals_log_read64("x27", c->x[27]);
+    orbitals_log_read64("x21+0x158", c->x[21] + 0x158);
+    orbitals_log_read64("x27+0xd0", c->x[27] + 0xd0);
+    orbitals_log_read64("x27+0xd8", c->x[27] + 0xd8);
+    orbitals_log_read32("x0+0x34", c->x[0] + 0x34);
+    orbitals_log_read32("x0+0x5c", c->x[0] + 0x5c);
+    orbitals_log_read32("x25+0x34", c->x[25] + 0x34);
+    orbitals_log_read32("x25+0x5c", c->x[25] + 0x5c);
+}
+
+void rt_patch_free_entry(Cpu *c) {
+    static uint64_t calls;
+    uint64_t n = __atomic_add_fetch(&calls, 1, __ATOMIC_RELAXED);
+    if (n > 128) return;
+
+    char lr[96];
+    ldr_describe(c->x[30], lr, sizeof lr);
+    rt_log("free-entry #%llu at main+0xbf040: ptr(x0)=%#llx x1=%#llx x2=%#llx x3=%#llx x19=%#llx x20=%#llx x21=%#llx x22=%#llx x23=%#llx x24=%#llx x25=%#llx x26=%#llx x27=%#llx sp=%#llx lr=%s",
+           (unsigned long long)n, (unsigned long long)c->x[0],
+           (unsigned long long)c->x[1], (unsigned long long)c->x[2],
+           (unsigned long long)c->x[3], (unsigned long long)c->x[19],
+           (unsigned long long)c->x[20], (unsigned long long)c->x[21],
+           (unsigned long long)c->x[22], (unsigned long long)c->x[23],
+           (unsigned long long)c->x[24], (unsigned long long)c->x[25],
+           (unsigned long long)c->x[26], (unsigned long long)c->x[27],
+           (unsigned long long)c->sp, lr);
+    orbitals_log_read64("free-ptr", c->x[0]);
+    orbitals_log_read64("free-ptr+8", c->x[0] + 8);
+    orbitals_log_read64("free-ptr+0x10", c->x[0] + 0x10);
+}
+
 static void orbitals_record_source_probe(Cpu *c) {
     static uint64_t calls;
     uint64_t n = __atomic_add_fetch(&calls, 1, __ATOMIC_RELAXED);
