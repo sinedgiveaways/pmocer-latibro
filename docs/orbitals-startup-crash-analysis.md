@@ -523,14 +523,15 @@ Likewise, the printed `pc=main+0x151b350` is not the exact faulting guest PC. Th
 
 ### New targeted source probe
 
-A diagnostic patch set `orbitals-record-source-probe` is added at `main+0x1750524`. It preserves the original `LDR X25,[X22,#8]`, then passes the live loaded pointer and live `X22` to a host probe. The probe logs:
+A diagnostic patch set `orbitals-record-source-probe` is added at the two existing indirect-call sites `main+0x17505b8` and `main+0x17505e0`, immediately after the original `LDR X25,[X22,#8]`. Each replacement saves the original vtable target in `X16`, loads the registered host probe, and leaves the original `BLR X8` in place. The probe logs:
 - live `X22` and the value at `[X22+8]`;
 - live `X25`;
 - the derived pointer `X25+0x3810`;
-- whether the later field address `X25+0x3810+0x34` is readable, and its value if so.
+- whether the later field address `X25+0x3810+0x34` is readable, and its value if so;
+- the original callback target, which it invokes through `rt_call` to preserve behavior.
 
-The probe does not change the guest registers or the game's pointer calculation. It logs the first 32 calls. It is enabled by default and can be disabled with `ORBITALS_TRACE_RECORD_SOURCE=0`.
+The probe does not change the pointer calculation or callback arguments. It logs the first 32 calls. These sites are conditional reference-count callbacks, so the probe only emits lines if one of those callbacks is actually reached. It is enabled by default and can be disabled with `ORBITALS_TRACE_RECORD_SOURCE=0`.
 
-**Next step:** build once with this patch, run until the same crash, and inspect the `record-source probe` lines. They will show whether `[X22+8]` is already invalid or whether the fixed `+0x3810` calculation produces the bad pointer.
+**Next step:** build once with this patch, run until the same crash, and inspect the `record-source probe` lines. They will show whether `[X22+8]` is already wrong or whether the fixed `+0x3810` calculation produces the bad pointer. If no probe line appears, neither instrumented callback was taken and the capture point must move to another existing call boundary.
 
-**Build impact:** this adds one generated-code patch site and one runtime host probe. It requires one code-generation/compile pass for the changed patch table and runtime; it does not require ROMFS extraction or a full game-file preparation cycle. Reuse the existing game setup and cached assets.
+**Build impact:** this adds two generated-code patch sites and one runtime host probe. It requires one code-generation/compile pass for the changed patch table and runtime; it does not require ROMFS extraction or a full game-file preparation cycle. Reuse the existing game setup and cached assets.
