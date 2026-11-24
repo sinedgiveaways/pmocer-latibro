@@ -32,7 +32,6 @@
 # Patch-page slot +0x100 contains the registered host-function address.
 #
 #   main+0x1d761c8: ldr x8, [x0]       ; vptr
-#   main+0x1d761cc: ldr x8, [x8, #8]   ; virtual target
 #   main+0x1d761cc: ldr x8, [x8, #8]  ; replaced with:
 #       ldr x16, [x8, #8]             ; save original target
 #       adrp x8, patch_page
