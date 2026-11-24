@@ -427,3 +427,55 @@ The probe runs automatically when the patched build reaches this call. The first
 - `returned x0`: confirms the original virtual method was invoked and returned through the probe.
 
 The interception preserves the original `blr x8` instruction and its return address. The vtable target is saved in caller-saved `x16`; the probe restores `x8` before invoking the original target. The original descriptor/stack state is not rewritten by the probe.
+
+
+## 24/11/2026 follow-up: crash after the vcall probe
+
+The log `orbitals(20261124-034253).log` contains the first run with the targeted vcall probe enabled.
+
+### Vcall probe result
+
+The probe logged 32 invocations at `main+0x1d761d0`. Across the captured calls:
+- receiver vptr: `0x7007f32450`
+- vtable slot `+8` target: `main+0x2d730`
+- saved target and slot target agree
+- each intercepted call returned normally
+
+This rules out the intercepted virtual call itself as the immediate fault site in this run. It does not prove that the called method cannot mutate unrelated state indirectly.
+
+### Fatal access violation
+
+The run then terminates with:
+
+- exception: `0xc0000005`
+- host PC: `orbitalgame+0x1b5a90f1`
+- lifted-function context: `f_7001759b20 = main+0x1759b20`
+- host instruction bytes: `8b 52 34 89 93 38 ff ff ff 48 8b 96 d8 00 00 00`
+- attempted read: `0xff2d8ffd8`
+- host `RDX`: `0x0ff2d8ffa4`; the first host instruction reads `[RDX+0x34]`, producing the reported address.
+
+The log's record diagnostic identifies:
+- records allocation/base: `0xff2d90000` (allocation logged as `0x24000` bytes)
+- `x27 = 0xff2d90000`, described by the logger as `records[0]`
+- `[x27] = 0x70026cea0`
+- `x21 = 0xb40012810`
+- reported count: `3942779978392`
+- reported capacity: `18446744073709551615`
+
+The attempted read is exactly `0x28` bytes before the records allocation base. This is a confirmed out-of-allocation read in this run. The unusually large reported count and maximum 64-bit capacity are additional suspicious metadata, but their field layout and validity still need to be checked against the guest structure before treating either as the root cause.
+
+### Correction to the preliminary interpretation
+
+The fatal report gives a lifted-function context, not a guest PC/instruction address. The host instruction bytes alone do not establish that the guest instruction is at `main+0x1759d8c`, nor do they prove the proposed `X25 + X19` producer chain. Those earlier conversational deductions are **not confirmed** and must not be used as patch targets.
+
+### Next diagnostic required
+
+Before adding a guard or changing game data, capture the guest-side instruction and address calculation responsible for the access:
+1. identify the guest PC corresponding to the host faulting block;
+2. log the relevant guest registers, especially `x21`, `x27`, the record index, and the base/count/capacity values at the access;
+3. trace the instruction that computes the address `0xff2d8ffd8` and verify the records structure's actual field offsets;
+4. only then patch the producer or bounds calculation.
+
+Do not add a null-only guard: the failing address is non-null and lies before the allocation. The vcall probe already produced its useful 32-call sample; it should not be treated as the crash fix.
+
+**Build impact:** this update documents the new log only. It changes no runtime code, patch table, generated guest code, or build inputs; no rebuild is required for this documentation commit.
