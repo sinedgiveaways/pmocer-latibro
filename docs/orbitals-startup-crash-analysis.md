@@ -375,3 +375,42 @@ Therefore the virtual target is now statically identified, but the actual runtim
 1. Disassemble the full body and all stores affecting the descriptor between `main+0x15e7420` and `main+0x1d761dc`, including side effects of the call at `main+0x1d761d0`.
 2. Determine the runtime vptr and first two qwords at the wrapper entry from the crash log or existing instrumentation.
 3. Reconcile the observed `x2` with the pointer dereferenced at `main+0x1750480`; only then confirm or reject the proposed invalid-free producer chain.
+
+
+
+## 24/11/2026 follow-up: preceding virtual call does not receive the descriptor directly
+
+The caller around `main+0x1d761d0` was decoded one level further. The important distinction is between the virtual call at `1d761d0` and the wrapper call at `1d761dc`:
+
+```asm
+1d761b4  ldr x8, [x21, #8]
+1d761b8  ldr x23, [x8, #0x30]    ; wrapper saved for the next call
+1d761bc  add x9, x8, #0x40
+1d761c0  ldr x8, [x8, #0x58]
+1d761c4  cmp x8, #0
+1d761c8  csel x0, x9, x8, eq    ; select subobject / optional pointer
+1d761cc  ldr x8, [x0]            ; selected object's vptr
+1d761d0  ldr x8, [x8, #8]        ; virtual slot +8
+1d761d4  blr x8                  ; preceding virtual method
+1d761d8  mov x1, sp              ; descriptor passed only after this returns
+1d761dc  sub x2, x29, #0x90
+1d761e0  blr x23                 ; descriptor wrapper
+```
+
+This corrects the previous shorthand that placed `blr x8` at `1d761d0`: the actual slot load is at `1d761d0`, and the call is at `1d761d4`; the wrapper call is at `1d761e0`.
+
+**New conclusion:** the preceding virtual method does not receive the stack descriptor directly in either `x1` or `x2` from this caller sequence. Those registers are explicitly prepared for the wrapper only after the virtual method returns. The method's direct receiver (`x0`) is selected from the object rooted at `[x21+8]`: either its `+0x40` subobject or the pointer stored at `+0x58`, depending on whether that pointer is null. Its target is the function pointer at offset `+8` in that selected object's vtable.
+
+It could still mutate the descriptor indirectly through a pointer reachable from its receiver or global state, but the current instructions do not show such an alias. Therefore it is **not** a direct descriptor writer on the evidence available. This makes it less likely to explain the count/pointer mismatch by a simple argument overwrite.
+
+**Still missing to identify the method:** the runtime value of the selected receiver's vptr (and thus the actual target loaded from vtable slot +8), plus the receiver's relevant fields. The static DATA table at `0x803d6c0` is not enough to prove this preceding call uses that table.
+
+### Required runtime capture at the call site
+
+At `main+0x1d761d4` (immediately before `blr x8`), capture guest registers `x0`, `x1`, `x2`, `x8`, `x21`, `x23`, `sp`, and the qwords at:
+- `[x0]` (receiver vptr),
+- `[[x0]+8]` (actual virtual target),
+- `[sp]` and `[sp+8]` (descriptor values before the wrapper),
+- `[x21+8]`, `[x21+8]+0x30`, `[x21+8]+0x58`.
+
+This single snapshot identifies the method, tests whether its receiver can alias the descriptor, and shows whether the descriptor changes between the constructor return and wrapper entry. No rebuild or speculative patch is justified yet.
