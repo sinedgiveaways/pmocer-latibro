@@ -600,3 +600,87 @@ Still to prove from the raw artifacts:
 5. Patch only the verified caller-side producer or index/bounds calculation. Do not modify `memcpy`, import resolution, or the generic dispatcher.
 
 These steps are analysis of existing dump and object artifacts. They do not require `prepare.py`, ROMFS extraction, game code generation, or a full rebuild.
+
+
+## 24/11/2026 follow-up: inspect the saved call block and ov_memcpy implementation
+
+This analysis uses files already present in the conversation workspace: `orbitals_memcpy_callers.zip`, `orbitals_memcpy_runtime.zip`, `orbitals_references_objet.zip`, `orbitals_extraits_crash.zip`, and the saved `orbitals-recomp.exe`. No new upload or rebuild was needed.
+
+### Correct the native thunk identification
+
+Disassembly of the saved `orbitals-recomp.exe` (PE x64, ImageBase `0x140000000`) establishes:
+
+- `orbitals-recomp.exe+0x40CE0` is `ov_memcpy`.
+- `orbitals-recomp.exe+0x70C420` is the `memcpy` import thunk.
+- `orbitals-recomp.exe+0x70C430` is the `memmove` import thunk.
+
+The body of `ov_memcpy` is:
+
+```asm
+mov  rsi, rcx
+mov  rdi, [rcx]
+mov  rbx, [rcx+0x08]
+mov  r14, [rcx+0x10]
+...
+mov  rcx, rdi
+mov  rdx, rbx
+mov  r8,  r14
+call orbitals-recomp.exe+0x70C430 ; memmove
+```
+
+Therefore the helper receives a pointer to a three-qword argument block, reads destination/source/size from offsets 0, 8 and 0x10, and forwards them to `memmove`. The earlier description of the final thunk as `memcpy` must be corrected: it is `memmove`. The import slot `0x700900A008` is still the synthetic memcpy override slot; the override implementation uses memmove internally.
+
+### Reconstructed argument block in the saved dump
+
+The saved object-reference report contains a 264-byte stack window beginning at VA `0x19AFFFF160`. Its qwords are:
+
+| Offset | Value |
+|---:|---:|
+| +0x00 | `0x01460149013D0140` |
+| +0x08 | `0x0000000005240500` |
+| +0x10 | `0x0000000005240500` |
+| +0x28 | `0x00000070070C1DE0` |
+| +0x38 | `0x00000012E1A8000C` |
+| +0x40 | `0x298` |
+| +0x60 | `0x000001C92EAB0540` |
+| +0x80 | `0x000000700900A008` |
+| +0x88 | `0x00007FFA60A8DF58` |
+| +0x98 | `0x0000007001759B20` |
+| +0xA0 | `0x000001C92EAB0540` |
+| +0xA8 | `0x000000011C51F7A0` |
+| +0xC0 | `0x298` |
+| +0xC8 | `0x00007FFA5FF1939F` |
+| +0xF0 | `0x000000011C51F8A0` |
+
+The memcpy wrapper at `orbitalgame.dll+0x1C11DF00` stores the synthetic slot at context+`0x80` and its internal resolver return at context+`0x88`. Those exact values occur at `0x19AFFFF1E0` and `0x19AFFFF1E8`, respectively. This ties the context base to `0x19AFFFF160`, rather than treating the 0x298/buffer metadata later in the same stack window as the three memcpy arguments.
+
+Applying the `ov_memcpy` field layout to that block gives the candidate actual arguments:
+
+- destination = `0x01460149013D0140`
+- source = `0x05240500`
+- size = `0x05240500` (86,246,656 bytes)
+
+These are the first three qwords of the context block passed through the memcpy override. They are not `buffer=0x11C51F7A0, size=0x298`; those values are separate trace/frame metadata at offsets +0xA8 and +0xC0.
+
+### Strong source clue: descriptor field +0x40
+
+The same object-reference report shows descriptor `0x1C92EAB0540` with:
+
+- descriptor+`0x40` = `0x01460149013D0140`
+- descriptor+`0x48` = `0x000000011C51F6F0`
+- descriptor+`0x50` = `0xFF`
+
+The invalid-looking first qword in the memcpy argument block exactly matches descriptor+`0x40`. This strongly suggests the first argument was loaded from or copied from that descriptor field. It is not yet proven which caller instruction performed that load, nor whether the candidate `(2-EDX)*0x38` calculation selects this exact field.
+
+### Important limitation in the older runtime report
+
+The older `orbitals_memcpy_runtime.zip` reports exception-context registers such as RIP and RSP as nonsensical values (RSP=0, RIP outside declared modules), despite the exception stream identifying `ucrtbase.dll`. Do not use those parsed register values as reliable evidence for the faulting address or read/write direction until the exception-context extraction is corrected. The saved stack block and the executable disassembly are more reliable for the argument reconstruction above.
+
+### Remaining work
+
+1. Confirm the exact caller instruction that writes the first argument at context+`0`, and prove whether its source address is descriptor+`0x40`.
+2. Obtain/disassemble the missing host-code window around `orbitalgame.dll+0x1B5A8FF0`; the existing `orbitals_memcpy_callers.zip` starts its nearest window at `+0x1B5A929F` and does not include `+0x1B5A8FF0`.
+3. Verify the source and size qwords (`0x05240500`, `0x05240500`) against the exact argument-block producer. Do not assume `0x298` is the memcpy size.
+4. Only after the producer and field semantics are proven, patch that caller-side load/index/bounds logic. Do not patch the import resolver or generic memcpy/memmove implementation.
+
+No `prepare.py`, ROMFS extraction, guest regeneration, or full recompilation is needed for these analysis steps.
