@@ -535,3 +535,68 @@ The probe does not change the pointer calculation or callback arguments. It logs
 **Next step:** build once with this patch, run until the same crash, and inspect the `record-source probe` lines. They will show whether `[X22+8]` is already wrong or whether the fixed `+0x3810` calculation produces the bad pointer. If no probe line appears, neither instrumented callback was taken and the capture point must move to another existing call boundary.
 
 **Build impact:** this adds two generated-code patch sites and one runtime host probe. It requires one code-generation/compile pass for the changed patch table and runtime; it does not require ROMFS extraction or a full game-file preparation cycle. Reuse the existing game setup and cached assets.
+
+
+## 24/11/2026 follow-up: invalid memcpy arguments traced to the game-side caller
+
+This section records the additional dump/disassembly findings supplied on 24/11. The exact dump and object files are available in the `sinedgiveaways/tool` `analysis-data` release; the observations below should be rechecked against those raw artifacts before treating every register/dataflow interpretation as independently verified.
+
+### Host-side copy path
+
+The reported path is:
+
+```
+orbitalgame.dll+0x1B5A939A
+  -> wrapper orbitalgame.dll+0x1C11DF00
+  -> synthetic import slot 0x700900A008
+  -> native helper orbitals-recomp.exe+0x40CE0
+  -> thunk orbitals-recomp.exe+0x70C430
+  -> ucrtbase.dll memcpy (invalid read)
+```
+
+The helper and thunk are transport/dispatch layers. The three arguments are reportedly already invalid when they reach the native helper. This does not support changing import resolution or applying a generic `memcpy` workaround.
+
+### Candidate 0x38-byte index calculation
+
+At `orbitalgame.dll+0x1B5A8FF0`, the disassembly is reported as:
+
+```asm
+mov  eax, 2
+sub  eax, edx
+imul rcx, rax, 0x38
+add  rcx, r9
+```
+
+This computes a signed relative offset in entries of `0x38` bytes. If the live `EDX` value is 5, the resulting index is -3 (byte offset `-0xA8`). A value of -3 was also observed in object `0x0CE01F2C00`. These are correlated clues only: the runtime value of EDX and the identity/dataflow of that object must still be verified at this exact site.
+
+### Guest caller and import wrapper
+
+The crash stack reportedly contains two occurrences of guest address `0x7001759B20` (`f_7001759b20`) in the same path as descriptor `0x1C92EAB0540`, buffer `0x11C51F7A0`, copy size `0x298`, and wrapper return address `orbitalgame.dll+0x1C11DF58`.
+
+The generated object `setup-work/obj/main_main_0184.o` contains calls to `f_70070c1de0` and `f_70070c1df0`; the stack contains `0x70070C1DE0`. The wrapper definition in `setup-work/obj/main_main_0768.o` uses synthetic import slot `0x700900A008`, identifying this boundary as the `memcpy` import wrapper. The wrapper forwards through the dispatcher; it does not itself explain how the invalid pointer value was created.
+
+This makes `f_7001759b20` and the caller-side preparation of the descriptor/buffer the important investigation target. Do not mistake the import wrapper for the bad-argument producer.
+
+### Established vs. still open
+
+Reported by the new dump/object inspection:
+- the host copy reaches `ucrtbase!memcpy` through the synthetic import and native helper;
+- the invalid arguments predate the native helper;
+- the guest stack links the copy path to `f_7001759b20`, descriptor `0x1C92EAB0540`, buffer `0x11C51F7A0`, and size `0x298`;
+- the object `main_main_0768.o` contains the wrapper using the `memcpy` import slot.
+
+Still to prove from the raw artifacts:
+- which of destination, source, and size is invalid, and their exact values at the call boundary;
+- which descriptor fields feed those arguments;
+- whether EDX is actually 5 at `+0x1B5A8FF0`, and whether its -3 index reaches object `0x0CE01F2C00`;
+- the first caller-side instruction that produces or propagates the bad value.
+
+### Next steps (read-only; no full prepare/recompile)
+
+1. Disassemble the complete caller window from `orbitalgame.dll+0x1B5A8FF0` through the call at `+0x1B5A939A`, including branches and register definitions.
+2. Map the wrapper's argument registers through `orbitalgame.dll+0x1C11DF00`, the import slot, and the generated wrapper in `main_main_0768.o`.
+3. Capture destination/source/size at the call boundary and trace each backwards to its last write. Inspect descriptor `0x1C92EAB0540` and buffer `0x11C51F7A0`; do not assume the `0x298` size is wrong.
+4. Verify the live EDX value and the -3 / `-0xA8` calculation against the actual object layout and the `0x0CE01F2C00` observation.
+5. Patch only the verified caller-side producer or index/bounds calculation. Do not modify `memcpy`, import resolution, or the generic dispatcher.
+
+These steps are analysis of existing dump and object artifacts. They do not require `prepare.py`, ROMFS extraction, game code generation, or a full rebuild.
