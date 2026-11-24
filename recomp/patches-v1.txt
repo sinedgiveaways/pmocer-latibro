@@ -41,24 +41,26 @@
 
 # orbitals-record-source-probe: observe the pointer chain feeding the bad load in f_7001759b20.
 # At main+0x1750524, X25 is loaded from [X22+8]. The caller then sets X19=0x3810,
-# computes X0=X25+X19 at +0x1750630, passes it through +0x17508e0, and calls
+# computes X0=X25+X19 at +0x1750630, passes it through main+0x17508e0, and calls
 # f_7001759b20 at +0x1750b84. In that function X25 is preserved until the faulting
 # main+0x1759d8c: ldur w8,[x25,#0x34].
-# The probe copies the live X25/X22 values into x0/x1, logs [X22+8] and the
-# derived address, and leaves the guest registers unchanged. Slot +0x108 stores
-# the registered host probe. First 32 calls are logged.
+# Intercept the two existing indirect calls at +0x17505bc/+0x17505e4: save the
+# original vtable target in x16, load the probe, and leave the original BLR intact.
+# The probe logs the live X22/X25 chain, then calls the original target via rt_call.
+# Patch-page slot +0x108 contains the registered host-function address; first 32 calls.
 #
-#   main+0x1750524: ldr x25,[x22,#8] ; preserved, then:
-#       mov x0,x25
-#       mov x1,x22
+#   main+0x17505b8 / +0x17505e0: ldr x8,[x8,#8] ; replaced with:
+#       ldr x16,[x8,#8]
 #       adrp x8, patch_page
 #       ldr x8,[x8,#0x108]
-#       blr x8
-#
+#   following original BLR x8 calls the probe.
+
+
 set  rec-null-guard     ORBITALS_PATCH_REC_NULL_GUARD  1
 set  orbitals-vcall-probe ORBITALS_TRACE_VCALL          1
 set  orbitals-record-source-probe ORBITALS_TRACE_RECORD_SOURCE 1
 
 site rec-null-guard main 0x175a030 b9405f29 cb0903ed aa0901ad 937ffdad d10005ad d101736e 8a2d0330 8a0d01d1 aa102239 b9405f29
 site orbitals-vcall-probe main 0x1d761cc f9400508 f9400510 @page:x8 f9408108
-site orbitals-record-source-probe main 0x1750524 f94006d9 aa1903e0 aa1603e1 @page:x8 f9408508 d63f0100
+site orbitals-record-source-probe main 0x17505b8 f9400508 f9400510 @page:x8 f9408508
+site orbitals-record-source-probe main 0x17505e0 f9400508 f9400510 @page:x8 f9408508
