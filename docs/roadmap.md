@@ -238,3 +238,46 @@ numbers for Orbitals come from `tools/run/ab.py` runs (`ORBITALS_AB`).
   not yet checked on the player's machine.
 - A Linux package that starts on non-rolling distributions, and the launcher tested on more Windows machines.
 - Steam Remote Play Together checked with Orbitals ([remote-play.md](remote-play.md)).
+
+## 6. Update du 24/11/2026 — état réel après les derniers logs
+
+Cette section fait foi sur les conclusions les plus récentes et corrige les hypothèses historiques des sections 1.2 et 1.1b. Les détails des dumps et des instructions sont conservés dans [orbitals-startup-crash-analysis.md](orbitals-startup-crash-analysis.md).
+
+### 6.1 Crash B : le read à 0x104 n'est pas un crash TLS
+
+- Le nom nn::os::GetTlsValue était un symbole voisin trompeur. Le défaut se produit dans le code du jeu, dans f_7001759b20 = main+0x1759b20.
+- Le dump du 22/11 montre un enregistrement de 0xE8 octets valide, présent dans la liste, mais dont le pointeur de sous-table à +0x00 est nul et l'état à +0x50 vaut -1. Le code calcule ensuite une adresse à partir de cette base nulle et lit 0x104.
+- Le correctif rec-null-guard / v2 protège cette lecture et permet à l'exécution de dépasser ce point. Cela constitue un contournement ciblé du crash, pas encore une preuve que les valeurs d'une sous-table absente sont sémantiquement correctes.
+- La PR #19 (fix/record-subtable-175dc04) ajoute un second garde indépendant à main+0x175dbec, validé contre le mot d'instruction original f9400008. Le fallback redirige la base nulle vers la page zéro ; il doit encore être validé dans le jeu.
+- Ne pas modifier TPIDR, l'allocation TLS ou le scheduler sur la seule base de ce crash : les éléments recueillis ne démontrent pas une panne de TLS.
+
+### 6.2 Crash A : le Binned3 tente de libérer sa propre pile
+
+- Le log du 24/11 (build 0.2.0-g1617c23, fichier daté 20261124-002310) ne montre plus le read AV à 0x104. Il se termine plus tard, au chargement / choix du personnage (~15 s), par FMallocBinned3 Attempt to free an unrecognized pointer %p.
+- Chemin relevé : main+0x175a16c -> main+0xb9214 -> main+0x181cc8 -> main+0x1f9878, puis AbortImpl. Le dump hexadécimal de pile ajouté par la PR #18 permet de retrouver l'argument variadique %p.
+- Dans le log du 24/11, le pointeur transmis à Free est 0x11e2b4f1c et le SP du thread qui avorte vaut 0x11e2b4e00 : le pointeur vaut exactement SP + 0x11c. Le log du 23/11 présente la même forme (x1=0x115eaef1c). C'est donc une adresse dans la pile du thread, pas une allocation heap valide.
+- Conclusion actuelle : le parcours de records fournit à Free une valeur de pile résidente / indéfinie à la place d'un pointeur heap. La cause exacte dans le code généré reste à localiser. Les adresses 0x84014a400, 0x84014a410 et 0x84014a4dc repérées comme voisines dans le dump ne sont pas le pointeur fautif confirmé ; ne pas les utiliser comme cible de patch.
+- Outil ajouté : recomp/peek_words.py, lecture seule du .text NSO, pour extraire les mots d'instruction au format patches-v1. Il faut l'exécuter sur l'ExeFS local aux trois fenêtres main+0x1f9878, main+0xb9214 et main+0x181cc8. Le patch ne doit être écrit qu'après identification de l'instruction qui propage la valeur de pile vers Free.
+- Aucun correctif Crash A n'est encore établi. Ne pas confondre ce problème avec le Crash B et ne pas présenter le garde 0x104 comme une correction du Binned3.
+
+### 6.3 Portée des builds et des PR
+
+- La PR #18 ajoute le dump brut de 0x2000 octets de pile au chemin svc_fatal ; c'est un changement diagnostique.
+- La PR #19 est un garde runtime/générateur optionnel pour la seconde lecture de sous-table ; elle ne contient pas une DLL de jeu déjà recompilée. Le workflow Windows runtime-only ne régénère pas le code du jeu. L'activation effective du patch généré exige encore le cycle de génération/compilation de la DLL de jeu.
+- La PR #16 (barrière mémoire partagée Niagara) et la PR #17 (suivi de propriété GPU des storage images) sont présentes dans l'historique fusionné. Leur présence dans le dépôt ne prouve pas à elle seule que chaque correctif a été testé visuellement dans Orbitals.
+- Ne pas lancer une régénération/recompilation complète pour une simple analyse de logs ou l'extraction des mots du NSO.
+
+### 6.4 Graphismes : ce que les traces établissent
+
+- La trace 3D montre que la grille de lumières 3D (20x20x100) est effacée à 0xffffffff, puis réuploadée depuis une mémoire invitée qui contient des zéros ; aucune écriture de remplissage de grille n'a été observée. La cause peut être en amont (culling CPU / données de lumières) ou dans le rôle réel de cette grille : ce n'est pas encore tranché.
+- Le volume R8 1024x1024x8 est écrit par le compute 9d8184019bd59e6d à la frame 417 puis échantillonné à la frame 1505 ; aucune réupload ultérieure depuis la mémoire invitée n'a été observée dans la trace fournie.
+- Le fragment shader d'éclairage d18042401d56bbea dépend notamment de la profondeur, du G-buffer, de la couleur de scène, de la grille, du volume R8 et du SSBO binding 4. La trace fournie ne contient pas encore tous les éléments permettant de conclure sur ses entrées.
+- La dernière session de log atteint le menu et se ferme normalement ; elle ne prouve pas que textures, ombres, lumières et reflets sont visuellement corrects. Il faut une capture ciblée du shader d'éclairage et comparer ses entrées/sorties avec Lichii.
+- Le correctif de Niagara concerne les dépendances implicites de mémoire partagée du shader radix-sort d032ce5090303e01. Il ne faut pas le présenter comme une correction générale de tous les shaders.
+
+### 6.5 Prochaines actions vérifiables
+
+1. Extraire les mots d'instruction du NSO local autour des trois offsets du chemin Binned3 avec recomp/peek_words.py.
+2. Suivre la valeur SP+0x11c en remontant le code généré jusqu'à l'écriture fautive ou au champ de record mal initialisé ; proposer ensuite un patch local validé par mot original.
+3. Garder Crash A et Crash B comme deux défauts distincts dans les rapports, les branches et les tests.
+4. Pour les graphismes, capturer le fragment d18042401d56bbea et ses ressources au même passage/frame que les traces 3D ; comparer avec Lichii avant de modifier le shader ou le suivi mémoire.
