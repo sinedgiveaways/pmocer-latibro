@@ -33,14 +33,14 @@
 #
 #   main+0x1d761c8: ldr x8, [x0]       ; vptr
 #   main+0x1d761cc: ldr x8, [x8, #8]   ; virtual target
-#   main+0x1d761d0: blr x8             ; replaced with:
-#       mov x16, x8
+#   main+0x1d761cc: ldr x8, [x8, #8]  ; replaced with:
+#       ldr x16, [x8, #8]             ; save original target
 #       adrp x8, patch_page
 #       ldr x8, [x8, #0x100]
-#       blr x8
+#   main+0x1d761d0: blr x8             ; calls probe (or original target when disabled)
 
 set  rec-null-guard     ORBITALS_PATCH_REC_NULL_GUARD  1
 set  orbitals-vcall-probe ORBITALS_TRACE_VCALL          1
 
 site rec-null-guard main 0x175a030 b9405f29 cb0903ed aa0901ad 937ffdad d10005ad d101736e 8a2d0330 8a0d01d1 aa102239 b9405f29
-site orbitals-vcall-probe main 0x1d761d0 d63f0100 aa0803f0 @page:x8 f9408108 d63f0100
+site orbitals-vcall-probe main 0x1d761cc f9400508 f9400510 @page:x8 f9408108
