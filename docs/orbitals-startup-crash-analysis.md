@@ -152,7 +152,7 @@ The build with rec-null-guard v2 no longer access-violates: the record walk proc
 loader/character-select (~15 s, reproduced in the 23/11 and 24/11 logs) in an engine abort,
 "FMallocBinned3 Attempt to free an unrecognized pointer %p", from main+0x1f9878 over the same record-walker
 chain (main+0x175a16c -> main+0xb9214 -> main+0x181cc8). The stack-hex dump at the abort (svc.c) captures the
-value: the 24/11 log frees 0x11e2b4f1c while the aborting thread's sp is 0x11e2b4e00, so the pointer is
+value: the 24/11 log frees 0x1183f9f1c while the aborting thread's sp is 0x1183f9e00, so the pointer is
 sp+0x11c, an address in the caller's own stack frame. The 23/11 run's x1 (0x115eaef1c) fits the same shape.
 So the record entry the walk lands on holds a stack-resident garbage value (uninitialized field) instead of a
 heap pointer; the engine's Free then refuses it. Next step: the exact instruction words around
@@ -175,7 +175,7 @@ main+0x175a168 97a593b6   bl main+0xbf040
 main+0x175a16c 17ffff0c   b main+0x1759...
 ```
 
-This establishes the local dataflow in the cleanup routine: it reads the object field `[x19+0x110]` into x25, saves that value in the stack local `[sp+0x80]`, clears the object field, and later reloads the saved value into x0 for `FMemory::Free`. The 24/11 fatal log's `%p` value is `0x11e2b4f1c`, which is inside the aborting thread's stack (`SP=0x11e2b4e00`, therefore `SP+0x11c`). The bad value therefore reaches Free through this field/local path.
+This establishes the local dataflow in the cleanup routine: it reads the object field `[x19+0x110]` into x25, saves that value in the stack local `[sp+0x80]`, clears the object field, and later reloads the saved value into x0 for `FMemory::Free`. The 24/11 fatal log's `%p` value is `0x1183f9f1c`, which is inside the aborting thread's stack (`SP=0x1183f9e00`, therefore `SP+0x11c`). The bad value therefore reaches Free through this field/local path.
 
 The relevant return/call words in the fatal-reporting chain are also confirmed in the same NSO:
 
@@ -234,7 +234,19 @@ The log's return address main+0x1f9878 is consistent with the indirect call at m
 ### What is established / next step
 
 - The bad value is copied from the object field `[X8-0x10]` into the temporary cleanup slot `[SP+0x80]`, then passed to Free.
-- The log establishes that the value passed to Free is within the aborting thread's stack (24/11: `0x11e2b4f1c = 0x11e2b4e00 + 0x11c`). This is not a valid heap allocation.
+- The log establishes that the value passed to Free is within the aborting thread's stack (24/11: `0x1183f9f1c = 0x1183f9e00 + 0x11c`). This is not a valid heap allocation.
 - The exact writer and semantic type of `[X8-0x10]` are not yet identified. This is now the primary target: find the producer/store to that field and determine why a stack address is being retained there.
 - Do not patch the allocator or blindly null the field yet. A safe fix requires identifying the field's owner and expected lifetime, then guarding/fixing the producer at a verified instruction site.
 
+
+
+### Correction from the exact uploaded log (20261124-002310)
+
+The stack values for this specific uploaded file are:
+- fatal SP = `0x1183f9e00`
+- pointer in x1 = `0x1183f9f1c`
+- therefore `x1 = SP + 0x11c`.
+
+The previously documented `0x11e2b4...` pair referred to a different capture/was not the address pair in this uploaded log. The relation (pointer inside the current thread's stack) remains the same.
+
+The NSO instruction trace further narrows the dataflow: `main+0x1759e38` loads X9 from `[X8-0x10]`; `main+0x1759e4c` saves X9 into the local cleanup slot `[SP+0x80]`; `main+0x1759e50` clears the source field; `main+0x175a160` reloads the saved value and `main+0x175a168` calls `FMemory::Free`. The producer that originally wrote `[X8-0x10]` is still unknown.
