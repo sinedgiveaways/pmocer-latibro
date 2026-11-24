@@ -804,3 +804,54 @@ The `[RSI+0xD0]` value used for destination is read into RDX before the subseque
 The remaining task is now sharply bounded: recover the crash-time values of `RSI+0xC8`, `RSI+0xD0` (before overwrite), `RSI+0xD8`, and `R13`, or reconstruct them from the saved caller frame. Then calculate the exact destination/source and validate the two address ranges against captured minidump memory. If the length is 0, the reported invalid read may instead come from a different call or from the helper's argument/context interpretation; if it is 4, inspect those exact 4-byte ranges. Do not patch the descriptor field or the generic memcpy override based on the earlier, now-withdrawn qword mapping.
 
 The original dump's exception stream/context extraction is being published as a separate artifact; the previous attempt's artifact upload path was wrong, so the run's extraction step completed but its output was not attached. The workflow path has since been corrected.
+
+
+## 24/11/2026: crash-time native arguments recovered from the real minidump
+
+The corrected exception-context extraction from the original 8.8-GB minidump has now been downloaded and inspected. This is the first direct register-level confirmation at the actual AV in `ucrtbase.dll`.
+
+### Exception and faulting instruction
+
+- Exception thread: `0x5B10`
+- Exception code: `0xC0000005` (access violation)
+- Exception RIP: `ucrtbase.dll+0xAE44D` (`0x7FFB2D4AE44D`)
+- Faulting instruction: `vmovdqu ymm0, ymmword ptr [rdx]`
+- Crash-time registers:
+  - `RCX = 0x12E1A8000C`
+  - `RDX = 0x01460149013D0140`
+  - `R8  = 0x05240500` (86,246,656 bytes)
+  - `RSI = 0x1C92EAB0540`
+  - `RDI = 0x12E1A8000C`
+  - `RBX = 0x01460149013D0140`
+  - `R14 = 0x05240500`
+
+At the faulting instruction, UCRT's vectorized `memmove` is reading from `[RDX]`. Thus the immediate bad operand is the **source pointer `0x01460149013D0140`**. The requested copy length is also highly suspicious: 86,246,656 bytes (about 82.25 MiB), which selects the large-copy path. The destination `0x12E1A8000C` has captured memory at its address in the dump; the source address has no captured memory range in the extracted register-pointed-memory report.
+
+### Descriptor contents confirm argument ordering
+
+The exception context has `RSI=0x1C92EAB0540`. The first qwords at that address are:
+
+| Descriptor offset | Value | Meaning confirmed by native registers |
+|---:|---:|---|
+| `+0x00` | `0x12E1A8000C` | destination (`RCX`) |
+| `+0x08` | `0x01460149013D0140` | source (`RDX`) |
+| `+0x10` | `0x05240500` | size (`R8`) |
+| `+0x40` | `0x01460149013D0140` | duplicate of source |
+
+This resolves the earlier ambiguity: descriptor+`0x40` is a duplicate of the **source**, not the destination. The earlier interpretation that the qwords at stack base `0x19AFFFF160` were the actual argument triple is withdrawn. The authoritative argument values are the native register state plus the descriptor at `RSI`.
+
+### Important consistency warning
+
+The exception record's two access-violation parameters were parsed as `(0, 0xFFFFFFFFFFFFFFFF)`, which does not match the effective address implied by the faulting instruction and `RDX`. The instruction bytes and register context agree with each other, but the exception-information address field is inconsistent and must be treated as suspect until the raw exception-stream bytes are independently checked. Do not claim the AV parameter address is confirmed.
+
+The caller disassembly around return address `orbitalgame.dll+0x1B5A939F` is useful for finding the producer, but its current static interpretation of the `R13 & 4` branch does not reconcile with the runtime size `0x05240500`. The exact wrapper/context field mapping and the relevant branch path must be revalidated before attributing the size to that instruction sequence. The runtime register/descriptor values above take precedence over an unverified static mapping.
+
+### Next root-cause target
+
+1. Trace the store that populates descriptor+`0x08` (source) and descriptor+`0x10` (size), and identify why source becomes `0x01460149013D0140` while size becomes `0x05240500`.
+2. Inspect the descriptor's duplicated source at +`0x40` and its neighboring fields to identify the owning structure and any base/offset calculation.
+3. Validate the full destination allocation size around `0x12E1A8000C` against the 86,246,656-byte request.
+4. Resolve the exception-information mismatch from the raw stream.
+5. Patch only the proven descriptor producer or length calculation. Do not patch `memcpy`/`memmove` globally.
+
+The exception-context artifact is `orbitals-caller-1B5A8FF0` from workflow run `45476215717`. Its corrected upload succeeded.
