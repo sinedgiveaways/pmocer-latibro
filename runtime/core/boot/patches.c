@@ -31,8 +31,9 @@
 static void orbitals_record_source_probe(Cpu *c) {
     static uint64_t calls;
     uint64_t n = __atomic_add_fetch(&calls, 1, __ATOMIC_RELAXED);
-    uint64_t source = c->x[0];  // live X25, copied by the patch
-    uint64_t owner = c->x[1];   // live X22, copied by the patch
+    uint64_t target = c->x[16];           // original vtable target saved by the patch
+    uint64_t source = c->x[25];           // live X25, loaded from [X22+8]
+    uint64_t owner = c->x[22];            // live X22 from the caller
     uint64_t owner_source = 0;
     int owner_ok = owner && plat_mem_read(owner + 8, &owner_source, sizeof owner_source);
     uint64_t computed = source + 0x3810;
@@ -41,15 +42,23 @@ static void orbitals_record_source_probe(Cpu *c) {
                    plat_mem_read(computed + 0x34, &field, sizeof field);
 
     if (n <= ORBITALS_RECORD_SOURCE_PROBE_LIMIT) {
-        rt_log("record-source probe #%llu at main+0x1750524: X22=%#llx [X22+8]=%#llx (%s) X25=%#llx X25+0x3810=%#llx field+0x34=%#x (%s)",
-               (unsigned long long)n, (unsigned long long)owner,
+        char callsite[96], target_name[96];
+        ldr_describe(c->x[30] - 4, callsite, sizeof callsite);
+        ldr_describe(target, target_name, sizeof target_name);
+        rt_log("record-source probe #%llu at %s: X22=%#llx [X22+8]=%#llx (%s) X25=%#llx X25+0x3810=%#llx field+0x34=%#x (%s) target=%#llx (%s)",
+               (unsigned long long)n, callsite, (unsigned long long)owner,
                (unsigned long long)owner_source, owner_ok ? "readable" : "unreadable",
                (unsigned long long)source, (unsigned long long)computed,
-               field, field_ok ? "readable" : "unmapped");
-        rt_log("  register cross-check: Cpu.X22=%#llx Cpu.X25=%#llx X30=%#llx SP=%#llx",
-               (unsigned long long)c->x[22], (unsigned long long)c->x[25],
-               (unsigned long long)c->x[30], (unsigned long long)c->sp);
+               field, field_ok ? "readable" : "unmapped",
+               (unsigned long long)target, target_name);
     }
+
+    // The unchanged BLR calls this probe. Restore and invoke the original target.
+    c->x[8] = target;
+    rt_call(c, target, 0);
+    if (n <= ORBITALS_RECORD_SOURCE_PROBE_LIMIT)
+        rt_log("  record-source probe #%llu returned x0=%#llx",
+               (unsigned long long)n, (unsigned long long)c->x[0]);
 }
 
 static void orbitals_vcall_probe(Cpu *c) {
