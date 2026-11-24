@@ -113,6 +113,8 @@ void rt_patch_hosts(void) {
     if (!g->npatch_sets || !g->patch_page) return;
     uint64_t probe = hostfn_register("orbitals_vcall_probe", orbitals_vcall_probe);
     ST64(g->patch_page + ORBITALS_VCALL_PROBE_PAGE_SLOT, probe);
+    uint64_t record_probe = hostfn_register("orbitals_record_source_probe", orbitals_record_source_probe);
+    ST64(g->patch_page + ORBITALS_RECORD_SOURCE_PROBE_PAGE_SLOT, record_probe);
 }
 
 void rt_patch_switch(int set, int on) {
