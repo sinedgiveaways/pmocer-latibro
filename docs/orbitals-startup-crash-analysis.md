@@ -264,3 +264,77 @@ The instruction-level decode identifies the same 0xE8 record array as the earlie
 
 **Current root-cause boundary:** the nested element's +0x30 field contains a thread-stack address when cleanup reaches it. The cleanup code copies and frees that value; it does not create the address. The writer/constructor that first puts a stack address in this field remains to be found. Do not call it simply an uninitialized field until that producer is identified.
 
+
+
+## 24/11/2026 follow-up: indirect-call descriptor traced in supplied main(3)
+
+The supplied `main(3)` NSO (80,716,406 bytes; decompressed .text size `0x70c5b20`) was decompressed and the following instructions were read directly from its .text.
+
+### Caller-side sequence
+
+At `main+0x1d76120` the caller prepares a descriptor at its current stack pointer and calls `main+0x15e7420`:
+
+```asm
+1d76124  mov x0, sp
+1d76128  mov w3, #7
+1d7612c  mov x23, sp
+1d76130  mov x1, x19
+1d76134  bl  main+0x15e7420
+...
+1d761b4  ldr x23, [x8, #0x30]
+...
+1d761d0  blr x8
+1d761d4  mov x1, sp
+1d761d8  sub x2, x29, #0x90
+1d761dc  blr x23
+```
+
+The callee `main+0x15e7420` uses its incoming `x0` as `x19`, so the descriptor base is the caller's stack pointer saved in `x23`.
+
+### Descriptor layout: important correction
+
+The constructor initializes the first 16 bytes of this descriptor to zero:
+
+```asm
+15e74bc  add x22, x19, #0x18
+15e74c4  stp xzr, xzr, [x19]
+```
+
+Later, it writes a 32-bit value to offset +8, not an 8-byte pointer:
+
+```asm
+15e7c98  add w8, w0, #1
+15e7ca0  str w8, [x19, #0x8]
+```
+
+Thus the second qword loaded by the wrapper below consists of that 32-bit value with the upper half initially zero. It must **not** be described as a proven pointer to a stack object.
+
+### Wrapper sequence
+
+The function at `main+0x1d77d40` does:
+
+```asm
+1d77d48  mov x8, x0
+1d77d4c  ldp x0, x2, [x1]
+1d77d54  mov x1, x8
+1d77d58  ldr x9, [x0]
+1d77d5c  ldr x9, [x9, #0x48]
+1d77d60  blr x9
+1d77d64  mov w0, #1
+```
+
+The wrapper loads its inner-call `x0` and `x2` from the descriptor's first and second qwords. The caller's stack trace includes return addresses `main+0x1d77d64` and `main+0x1d761e0`, consistent with these call sites.
+
+### Unresolved mismatch — do not infer the target yet
+
+The fatal log also contains `main+0x1718cf8`, and the earlier analysis associated that frame with a call to `main+0x1750480` through `main+0x1718240`. However, the descriptor's +8 field shown above is populated by a 32-bit count-like value, whereas the earlier producer hypothesis treated the corresponding `x2` as a pointer used by `main+0x1750480`. Those claims cannot both be accepted without resolving the actual target of the indirect call at `main+0x1d77d60` and the exact stack-frame interpretation. The DATA reference previously noted at `0x111708` alone does not prove that it is this object's active vtable.
+
+**Current safe conclusion:** the stack descriptor and indirect-call wrapper are now instruction-level identified, but the target/argument mapping to `main+0x1718240` is not yet proven. Consequently, the candidate writer `main+0x17518ec` remains a hypothesis, not a confirmed producer of the invalid free pointer `0x1183f9f1c`. Do not patch this path or the allocator until this mismatch is resolved.
+
+### Next verification
+
+1. Resolve the runtime target stored at the object vtable slot `+0x48` used at `main+0x1d77d5c`.
+2. Confirm whether that target is actually `main+0x1718240`; if not, identify the correct method and its argument semantics.
+3. Trace the exact value loaded from descriptor +8 and compare it with the register values expected by the target.
+4. Only then reconnect this indirect-call path to `main+0x1750480`, `main+0x17518ec`, and the invalid-free cleanup at `main+0x175a168`.
+
