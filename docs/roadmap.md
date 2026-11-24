@@ -251,14 +251,16 @@ Cette section fait foi sur les conclusions les plus récentes et corrige les hyp
 - La PR #19 (fix/record-subtable-175dc04) ajoute un second garde indépendant à main+0x175dbec, validé contre le mot d'instruction original f9400008. Le fallback redirige la base nulle vers la page zéro ; il doit encore être validé dans le jeu.
 - Ne pas modifier TPIDR, l'allocation TLS ou le scheduler sur la seule base de ce crash : les éléments recueillis ne démontrent pas une panne de TLS.
 
-### 6.2a Chemin memcpy : arguments du caller corrigés (24/11/2026)
+### 6.2a Crash memcpy : source fautive confirmée au point de lecture (24/11/2026)
 
-- Le désassemblage complet autour du retour de crash `orbitalgame.dll+0x1B5A939F` identifie l'appel à `+0x1B5A939A`.
-- Juste avant cet appel, les arguments sont construits ainsi : destination = ancienne valeur `[RSI+0xD0]` + `[RSI+0xD8]`; source = `[RSI+0xC8]` + `[RSI+0xD8]`; taille = `R13 & 4` (donc 0 ou 4).
-- **Correction :** le triplet `0x01460149013D0140 / 0x05240500 / 0x05240500` lu dans une fenêtre de pile antérieure n'est pas prouvé comme étant les arguments de cet appel. La piste d'une destination directement issue de `descriptor+0x40` est retirée jusqu'à preuve de dataflow.
-- Le `0x298` est une autre donnée du contexte, pas la taille calculée par ce call-site. Le calcul d'index `(2-EDX)*0x38` est également un chemin distinct.
-- **Prochaine étape utile :** récupérer les valeurs crash-time de `RSI+0xC8`, `RSI+0xD0`, `RSI+0xD8` et `R13`, puis valider destination/source contre les plages mémoire du dump. Ne pas patcher le helper global.
-- Détails : [dataflow exact du call-site memcpy](orbitals-startup-crash-analysis.md#24112026-correction-exact-memcpy-arguments-at-the-crashing-call-site).
+- Le minidump original a été retraité sur GitHub Actions et le contexte d'exception réel est maintenant récupéré.
+- Exception : `0xC0000005` dans `ucrtbase.dll+0xAE44D`; instruction fautive `vmovdqu ymm0, [rdx]`.
+- Arguments natifs observés : destination `RCX=0x12E1A8000C`, source `RDX=0x01460149013D0140`, taille `R8=0x05240500` (86 246 656 octets).
+- `RSI=0x1C92EAB0540` pointe le descripteur : +0 = destination, +8 = source, +0x10 = taille, +0x40 = copie du pointeur source. Le champ +0x40 n'est donc pas la destination.
+- La lecture fautive est sur la source `0x01460149013D0140`; cette adresse n'a pas de plage mémoire capturée dans le rapport, tandis que la destination a une mémoire capturée. La longueur de ~82,25 MiB est également suspecte.
+- L'information d'exception Windows indique toutefois une adresse `0xFFFFFFFFFFFFFFFF`, incohérente avec `RDX` et l'instruction fautive : ce champ doit être revérifié avant d'être cité comme adresse AV.
+- **Prochaine étape :** remonter le producteur du descripteur +8 et +0x10, puis valider la capacité de destination. Aucun patch global de memcpy/memmove.
+- Détails : [registres natifs et contenu du descripteur](orbitals-startup-crash-analysis.md#24112026-crash-time-native-arguments-recovered-from-the-real-minidump).
 
 ### 6.2 Crash A : le Binned3 tente de libérer sa propre pile
 
