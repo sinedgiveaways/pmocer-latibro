@@ -20,6 +20,38 @@
 #define ORBITALS_VCALL_PROBE_PAGE_SLOT 0x100
 #define ORBITALS_VCALL_PROBE_LIMIT 32
 
+#define ORBITALS_RECORD_SOURCE_PROBE_PAGE_SLOT 0x108
+#define ORBITALS_RECORD_SOURCE_PROBE_LIMIT 32
+
+// At main+0x1750524 the caller loads X25 = [X22+8]. It later adds 0x3810
+// and passes that pointer through main+0x17508e0 to f_7001759b20, where
+// LDUR W8,[X25,#0x34] faults in the 24/11 capture. The patch passes the
+// live values in x0/x1 so this probe does not rely on Cpu's stale register
+// snapshot. It only observes; it does not change the guest registers.
+static void orbitals_record_source_probe(Cpu *c) {
+    static uint64_t calls;
+    uint64_t n = __atomic_add_fetch(&calls, 1, __ATOMIC_RELAXED);
+    uint64_t source = c->x[0];  // live X25, copied by the patch
+    uint64_t owner = c->x[1];   // live X22, copied by the patch
+    uint64_t owner_source = 0;
+    int owner_ok = owner && plat_mem_read(owner + 8, &owner_source, sizeof owner_source);
+    uint64_t computed = source + 0x3810;
+    uint32_t field = 0;
+    int field_ok = computed <= UINT64_MAX - 0x34 &&
+                   plat_mem_read(computed + 0x34, &field, sizeof field);
+
+    if (n <= ORBITALS_RECORD_SOURCE_PROBE_LIMIT) {
+        rt_log("record-source probe #%llu at main+0x1750524: X22=%#llx [X22+8]=%#llx (%s) X25=%#llx X25+0x3810=%#llx field+0x34=%#x (%s)",
+               (unsigned long long)n, (unsigned long long)owner,
+               (unsigned long long)owner_source, owner_ok ? "readable" : "unreadable",
+               (unsigned long long)source, (unsigned long long)computed,
+               field, field_ok ? "readable" : "unmapped");
+        rt_log("  register cross-check: Cpu.X22=%#llx Cpu.X25=%#llx X30=%#llx SP=%#llx",
+               (unsigned long long)c->x[22], (unsigned long long)c->x[25],
+               (unsigned long long)c->x[30], (unsigned long long)c->sp);
+    }
+}
+
 static void orbitals_vcall_probe(Cpu *c) {
     static uint64_t calls;
     uint64_t n = __atomic_add_fetch(&calls, 1, __ATOMIC_RELAXED);
