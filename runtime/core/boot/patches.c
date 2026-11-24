@@ -116,7 +116,8 @@ void rt_patches_init(void) {
 }
 
 // The host entry points on the patch page, before the dispatch table is built (hostfn.c).
-// The generated replacement at main+0x1d761cc loads this address from patch-page slot +0x100.
+// The vcall probe at main+0x1d761cc uses slot +0x100; the record-source probe at
+// main+0x17505b8/+0x17505e0 uses slot +0x108.
 void rt_patch_hosts(void) {
     const RtGame *g = rt_game();
     if (!g->npatch_sets || !g->patch_page) return;
