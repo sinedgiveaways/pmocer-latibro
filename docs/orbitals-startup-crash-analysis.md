@@ -250,3 +250,17 @@ The stack values for this specific uploaded file are:
 The previously documented `0x11e2b4...` pair referred to a different capture/was not the address pair in this uploaded log. The relation (pointer inside the current thread's stack) remains the same.
 
 The NSO instruction trace further narrows the dataflow: `main+0x1759e38` loads X9 from `[X8-0x10]`; `main+0x1759e4c` saves X9 into the local cleanup slot `[SP+0x80]`; `main+0x1759e50` clears the source field; `main+0x175a160` reloads the saved value and `main+0x175a168` calls `FMemory::Free`. The producer that originally wrote `[X8-0x10]` is still unknown.
+
+
+## Record-layout cross-check (24/11/2026)
+
+The instruction-level decode identifies the same 0xE8 record array as the earlier 0x104 failure, not an unrelated allocator path:
+
+- The record base is loaded from `[X21,#344]` (`main+0x1759de4`), and the record address is computed with stride `0xE8` (`main+0x1759df0`). This matches the earlier Crash B calculation `[X21+0x158] + index*0xE8`.
+- Within that record, `[X27,#208]` is used as the backing pointer for a nested array, with inline fallback `X27+16`; `[X27,#216]` is its signed count. Its elements have stride `0x40`.
+- For an element, `X8 = array_base + index*0x40`; the value at `[X8-0x10]` is therefore the element's field at offset `+0x30`.
+- The cleanup path moves that field into `[SP,#0x80]`, clears the original field, and later frees the saved value. The same function also frees the final element's `+0x30` field at `main+0x1759e74 -> main+0x1759e7c`.
+- This ties Crash A to the same 0xE8 record family involved in Crash B. It does not prove that the null field at record +0x00 and the invalid pointer at nested-element +0x30 have the same writer or exact semantic owner.
+
+**Current root-cause boundary:** the nested element's +0x30 field contains a thread-stack address when cleanup reaches it. The cleanup code copies and frees that value; it does not create the address. The writer/constructor that first puts a stack address in this field remains to be found. Do not call it simply an uninitialized field until that producer is identified.
+
