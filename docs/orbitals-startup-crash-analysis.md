@@ -193,3 +193,48 @@ main+0x181cc8 a9514ffc
 The stack frames at `main+0x1f9878`, `main+0x181cc8`, and `main+0xb9214` are on the allocator's fatal-reporting/logging path. They are not the correct place to patch the pointer. The actual Free call is the direct `main+0x175a168 -> main+0xbf040` call shown above.
 
 **Still open:** which producer wrote the stack address into the object field `[x19+0x110]`, and whether the field is meant to hold an owned heap allocation or a borrowed/inline temporary. Do not add a blind null check or suppress Free yet. The next step is to trace writes/initialization of this field for the same object type and identify the task/queue lifetime that placed a stack address there. No Crash A patch is confirmed at this point.
+
+
+## Instruction-level follow-up (24/11/2026, extracted NSO supplied in chat)
+
+The supplied `main` NSO was decompressed with the repository's `recomp/nso.py` logic (text size `0x70c5b20`). The instruction words below were read directly from its decompressed .text; they are not inferred from host addresses.
+
+### Exact free path
+
+```
+main+0x1759e38  f85f0109   LDUR X9, [X8, #-16]
+main+0x1759e3c  b5000089   CBNZ X9, +0x10
+main+0x1759e40  3cde0100   (128-bit load from [X8, #-32])
+main+0x1759e44  f9401fea   LDR X10, [SP, #0x38]
+main+0x1759e48  3d800140   (128-bit store through X10)
+main+0x1759e4c  f90043e9   STR X9, [SP, #0x80]
+main+0x1759e50  f81f011f   STUR XZR, [X8, #-16]
+...
+main+0x175a160  f94043e0   LDR X0, [SP, #0x80]
+main+0x175a164  b4ffe1c0   CBZ X0, loop-back
+main+0x175a168  97a593b6   BL main+0xbf040 (FMemory::Free wrapper)
+main+0x175a16c  17ffff0c   branch back to loop
+```
+
+This corrects the earlier loose description: the local slot is exactly `[SP,#0x80]` (not +0x88). It is populated by copying X9, which was loaded from the field at `[X8-0x10]`; that source field is then cleared. The later loop loads that saved value and passes it to FMemory::Free. Therefore the allocator is not manufacturing the stack address: it is receiving a value already present in the object/record field `[X8-0x10]`.
+
+### Return-address chain cross-check
+
+```
+main+0x1f9874  d63f0100   BLR X8
+main+0x1f9878  aa1503e0   MOV X0, X21
+main+0x1f987c  97f869d1   BL main+0x13fc0
+main+0x181cc4  9401deaf   BL main+0x1f9780
+main+0xb9210   9403227a   BL main+0x181bf8
+main+0x175a168 97a593b6   BL main+0xbf040
+```
+
+The log's return address main+0x1f9878 is consistent with the indirect call at main+0x1f9874. The other logged return addresses likewise sit immediately after the calls shown above.
+
+### What is established / next step
+
+- The bad value is copied from the object field `[X8-0x10]` into the temporary cleanup slot `[SP+0x80]`, then passed to Free.
+- The log establishes that the value passed to Free is within the aborting thread's stack (24/11: `0x11e2b4f1c = 0x11e2b4e00 + 0x11c`). This is not a valid heap allocation.
+- The exact writer and semantic type of `[X8-0x10]` are not yet identified. This is now the primary target: find the producer/store to that field and determine why a stack address is being retained there.
+- Do not patch the allocator or blindly null the field yet. A safe fix requires identifying the field's owner and expected lifetime, then guarding/fixing the producer at a verified instruction site.
+
