@@ -75,7 +75,7 @@ void rt_patches_init(void) {
 }
 
 // The host entry points on the patch page, before the dispatch table is built (hostfn.c).
-// The generated replacement at main+0x1d761d0 loads this address from patch-page slot +0x100.
+// The generated replacement at main+0x1d761cc loads this address from patch-page slot +0x100.
 void rt_patch_hosts(void) {
     const RtGame *g = rt_game();
     if (!g->npatch_sets || !g->patch_page) return;
