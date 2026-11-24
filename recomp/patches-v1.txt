@@ -24,7 +24,23 @@
 #   orr  x25, x16, x17    ; the address the load below actually uses
 #   ldr  w9, [x25, #0x5c] ; the original load, now safe
 # x13, x14 and x16/x17 are scratch on this stretch (nothing between the load and the cbz reads them).
+#
+# orbitals-vcall-probe: replace the indirect call at main+0x1d761d0 with a host probe that records
+# the selected receiver, its vptr/slot+8 target, the object rooted at [x21+8], and the callback/
+# alternate fields at +0x30/+0x58. It then restores x8 and calls the original virtual target via
+# rt_call, preserving the guest call's ABI/return path. First 32 invocations are logged.
+# Patch-page slot +0x100 contains the registered host-function address.
+#
+#   main+0x1d761c8: ldr x8, [x0]       ; vptr
+#   main+0x1d761cc: ldr x8, [x8, #8]   ; virtual target
+#   main+0x1d761d0: blr x8             ; replaced with:
+#       mov x16, x8
+#       adrp x8, patch_page
+#       ldr x8, [x8, #0x100]
+#       blr x8
 
-set  rec-null-guard  ORBITALS_PATCH_REC_NULL_GUARD  1
+set  rec-null-guard     ORBITALS_PATCH_REC_NULL_GUARD  1
+set  orbitals-vcall-probe ORBITALS_TRACE_VCALL          1
 
 site rec-null-guard main 0x175a030 b9405f29 cb0903ed aa0901ad 937ffdad d10005ad d101736e 8a2d0330 8a0d01d1 aa102239 b9405f29
+site orbitals-vcall-probe main 0x1d761d0 d63f0100 aa0803f0 @page:x8 f9408108 d63f0100
