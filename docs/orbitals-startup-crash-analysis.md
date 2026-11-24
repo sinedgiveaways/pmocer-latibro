@@ -158,3 +158,38 @@ So the record entry the walk lands on holds a stack-resident garbage value (unin
 heap pointer; the engine's Free then refuses it. Next step: the exact instruction words around
 main+0x1f9878 / main+0xb9214 / main+0x181cc8 (recomp/peek_words.py against the local extracted NSO) to state
 the patch site, same process as rec-null-guard.
+
+
+## 24/11 follow-up: exact source of the bad Free argument
+
+The local NSO `main(1)` supplied with the 24/11 log was decompressed with the repository's `recomp/nso.py`; the .text segment is 0x70c5b20 bytes. The following instruction words were read directly from that NSO (not inferred from a different build):
+
+```
+main+0x1757e0  f9408a79   ldr x25, [x19, #0x110]
+main+0x1757ec  f90043f9   str x25, [sp, #0x80]
+main+0x175800  f9008a7f   str xzr, [x19, #0x110]
+...
+main+0x175a160 f94043e0   ldr x0, [sp, #0x80]
+main+0x175a164 b4ffe1c0   cbz x0, main+0x1759d? (skip null)
+main+0x175a168 97a593b6   bl main+0xbf040
+main+0x175a16c 17ffff0c   b main+0x1759...
+```
+
+This establishes the local dataflow in the cleanup routine: it reads the object field `[x19+0x110]` into x25, saves that value in the stack local `[sp+0x80]`, clears the object field, and later reloads the saved value into x0 for `FMemory::Free`. The 24/11 fatal log's `%p` value is `0x11e2b4f1c`, which is inside the aborting thread's stack (`SP=0x11e2b4e00`, therefore `SP+0x11c`). The bad value therefore reaches Free through this field/local path.
+
+The relevant return/call words in the fatal-reporting chain are also confirmed in the same NSO:
+
+```
+main+0x1f9870 f9400908
+main+0x1f9874 d63f0100
+main+0x1f9878 aa1503e0
+main+0x1f987c 97f869d1   bl main+0x13fc0
+main+0xb9210  9403227a   bl main+0x181bf8
+main+0xb9214  aa1f03e8
+main+0x181cc4 9401deaf   bl main+0x1f9780
+main+0x181cc8 a9514ffc
+```
+
+The stack frames at `main+0x1f9878`, `main+0x181cc8`, and `main+0xb9214` are on the allocator's fatal-reporting/logging path. They are not the correct place to patch the pointer. The actual Free call is the direct `main+0x175a168 -> main+0xbf040` call shown above.
+
+**Still open:** which producer wrote the stack address into the object field `[x19+0x110]`, and whether the field is meant to hold an owned heap allocation or a borrowed/inline temporary. Do not add a blind null check or suppress Free yet. The next step is to trace writes/initialization of this field for the same object type and identify the task/queue lifetime that placed a stack address there. No Crash A patch is confirmed at this point.
