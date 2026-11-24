@@ -47,8 +47,7 @@ static void orbitals_vcall_probe(Cpu *c) {
                (unsigned long long)callback, (unsigned long long)alternate);
     }
 
-    // The replacement call used x8 for the probe address. Restore the original x8 value before
-    // entering the virtual target; x16 is IP0 and is caller-saved by AAPCS64.
+    // The patch saves the original vtable target in x16, then the unchanged BLR calls this probe.
     c->x[8] = target;
     rt_call(c, target, 0);
 
