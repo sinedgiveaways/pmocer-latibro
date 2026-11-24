@@ -338,3 +338,40 @@ The fatal log also contains `main+0x1718cf8`, and the earlier analysis associate
 3. Trace the exact value loaded from descriptor +8 and compare it with the register values expected by the target.
 4. Only then reconnect this indirect-call path to `main+0x1750480`, `main+0x17518ec`, and the invalid-free cleanup at `main+0x175a168`.
 
+
+
+## 24/11/2026: resolve the wrapper's virtual target from the actual DATA slot
+
+The decompressed DATA segment of the supplied `main(3)` was inspected (DATA guest base `0x7f2c000`). This resolves the earlier slot-offset ambiguity:
+
+- The pointer table begins at DATA offset `0x1116c0` (guest address `0x803d6c0`), not `0x111690`.
+- Its entry at table offset `+0x48` is stored at DATA offset `0x111708` (guest address `0x803d708`) and contains `0x1718240`.
+- This is exactly the slot read by the wrapper at `main+0x1d77d5c` (`ldr x9,[x9,#0x48]`). Therefore, **if the object's vptr is `0x803d6c0`, the wrapper's inner virtual call targets `main+0x1718240`**. The fatal stack's return address `main+0x1d77d64` is consistent with the call at `main+0x1d77d60`.
+
+The full caller sequence is:
+
+```asm
+1d761b4  ldr x23, [x8, #0x30]     ; outer callback/wrapper
+1d761d0  blr x8                   ; preceding virtual call
+1d761d4  mov x1, sp
+1d761d8  sub x2, x29, #0x90
+1d761dc  blr x23                  ; enters wrapper (return 1d761e0)
+...
+1d77d4c  ldp x0, x2, [x1]
+1d77d54  mov x1, x8
+1d77d58  ldr x9, [x0]
+1d77d5c  ldr x9, [x9, #0x48]
+1d77d60  blr x9                   ; inner virtual call (return 1d77d64)
+```
+
+### Argument-layout inconsistency still needs resolution
+
+The wrapper loads the inner call's `x0` and `x2` from the first two qwords at the stack descriptor passed in `x1`. The constructor called at `main+0x1d76134` receives `x0=sp`; in `main+0x15e7420`, `x19=x0`, the descriptor's first 16 bytes are zeroed, and the later instruction `str w8,[x19,#8]` writes a 32-bit count-like value to its second qword. This appears inconsistent with `main+0x1718240`, which saves incoming `x2` in `x26` and later passes it to `main+0x1750480`, whose entry dereferences `[x2,#0x38]`.
+
+Therefore the virtual target is now statically identified, but the actual runtime contents of the descriptor at the moment of the wrapper call are not. A preceding call or descriptor mutation may explain the apparent mismatch; it is not yet proven. Do not describe `[sp+8]` as a pointer, and do not claim the `x22+0x7c` writer is the producer of the bad free until the descriptor value and argument mapping are reconciled.
+
+### Immediate next checks
+
+1. Disassemble the full body and all stores affecting the descriptor between `main+0x15e7420` and `main+0x1d761dc`, including side effects of the call at `main+0x1d761d0`.
+2. Determine the runtime vptr and first two qwords at the wrapper entry from the crash log or existing instrumentation.
+3. Reconcile the observed `x2` with the pointer dereferenced at `main+0x1750480`; only then confirm or reject the proposed invalid-free producer chain.
