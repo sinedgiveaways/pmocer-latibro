@@ -964,3 +964,14 @@ The extractor on branch `analysis/extract-orbitals-caller-1b5a8ff0` now:
 - scans all captured minidump memory for the exact source, count and size values.
 
 A retry of a previously failed Actions job is queued to run this updated extractor. No game rebuild and no global memcpy/memmove patch is warranted.
+
+
+### Runtime dispatch cross-check: the Cpu pointer is passed through unchanged
+
+The source code removes the remaining need to hypothesize a copied argument descriptor:
+- `runtime/cpu/dispatch.c`: `rt_dispatch(Cpu *c)` resolves the guest PC and calls `f(c)`.
+- `runtime/cpu/hostfn.c`: `hostfn_entry(Cpu *c)` invokes `s->fn(c)`; the tracked path also calls `fn(c)` with the same pointer.
+- `runtime/cpu/cpu.h`: `Cpu.x[0..31]` starts at offset 0.
+
+Therefore the guest caller's `Cpu *` is the same CPU state consumed by the host `memcpy` override. The source and count values prepared at the guest call site are the values the helper reads. The wrapper/dispatcher is not the source of a second descriptor or a copied Cpu context.
+
