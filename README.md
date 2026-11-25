@@ -15,6 +15,7 @@ This repository aims to recreate the game's behavior on x86-64 by recompiling th
 - `docs/` — project documentation, roadmap, research notes, and release information
 - `i18n/` — the menu and start screen's text catalogs
 - `.github/` — CI workflows (Windows build, tests, migration test, `romfs_check.exe`), issue and PR templates, and `copilot-instructions.md` (the handover for coding agents)
+- `.kiro/` — rules for the Kiro coding agent (`steering/`: how the builds given to the owner are named)
 - `CHANGELOG.md` — each release's notes; `LICENSE` — GNU GPL version 3 or later; `LICENSE-MIT` — the MIT notice of
   the code written before 17/11/2026, which stays available under it
 - `pyproject.toml`, `uv.lock` — the Python tools' dependencies (`uv sync`); `.gitignore` — what never goes in git

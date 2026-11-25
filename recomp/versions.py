@@ -24,9 +24,12 @@ class Version:
     main_build_id: str  # first 8 bytes of the NSO build id of exefs/main, hex
     romfs_files: int  # files of its RomFS, counted on a dump; 0: not counted, no check
     patches: Path | None  # recomp/patches-*.txt for this executable; None: setup finds the spin loops
-    # setup steps that do not apply to this build: the shader step reads agl/BNSH shader archives and the warm-up runs
-    # the game to a known scene, neither of which this build has (tools/prepare/prepare.py)
-    skip_steps: tuple[str, ...] = ("shaders", "warm")
+    # setup steps that do not apply to this build: the warm-up runs the game to a known scene, which this build has not
+    # (tools/prepare/prepare.py)
+    skip_steps: tuple[str, ...] = ("warm",)
+    # where the setup's shader step finds the programs: "iostore", Unreal's shader libraries in the RomFS's .utoc/.ucas
+    # (tools/shaders/iostore.py; Orbitals since 25/11/2026), or "agl", BNSH and agl archives (tools/shaders/extract.py)
+    shader_source: str = "iostore"
     program_ids: tuple[str, ...] = ()  # base, update, add-on (main.npdm ACI0 and the .nup's packages), hex
     base_version: int = 0  # the base package's version number
     nintendo_version: int = 0  # the update's version number (a build number, not a display version)

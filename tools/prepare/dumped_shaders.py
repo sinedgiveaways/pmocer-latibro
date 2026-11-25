@@ -1,8 +1,8 @@
 """Translate the programs a run dumped (ORBITALS_SPIRV_DUMP=DIR) into the installation's spirv/ with the package's tools.
 
-Why: Orbitals' shaders are in Unreal .pak/.utoc containers, which tools/shaders/extract.py does not read, so the setup's
-shader step is skipped for it (recomp/versions.py skip_steps) and the runtime finds no prepared SPIR-V: every draw is
-skipped (`shader-missing` in the ORBITALS_TRACE=gfx frame line, 17/11/2026). The game hands its programs to
+Why: Orbitals' shaders are in Unreal .utoc containers. Since 25/11/2026 the setup's shader step translates all of them
+(tools/shaders/iostore.py); this script stays for the programs a run still finds missing (ones the game builds at run
+time, or an installation set up before that change). The game hands its programs to
 nvnProgramSetShaders at run time; a run with ORBITALS_SPIRV_DUMP writes each one it could not find as <key>.ctl and
 <key>.code, and translate.py --dumped turns them into <key>.spv and <key>.res.json, the names the runtime looks up. This
 script does what the shaders step does (the SM86 spec from NVIDIA's nvdisasm, then translate.py), with the dumped programs

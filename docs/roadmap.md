@@ -299,3 +299,15 @@ Cette section fait foi sur les conclusions les plus récentes et corrige les hyp
 
 
 **Précision structurelle du 24/11 :** le chemin Crash A repasse par le même tableau de records de `0xE8) octets que Crash B (`[X21+0x158] + index*0xE8`). Chaque record contient un tableau imbriqué de 64 octets (pointeur à +208, compteur à +216, stockage inline possible à +16). Le nettoyage lit le champ +0x30 de l'élément (`[X8-0x10]`), le déplace dans `[SP+0x80]`, efface le champ d'origine puis le libère. Cela lie les deux crashes à la même famille de records, sans prouver que leurs champs fautifs ont le même producteur.
+
+### 6.6 Shaders traduits au setup (25/11/2026)
+
+- Les programmes d'Orbitals sont lus dans les bibliothèques de shaders Unreal (`Orbitals-Switch2.utoc/.ucas`) par
+  `tools/shaders/iostore.py`; les groupes, compressés en Oodle par Unreal, sont décodés par `orbitals-recomp
+  --oodle-batch` (ooz, GPL-3.0-or-later, `runtime/third_party/ooz`). 23 432 programmes, dont les 820 clés relevées dans
+  `pipeline-keys.bin` d'une partie. L'étape `shaders` du setup les traduit tous avant le premier lancement.
+- À vérifier sur la machine du joueur: durée de la traduction, nombre d'échecs (`spirv/failed.tsv`), et l'effet sur
+  l'image (plus de passage noir aux endroits nouveaux).
+- Crashs: `rec-null-guard` corrigé (`asr` au lieu de `lsr`, et un `lsl #8` en trop) et second garde
+  `rec-null-guard-vector` à `main+0x175dbec`; le log du build `b1bcbf4` atteint ce second site, ce qui confirme le
+  premier correctif.

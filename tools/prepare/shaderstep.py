@@ -1,5 +1,7 @@
 """The shaders step of prepare.py: the SM86 spec built here from NVIDIA's nvdisasm, then the game's shaders extracted
-from the RomFS and translated to SPIR-V; and the step's key.
+from the RomFS and translated to SPIR-V; and the step's key. Orbitals' programs come from Unreal's shader libraries
+(tools/shaders/iostore.py, decoded by the runtime's --oodle-batch), so they are all translated before the first start
+instead of during play.
 
 Why apart: prepare.py holds the order of the steps and their keys; this step drives its own tools. Not run on its own.
 """
@@ -21,7 +23,7 @@ def translator_key() -> str:
     position default never reached a set-up game)."""
     h = hashlib.sha256()
     files = sorted((ROOT / "sm86/translate").rglob("*.py")) + sorted((ROOT / "sm86/decode").rglob("*.py"))
-    for f in [*files, ROOT / "tools/shaders/extract.py", ROOT / "tools/shaders/translate.py"]:
+    for f in [*files, *(ROOT / "tools/shaders" / n for n in ("extract.py", "iostore.py", "translate.py"))]:
         h.update(f.read_bytes())
     return h.hexdigest()[:16]
 
@@ -42,14 +44,27 @@ def spec_command(game: Path, work: Path, cc: list[str], crt: Path | None) -> lis
             str(work / "nvidia"), "--cc", json.dumps(cc), *(["--crt", str(crt)] if crt else [])]  # fmt: skip
 
 
-def shaders(exefs: Path, romfs: Path, game: Path, work: Path, glslc: str, jobs: int, cc: list[str]) -> None:
+def shaders(exefs: Path, romfs: Path, game: Path, work: Path, glslc: str, jobs: int, cc: list[str],
+            source: str = "agl", exe: Path | None = None) -> None:  # fmt: skip
+    """source "iostore": romfs is a folder holding the game's .utoc/.ucas and exe the runtime (its --oodle-batch)."""
     spec = sm86_spec(game, work, cc)
     sh = work / "shaders"
-    run([sys.executable, str(ROOT / "tools/shaders/extract.py"), "--romfs", str(romfs), "--exefs", str(exefs),
-         "--out", str(sh)])  # fmt: skip
+    extra: list[str] = []
+    if source == "iostore":
+        # the programs as the runtime dumps them (<key>.ctl, <key>.code), then translate.py's --dumped path: the same
+        # one the runtime's background translation uses, with an empty extraction index
+        programs = work / "unreal-programs"
+        run([sys.executable, str(ROOT / "tools/shaders/iostore.py"), "programs", str(romfs), "--exe", str(exe),
+             "--out", str(programs)])  # fmt: skip
+        sh.mkdir(parents=True, exist_ok=True)
+        (sh / "index.csv").write_text("sha1,stage,code_bytes,source,program\n")
+        extra = ["--dumped", str(programs), "--dumped-only"]
+    else:
+        run([sys.executable, str(ROOT / "tools/shaders/extract.py"), "--romfs", str(romfs), "--exefs", str(exefs),
+             "--out", str(sh)])  # fmt: skip
     while True:
         try:
-            run([sys.executable, str(ROOT / "tools/shaders/translate.py"), "--shaders", str(sh),
+            run([sys.executable, str(ROOT / "tools/shaders/translate.py"), "--shaders", str(sh), *extra,
                  "--out", str(game / "spirv"), "--glslc", glslc, "--no-validate", "--progress", "--jobs", str(jobs),
                  "--spec", str(spec)], env=tool_env(glslc), progress_prefix="progress")  # fmt: skip
             break

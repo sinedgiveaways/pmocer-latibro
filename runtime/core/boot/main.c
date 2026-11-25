@@ -2,6 +2,7 @@
 //
 //   mkw [--exefs DIR] [--romfs DIR|FILE.nup|FILE.nx] [--nup FILE] [--profile DIR] <mode>
 //   mkw --unpack PACKAGE DEST [PREFIX...]   a .nup or .nx dump's files written out (sdk/fs/pack_unpack.c)
+//   mkw --oodle-batch IN OUT                Oodle streams decompressed with ooz, for the setup's shader step (sdk/fs/oodle_batch.c)
 //     --selftest        layout, dispatch table and host-function registry; needs no game files
 //     --replay DIR      a frame capture (ORBITALS_CAPTURE, runtime/gfx/cap) replayed through the back end, no game
 //     --probe-loader    load and relocate the modules, check them against the measured 1.2.1 values
@@ -676,6 +677,8 @@ int main(int argc, char **argv) {
     // --unpack PACKAGE DEST [PREFIX...]: a packed dump's files written out (sdk/fs/pack_unpack.c), for the setup; first,
     // as the setup runs it before the game code exists (no address space, launcher or log file needed)
     if (argc >= 2 && !strcmp(argv[1], "--unpack")) return pack_unpack_main(argc - 2, argv + 2);
+    // --oodle-batch IN OUT: the same, for the Oodle-compressed IoStore chunks of Orbitals' shader libraries
+    if (argc >= 2 && !strcmp(argv[1], "--oodle-batch")) return oodle_batch_main(argc - 2, argv + 2);
     if (want_launcher(argc, argv)) return run_launcher(argc, argv);
 #ifdef __linux__
     // ORBITALS_ALLOW_PTRACE=1: let a debugger attach (tools/run/stacks.py) under yama ptrace_scope 1, without root.

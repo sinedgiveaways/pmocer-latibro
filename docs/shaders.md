@@ -6,7 +6,11 @@ continues. The open problems are in [roadmap.md](roadmap.md); how to work with t
 
 ## How a program gets SPIR-V
 
-1. Orbitals' programs are in Unreal containers the setup does not read, so they are not translated ahead of time.
+1. Orbitals' programs are in Unreal's shader libraries inside `Orbitals/Content/Paks/Orbitals-Switch2.utoc/.ucas`. Since
+   25/11/2026 the setup reads them (`tools/shaders/iostore.py programs`, the Oodle groups decoded by the runtime's
+   `--oodle-batch` with ooz) and translates all 23 432 (3 556 vertex, 16 459 pixel, 3 415 compute, 2 geometry) before the
+   first start; the keys of all 820 programs of a run's `pipeline-keys.bin` were found among them. Steps 2-4 below stay
+   for a program the game would build at run time.
 2. At run time, NVN2 hands the runtime a program (control section and code). The runtime looks for
    `<game>/spirv/<key>.spv` and `<key>.res.json`; the key is a sha256 of the control section (0xd8 bytes) and the
    trimmed code (`nvn2_program_key`, `runtime/gfx/nvn/procs/nvn2.c`).

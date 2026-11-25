@@ -14,7 +14,8 @@ Steps, into --game (by default the folder of orbitals-recomp / orbitals-recomp.e
   generate  recomp/gen.py: the game code as C, in <game>/setup-work
   compile   that C with the package's zig (or clang) into orbitalgame.so / orbitalgame.dll
   shaders   the SM86 spec built here from NVIDIA's nvdisasm (sm86/spec/spec.py, into sm86/; never shipped), then
-            tools/shaders/extract.py and translate.py into spirv/
+            every program of the game's Unreal shader libraries (tools/shaders/iostore.py) translated by
+            translate.py into spirv/, before the first start
   warm      the game run once for a minute: the driver's pipeline cache and the pipeline keys for the first start
   cleanup   setup-work removed but its obj/: the next update compiles only the chunks whose C changed (gamecode.py)
 
@@ -90,6 +91,7 @@ PREP_VERSION = 1  # bump when a step's output changes meaning: every step runs a
 # (build.py put recomp/ on the path)
 from versions import Version
 
+UNREAL_PAKS = "Orbitals/Content/Paks"  # where the IoStore containers with the shader libraries are
 SHADER_DIRS = ("Effect", "Layout", "Lib")  # extract.py's SHADER_DIRS: with Shader/, the RomFS folders it reads
 STEPS = ("check", "exefs", "romfs", "generate", "compile", "shaders", "warm", "cleanup")
 WARM_SECONDS = 60  # the driver cache is saved every 20 s and the pipeline keys every 2 (vk_pipeline.c, vk_pipe_keys.c)
@@ -393,6 +395,11 @@ def main() -> None:
                 generate(game / "exefs", work, gen_jobs, version, image)
             elif step == "compile":
                 compile_game(game, game / "exefs", work, cc, args.target, jobs)
+            elif step == "shaders" and version.shader_source == "iostore":
+                # Unreal's containers: read from a folder, so a package read in place gives its Paks/ folder first
+                src_romfs = loose_romfs(runtime, romfs, work, UNREAL_PAKS) if romfs.is_file() else romfs
+                shaders(game / "exefs", src_romfs, game, work, glslc, args.jobs or shader_jobs(), cc,
+                        source="iostore", exe=runtime_exe(runtime))  # fmt: skip
             elif step == "shaders":
                 # extract.py reads a .nup itself; a .nx's shader archives are unpacked first
                 src_romfs = loose_romfs(runtime, romfs, work, "Shader", *SHADER_DIRS) if is_nx(romfs) else romfs

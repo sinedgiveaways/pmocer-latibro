@@ -94,6 +94,7 @@ was the rule then, not a limit now.
 | [Mesa environment variables](https://docs.mesa3d.org/envvars.html) | MIT (docs) | RADV RGP capture: `MESA_VK_TRACE=rgp`, `MESA_VK_TRACE_TRIGGER`, `MESA_VK_TRACE_FRAME` |
 | [Switchbrew](https://switchbrew.org/w/index.php?title=Category%3AServices) | CC BY-SA | The "Switch 2: GSV / VI2 / Host1x / Nvkernel services" pages and the `[S2]` commands of `appletOE`. Only needed if something of the translated SDK calls them |
 | [Axiom4912/Axiom](https://github.com/Axiom4912/Axiom), [hffgzktbcc-blip/ounce-core](https://github.com/hffgzktbcc-blip/ounce-core) | — / MIT | Discarded: a README without code; a research runtime that only runs Switch 1 homebrew |
+| [powzix/ooz](https://github.com/powzix/ooz) 0503806 (Kraken / Mermaid / Selkie / Leviathan decompressor, 2019) | GPL-3.0-or-later (notice at the top of `kraken.cpp`) | Code, in `runtime/third_party/ooz/`: `kraken.cpp` lines 1-4150 with `#include "stdafx.h"` replaced by `ooz_compat.h`. Decodes the Oodle blocks and shader groups of Orbitals' IoStore containers (`runtime/sdk/fs/oodle_batch.c`, `tools/shaders/iostore.py`). Not taken: its `main`, and `lzna.cpp`/`bitknit.cpp` (no license notice, so ideas only; stubbed) |
 
 ### Reference copies (`scratchpad/ext/`, cloned again when missing)
 
