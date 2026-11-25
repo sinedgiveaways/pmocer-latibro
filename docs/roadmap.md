@@ -251,14 +251,17 @@ Cette section fait foi sur les conclusions les plus récentes et corrige les hyp
 - La PR #19 (fix/record-subtable-175dc04) ajoute un second garde indépendant à main+0x175dbec, validé contre le mot d'instruction original f9400008. Le fallback redirige la base nulle vers la page zéro ; il doit encore être validé dans le jeu.
 - Ne pas modifier TPIDR, l'allocation TLS ou le scheduler sur la seule base de ce crash : les éléments recueillis ne démontrent pas une panne de TLS.
 
-### 6.2a Crash memcpy : wrapper externe / descripteur interne distingués (25/11/2026)
+### 6.2a Crash memcpy : branche grande copie et producteurs guest identifiés (25/11/2026)
 
-- Correction majeure : deux blocs distincts avaient été confondus.
-- Contexte externe sur la pile : base `0x19AFFFF160`; +`0x80` slot synthétique `0x700900A008`, +`0x88` retour wrapper `0x7FFA60A8DF58`, +`0x98` fonction guest `0x7001759B20`, +`0xA0` pointeur vers le descripteur interne `0x1C92EAB0540`, +`0xA8` buffer `0x11C51F7A0`, +`0xC0` taille/metadata `0x298`.
-- Le helper natif reçoit le descripteur interne `0x1C92EAB0540`, pas le contexte externe `0x19AFFFF160`. Les stores guest de `+0x1B5A9343..+0x1B5A9393` modifient le contexte externe; ils ne prouvent pas les valeurs du descripteur interne.
-- Le helper `+0x40CE0` charge inner +0/+8/+0x10 dans RDI/RBX/R14, fait éventuellement le suivi pour les copies >= `0x400`, puis transmet ces registres inchangés à memmove.
-- **Cible racine actuelle :** wrapper `orbitalgame.dll+0x1C11DF00` et dispatcher. Désassembler `+0x1C11DEF0..+0x1C11E400`, suivre le pointeur externe +`0xA0` et déterminer comment le descripteur interne est créé/rempli. Ne pas patcher le masque R13 du caller.
-- Détails : [deux blocs de contexte et correction de l'analyse](orbitals-startup-crash-analysis.md#25112026-correction-two-different-context-blocks-were-conflated).
+- Le helper `+0x40CE0` reçoit un `Cpu *`, pas un descripteur autonome : il lit `Cpu.x0/x1/x2` aux offsets 0/+8/+0x10. `Cpu` est défini dans `runtime/cpu/cpu.h`.
+- Le call-site dont le retour est `orbitalgame.dll+0x1B5A939F` passe par le chemin grande copie. `Cpu.x25=0x01490140`; le caller calcule `X2=X25*4=0x05240500` (86 246 656 octets), puis `cmp X2,0x40; ja +0x1B5A937E` contourne le bloc petit-copy qui aurait mis 4.
+- La source `Cpu.x1=0x01460149013D0140` vient du champ guest `[rcx+r8-0x10]`, sauvegardé à `[rbx-0xA0]`, puis recopié dans X1. Le code met ensuite ce champ à zéro.
+- Le compte utilisé pour la taille vient du champ adjacent `[rcx+r8-0x08]`, sauvegardé à `[rbx-0x98]`, rechargé en X25 puis multiplié par 4. Ces deux champs appartiennent au même objet guest; son type et son adresse effective restent à identifier.
+- Le helper natif lit X0/X1/X2 et transmet les valeurs sauvegardées à memmove. Le problème est donc déjà présent dans les arguments guest; ne pas patcher memcpy/memmove ni le dispatcher global.
+- L'ancienne hypothèse « contexte externe + descripteur interne » est retirée. La fenêtre de pile à `0x19AFFFF160` n'est pas prouvée comme une structure. Le calcul `(2-EDX)*0x38` à `+0x1B5A8FF0` n'est pas établi comme producteur de X25 sur le chemin observé.
+- **Prochaine étape :** retrouver les valeurs de RCX/R8 à `+0x1B5A8B51`, donc les adresses effectives des champs `[rcx+r8-0x10]` et `[rcx+r8-0x08]`; identifier l'objet propriétaire et pourquoi son champ pointeur contient `0x01460149013D0140`. Vérifier séparément la capacité de destination.
+- L'extracteur GitHub recherche désormais les occurrences exactes de la source, du compte et de la taille dans toute la mémoire capturée, et produit le désassemblage wrapper/caller.
+- Détails : [branche grande copie et chaîne source/compte](orbitals-startup-crash-analysis.md#25112026-decisive-correction-memcpy-arguments-are-cpux0-x2-large-copy-caller-path-found).
 
 ### 6.2 Crash A : le Binned3 tente de libérer sa propre pile
 
