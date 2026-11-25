@@ -106,6 +106,10 @@ class Builder(AluOps, MemOps, TexOps, ThreadOps, GeomOps):
         self.uses_ldsm = self.uses_hmma = self.uses_movm = False  # LDSM_FN, HMMA_FN, MOVM_FN in the head
         self.gsearch_load = self.gsearch_store = False  # global_search used: gld/gst go into the head
         self.gsearch_atom: set[str] = set()  # ATOMG/RED ops through the search (gatm_<op>, mem.py global_search_fns)
+        self.const_reads: set[tuple[int, int]] = set()  # (bank, byte) of every fixed constant word read (const)
+        # those an integer compare (ISETP, UISETP) reads, or a move into a register (MOV, ULDC: compared later)
+        self.const_icmp: set[tuple[int, int]] = set()
+        self.cur_op = ""  # the instruction being translated (insn)
 
     # ---- operands
     def const(self, bank: int, byte: int, spec: bool = True) -> str:
@@ -120,6 +124,9 @@ class Builder(AluOps, MemOps, TexOps, ThreadOps, GeomOps):
             # instances' matrices and materials: trees out of place and black (06/11/2026).
             return "uint(gl_BaseInstance)"
         self.cbufs.add(bank)
+        self.const_reads.add((bank, byte))
+        if self.cur_op in ("ISETP", "UISETP", "MOV", "ULDC"):
+            self.const_icmp.add((bank, byte))
         word = f"cb{bank}.d[{byte >> 4}][{(byte >> 2) & 3}]"
         if not spec or not SPEC_ON:
             return word
@@ -186,6 +193,7 @@ class Builder(AluOps, MemOps, TexOps, ThreadOps, GeomOps):
     # ---- instructions
     def insn(self, i: Insn) -> str:
         op = i.op
+        self.cur_op = op
         if self.stage == "gs":
             out = self.gs_insn(i)
             if out is not None:

@@ -316,3 +316,14 @@ Cette section fait foi sur les conclusions les plus récentes et corrige les hyp
   (280 échecs, 0 nouveau), et les 3 programmes vus en jeu qui échouaient passent, dont `93b54007c4699bde` et
   `e2d9a1f0ae647869` (1.3, refusés depuis le 17/11). Restent surtout `tex_scr_b_noConst_` (82), `tex_scr_urc_` (68),
   `STS.S16` (62).
+
+### 6.7 Cause des crashs aléatoires trouvée (25/11/2026)
+
+- Le parcours de records du jeu (`f_7001759b20` et voisines) lit une liste `{index, cible}` que le GPU écrit puis
+  recopie dans un tampon de relecture (`main+0x1583dc0`). Le CPU la lisait toujours fausse (compte > 0xfff), et une
+  paire au hasard faisait dépiler un record sous l'index 0: les crashs memcpy, Free d'adresse de pile et 0x104.
+- Producteur: compute `567ed7cdc5b1df36` (compte atomique au mot 0, paires ensuite), bien traduit. Le compte n'était
+  jamais remis à 0: `565a0b530c43107c` le fait par un `STG` sur une adresse chargée de c[3][0x10], que la recherche à
+  l'exécution ne connaissait pas (store perdu). Corrigé dans le traducteur (docs/shaders.md, 25/11/2026). Les deux
+  gardes de records restent comme protection. Les sondes (`ORBITALS_TRACE_READBACK`, `ORBITALS_TRACE_CS`) restent
+  jusqu'à la confirmation en jeu.

@@ -266,6 +266,19 @@ class MemOps:
         into when gst is used. No buffer at all: nothing to search."""
         if not (self.gsearch_load or self.gsearch_store or self.gsearch_atom):
             return []
+        # Unreal keeps each buffer as {u64 address, u32 size} at a 16-byte row of a user uniform block. A program that
+        # reads both address words of such a row, compares its size word as an integer or moves it into a register for
+        # that (the bounds check Unreal emits; a row of floats goes straight into FADD/FFMA: without that test 281
+        # programs gained 7157 bindings, up to 80 in one) and goes through the search may address that buffer with a
+        # register pair
+        # loaded from it (MOV R0, c[3][0x10]; MOV R1, c[3][0x14]; STG [R0]), which no traced access names: the buffer
+        # joins the search. Orbitals' 565a0b530c43107c resets the record walk's readback count this way at
+        # c[3][0x10]; without it the reset was dropped, the count stayed garbage and the CPU popped records below index 0
+        # (the memcpy / Free / 0x104 crashes, 25/11/2026).
+        for bank, byte in sorted(self.const_reads):
+            if self.SB_BANKS[0] <= bank < self.SB_BANKS[1] and byte % 16 == 0 and \
+                    (bank, byte + 4) in self.const_reads and (bank, byte + 8) in self.const_icmp:
+                self.ssbos.add(self.sb_key(bank, byte))
         if not self.ssbos:
             raise Unsupported("global access with no storage buffer to search")
         if self.gsearch_store or self.gsearch_atom:
