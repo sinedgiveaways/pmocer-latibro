@@ -25,6 +25,13 @@
 #   ldr  w9, [x25, #0x5c] ; the original load, now safe
 # x13, x14 and x16/x17 are scratch on this stretch (nothing between the load and the cbz reads them).
 #
+# 25/11/2026 fix: the words had `asr x13, x13, #63` (937ffdad) instead of `lsr` (d37ffdad) and
+# `orr x25, x17, x16, lsl #8` (aa102239) instead of the plain orr (aa100239). With a valid base the
+# mask came out as ~1 instead of 0, so the load used x27 - 0x5c (and the low bit of x25) instead of the
+# computed address: the walker read the bytes before the record array and crashed on an unmapped page
+# (orbitals.4.log, reading 0xffc1effd8 at orbitalgame+0x1b5a90f1) or, on a mapped page, took garbage
+# (the stack-address Free and the 86 MB memcpy). Decoded with Capstone ARM64.
+#
 # orbitals-vcall-probe: replace the indirect call at main+0x1d761d0 with a host probe that records
 # the selected receiver, its vptr/slot+8 target, the object rooted at [x21+8], and the callback/
 # alternate fields at +0x30/+0x58. It then restores x8 and calls the original virtual target via
@@ -60,7 +67,7 @@ set  rec-null-guard     ORBITALS_PATCH_REC_NULL_GUARD  1
 set  orbitals-vcall-probe ORBITALS_TRACE_VCALL          1
 set  orbitals-record-source-probe ORBITALS_TRACE_RECORD_SOURCE 1
 
-site rec-null-guard main 0x175a030 b9405f29 cb0903ed aa0901ad 937ffdad d10005ad d101736e 8a2d0330 8a0d01d1 aa102239 b9405f29
+site rec-null-guard main 0x175a030 b9405f29 cb0903ed aa0901ad d37ffdad d10005ad d101736e 8a2d0330 8a0d01d1 aa100239 b9405f29
 site orbitals-vcall-probe main 0x1d761cc f9400508 f9400510 @page:x8 f9408108
 site orbitals-record-source-probe main 0x17505b8 f9400508 f9400510 @page:x8 f9408508
 site orbitals-record-source-probe main 0x17505e0 f9400508 f9400510 @page:x8 f9408508
