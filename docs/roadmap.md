@@ -254,6 +254,7 @@ Cette section fait foi sur les conclusions les plus récentes et corrige les hyp
 ### 6.2a Crash memcpy : branche grande copie et producteurs guest identifiés (25/11/2026)
 
 - Le helper `+0x40CE0` reçoit un `Cpu *`, pas un descripteur autonome : il lit `Cpu.x0/x1/x2` aux offsets 0/+8/+0x10. `Cpu` est défini dans `runtime/cpu/cpu.h`.
+- `runtime/cpu/dispatch.c` appelle `f(c)` et `runtime/cpu/hostfn.c` appelle `s->fn(c)` avec le même pointeur `Cpu *`; le dispatcher ne fabrique pas de second contexte.
 - Le call-site dont le retour est `orbitalgame.dll+0x1B5A939F` passe par le chemin grande copie. `Cpu.x25=0x01490140`; le caller calcule `X2=X25*4=0x05240500` (86 246 656 octets), puis `cmp X2,0x40; ja +0x1B5A937E` contourne le bloc petit-copy qui aurait mis 4.
 - La source `Cpu.x1=0x01460149013D0140` vient du champ guest `[rcx+r8-0x10]`, sauvegardé à `[rbx-0xA0]`, puis recopié dans X1. Le code met ensuite ce champ à zéro.
 - Le compte utilisé pour la taille vient du champ adjacent `[rcx+r8-0x08]`, sauvegardé à `[rbx-0x98]`, rechargé en X25 puis multiplié par 4. Ces deux champs appartiennent au même objet guest; son type et son adresse effective restent à identifier.
