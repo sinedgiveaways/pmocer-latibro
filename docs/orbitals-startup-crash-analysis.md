@@ -975,3 +975,33 @@ The source code removes the remaining need to hypothesize a copied argument desc
 
 Therefore the guest caller's `Cpu *` is the same CPU state consumed by the host `memcpy` override. The source and count values prepared at the guest call site are the values the helper reads. The wrapper/dispatcher is not the source of a second descriptor or a copied Cpu context.
 
+
+
+### 25/11/2026: the index -3 directly selects the bad source/count record
+
+The object at `Cpu.x27 = 0x0CE01F2C00` is now directly connected to the copy arguments. Its crash-time fields are:
+- `[x27+0xD0] = 0`
+- signed `[x27+0xD8] = -3`
+
+The caller code at RVA `0x1B5A8A2C` sets `Cpu.x27` to the selected object pointer. At `0x1B5A8A41` it reads the signed index from that object's `+0xD8`. The following address calculation at `0x1B5A8AD8..0x1B5A8B08` is:
+
+- base pointer: `x27+0x10`, because `[x27+0xD0]` is null;
+- signed index: `-3`;
+- stride: `1 << 6 = 0x40`;
+- offset: `-3 * 0x40 = -0xC0`.
+
+The guest code then reads fields at `[base-0xC0-0x40]`, `[base-0xC0-0x38]`, `[base-0xC0-0x30]`, and `[base-0xC0-0x10]`. Therefore the selected 0x40-byte record is:
+
+| Field | Derived address | Role in the copy |
+|---|---:|---|
+| record base | `0x0CE01F2B10` | selected record |
+| `+0x30` | `0x0CE01F2B40` | source pointer field |
+| `+0x38` | `0x0CE01F2B48` | count/metadata field |
+
+The source field at `0x0CE01F2B40` is loaded at `0x1B5A8B51`, copied to the local `[rbx-0xA0]`, then explicitly zeroed at `0x1B5A8B8D`. The adjacent qword at `0x0CE01F2B48` is loaded at `0x1B5A8B96` and copied to `[rbx-0x98]`. Later the low signed dword of that local becomes `Cpu.x25=0x01490140`; the large-copy path multiplies it by 4 to produce `Cpu.x2=0x05240500`.
+
+This directly links the previously noticed `-3` in object `0x0CE01F2C00` to the source/count selection. **The relevant stride is 0x40, not the separate 0x38 calculation at RVA `0x1B5A8FF0`.** The earlier 0x38 calculation is not the producer of this copy's X25 on the confirmed path.
+
+The source pointer value loaded from the record is `0x01460149013D0140`; it is not a canonical user-mode pointer. Its four 16-bit words are `0x0140, 0x013D, 0x0149, 0x0146`. The record's source field is cleared after extraction, so the minidump at crash time may show zero at `0x0CE01F2B40`; the original value survives in the caller local and `Cpu.x1`. The new extractor now dumps the derived record and the adjacent count field to confirm the post-move bytes.
+
+**Current root-cause boundary:** why does the selected record at index -3 contain a packed/non-pointer value in its source field and a count of `0x01490140`? The next task is to identify the owner/producer of the 0x40-byte record and determine whether the -3 index is valid, stale, or selecting the wrong slot. Do not patch the copy helper or global memory functions.
