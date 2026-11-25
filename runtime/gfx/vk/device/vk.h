@@ -275,7 +275,9 @@ int vk_mem_shadow_on(void);                // shadow mode (probes)
 int vk_mem_gpu_may_write(uint64_t addr, uint64_t size);
 // Among the last 4096 storage bindings a shader wrote, those over [addr, addr+size) of a kind: 0 storage buffers, 1
 // unsized ones kept in VRAM, 2 storage texel buffers; their count, and the newest (vk_exec_bind.c; the readback probe)
-int vk_unsized_written_find(int kind, uint64_t addr, uint64_t size, uint64_t *baddr, uint64_t *bsize, uint64_t *submit);
+// and the newest one's stage and compute program key (its first 8 bytes; 0 for other stages)
+int vk_unsized_written_find(int kind, uint64_t addr, uint64_t size, uint64_t *baddr, uint64_t *bsize, uint64_t *submit,
+                            uint64_t *key, int *stage);
 // ORBITALS_SHADOW_LOST (vk_mem_lost.c): an indirect draw of `vs` reads its arguments at [addr, addr+size) of span.pool; one
 // line per present of what the shadow lost of the CPU's writes.
 void vk_mem_lost_watch(const void *pool, uint64_t addr, uint64_t size, uint32_t vs);

@@ -27,7 +27,8 @@
 #define ORBITALS_READBACK_PROBE_LIMIT 24
 
 // vk_exec_bind.c, vk_mem_wback.c, vk_mem_capture.c (gfx/vk/device/vk.h)
-int vk_unsized_written_find(int kind, uint64_t addr, uint64_t size, uint64_t *baddr, uint64_t *bsize, uint64_t *submit);
+int vk_unsized_written_find(int kind, uint64_t addr, uint64_t size, uint64_t *baddr, uint64_t *bsize, uint64_t *submit,
+                            uint64_t *key, int *stage);
 int vk_mem_gpu_may_write(uint64_t addr, uint64_t size);
 int vk_mem_shadow_state(uint64_t addr);
 extern uint64_t vk_replay_submit;
@@ -142,10 +143,11 @@ static void orbitals_readback_probe(Cpu *c) {
     int bad = ok && w[0] > 0xfff;
     if (bad) __atomic_add_fetch(&odd, 1, __ATOMIC_RELAXED);
     if (n > ORBITALS_READBACK_PROBE_LIMIT && !(bad && odd <= ORBITALS_READBACK_PROBE_LIMIT)) return;
-    uint64_t ba = 0, bs = 0, bsub = 0;
-    int unsized = buf ? vk_unsized_written_find(1, buf, 0x7ffc, &ba, &bs, &bsub) : 0;
+    uint64_t ba = 0, bs = 0, bsub = 0, dk = 0;
+    int dst_ = 0;
+    int unsized = buf ? vk_unsized_written_find(1, buf, 0x7ffc, &ba, &bs, &bsub, &dk, &dst_) : 0;
     uint64_t sa = 0, ss = 0, ssub = 0;
-    int sized = buf ? vk_unsized_written_find(0, buf, 0x7ffc, &sa, &ss, &ssub) : 0;
+    int sized = buf ? vk_unsized_written_find(0, buf, 0x7ffc, &sa, &ss, &ssub, &dk, &dst_) : 0;
     rt_log("readback probe #%llu: buffer %#llx (%s) count %u%s pairs {%u,%u} {%u,%u} {%u,%u} {%u,%u}; shadow state %d, GPU "
            "write pending %d; unsized VRAM-kept stores over it %d (newest %#llx+%#llx at submit %llu, now %llu)",
            (unsigned long long)n, (unsigned long long)buf, ok ? "readable" : "unreadable", w[0],
@@ -166,9 +168,9 @@ static void orbitals_readback_probe(Cpu *c) {
            (unsigned long long)ssub);
     // the copy's source: who writes it (a shader through a storage buffer, unsized or not, or a buffer texture, or a copy)
     if (into && n1) {
-        uint64_t a[3] = {0}, z[3] = {0}, q[3] = {0}, cs = 0, cd = 0, cn = 0, cq = 0;
-        int k[3];
-        for (int i = 0; i < 3; i++) k[i] = vk_unsized_written_find(i, s1, n1, &a[i], &z[i], &q[i]);
+        uint64_t a[3] = {0}, z[3] = {0}, q[3] = {0}, pk[3] = {0}, cs = 0, cd = 0, cn = 0, cq = 0;
+        int k[3], ps[3] = {0};
+        for (int i = 0; i < 3; i++) k[i] = vk_unsized_written_find(i, s1, n1, &a[i], &z[i], &q[i], &pk[i], &ps[i]);
         int cin = nvn_copy_b2b_find(1, s1, n1, 0, 0, &cs, &cd, &cn, &cq, &total);
         uint32_t head[4] = {0};
         int hok = plat_mem_read(s1, head, sizeof head);
@@ -181,6 +183,9 @@ static void orbitals_readback_probe(Cpu *c) {
                k[1], (unsigned long long)a[1], (unsigned long long)z[1], (unsigned long long)q[1],
                k[2], (unsigned long long)a[2], (unsigned long long)z[2], (unsigned long long)q[2],
                cin, (unsigned long long)cq, (unsigned long long)cs, (unsigned long long)cd, (unsigned long long)cn);
+        rt_log("  readback probe #%llu: the newest writers of the source: storage buffer stage %d program %016llx; unsized "
+               "VRAM-kept stage %d program %016llx (compute programs only; 0 otherwise)",
+               (unsigned long long)n, ps[0], (unsigned long long)pk[0], ps[1], (unsigned long long)pk[1]);
     }
 }
 

@@ -275,24 +275,34 @@ static int unsized_mode(void) {
 // (core/boot/patches.c): the CPU never sees those bytes, so a GPU readback buffer among them reads stale memory.
 // A ring, written without a lock: approximate, for diagnosis only.
 #define UNSIZED_RING 4096
-static struct { uint64_t addr, size, submit; int kind; } unsized_ring[UNSIZED_RING];
+static struct { uint64_t addr, size, submit, key; int kind, stage; } unsized_ring[UNSIZED_RING];
 static volatile uint32_t unsized_next;
 
 // every written storage binding; kind 0 a storage buffer, 1 an unsized one kept in VRAM (the others go back to guest
 // memory at the fence), 2 a storage texel buffer (imageStore into a buffer texture)
-static void unsized_note(uint64_t addr, uint64_t size, int kind) {
+// stage: the NVN stage of the binding; key: the first 8 bytes (big-endian, as the hex key reads) of the compute
+// program's key when stage is compute (c0_cs, set by the dispatch), else 0
+static void unsized_note(uint64_t addr, uint64_t size, int kind, int stage) {
     uint32_t i = __atomic_fetch_add(&unsized_next, 1, __ATOMIC_RELAXED) % UNSIZED_RING;
+    uint64_t key = 0;
+    if (stage == NVN_STAGE_CS && c0_cs) {
+        const uint8_t *k = gfx_shader_key(c0_cs);
+        for (int j = 0; j < 8; j++) key = key << 8 | k[j];
+    }
     unsized_ring[i].addr = addr, unsized_ring[i].size = size, unsized_ring[i].kind = kind;
+    unsized_ring[i].stage = stage, unsized_ring[i].key = key;
     unsized_ring[i].submit = __atomic_load_n(&vk_replay_submit, __ATOMIC_RELAXED);
 }
 
 // kind as unsized_note
-int vk_unsized_written_find(int kind, uint64_t addr, uint64_t size, uint64_t *baddr, uint64_t *bsize, uint64_t *submit) {
+int vk_unsized_written_find(int kind, uint64_t addr, uint64_t size, uint64_t *baddr, uint64_t *bsize, uint64_t *submit,
+                            uint64_t *key, int *stage) {
     int hits = 0;
     for (int i = 0; i < UNSIZED_RING; i++) {
         uint64_t a = unsized_ring[i].addr, n = unsized_ring[i].size;
         if (!n || unsized_ring[i].kind != kind || a >= addr + size || a + n <= addr) continue;
-        if (!hits++ || unsized_ring[i].submit > *submit) *baddr = a, *bsize = n, *submit = unsized_ring[i].submit;
+        if (!hits++ || unsized_ring[i].submit > *submit)
+            *baddr = a, *bsize = n, *submit = unsized_ring[i].submit, *key = unsized_ring[i].key, *stage = unsized_ring[i].stage;
     }
     return hits;
 }
@@ -348,7 +358,7 @@ static VkDescriptorBufferInfo ssbo_info(VkExec *ex, int st, const GfxShaderRes *
         if (bind_range(ex, b->addr - lead, size, align, max, ubo ? VK_MUSE_UBO : VK_MUSE_SSBO,
                        wmode, &bi)) {
             if (written && bi.buffer != VK_NULL_HANDLE) note_written(ex, b->addr - lead, bi.range);
-            if (written && bi.buffer != VK_NULL_HANDLE) unsized_note(b->addr - lead, bi.range, wmode == 3);
+            if (written && bi.buffer != VK_NULL_HANDLE) unsized_note(b->addr - lead, bi.range, wmode == 3, st);
             return bi;
         }
         if (b->addr) warn_once(W_SSBO_ALIGN, "storage buffer %#llx is not backed or not aligned: a zero buffer is bound",
@@ -531,7 +541,7 @@ static VkBufferView texel_view(VkExec *ex, uint64_t h, int storage) {
                   (unsigned long long)addr);
         return Z.zview;
     }
-    if (storage) note_written(ex, addr, bi.range), unsized_note(addr, bi.range, 2);
+    if (storage) note_written(ex, addr, bi.range), unsized_note(addr, bi.range, 2, -1);   // the stage is not known here
     VkDeviceSize range = bi.range - bi.range % (VkDeviceSize)bpb;
     if (!range) return Z.zview;
     VkBufferView v = texel_view_make(bi.buffer, bi.offset, range, f.ideal);
