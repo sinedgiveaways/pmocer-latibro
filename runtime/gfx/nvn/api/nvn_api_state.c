@@ -535,6 +535,34 @@ NVN_API(nvnCommandBufferSetTexturePool) { REC(cmd_of(c), OP_SET_TEX_POOL, p_set_
 NVN_API(nvnCommandBufferSetSamplerPool) { REC(cmd_of(c), OP_SET_SAMP_POOL, p_set_pool)->pool = arg_p(c, 1); }
 // void nvnCommandBufferCopyBufferToTexture(NVNcommandBuffer *cmd, NVNbufferAddress src, const NVNtexture *dst,
 // const NVNtextureView *view, const NVNcopyRegion *region, int flags)
+// ORBITALS_TRACE_3D (diagnosis): the source bytes of copies into 3D textures as the game recorded them, to compare at
+// replay with what the copy reads (vk_exec_xfer.c). Orbitals fills its volumetric lightmap's indirection and brick
+// textures this way, several of them from one staging buffer in one frame, and the indirection reached the GPU holding
+// brick-like bytes (25/11/2026). A ring, written without a lock: approximate, for diagnosis only.
+int vk_trace_3d_on(void);   // vk_dump.c
+#define B2T_RING 256
+static struct { uint64_t src; const void *tex; uint64_t hash, seq; uint32_t w[4]; } b2t_ring[B2T_RING];
+static volatile uint64_t b2t_seq;
+
+uint64_t nvn_bytes_hash(uint64_t addr, uint32_t n, uint32_t w[4]) {
+    uint8_t buf[4096];
+    if (n > sizeof buf) n = sizeof buf;
+    memset(w, 0, 16);
+    if (!plat_mem_read(addr, buf, n)) return 0;
+    memcpy(w, buf, n < 16 ? n : 16);
+    uint64_t h = 0xcbf29ce484222325ull;
+    for (uint32_t i = 0; i < n; i++) h = (h ^ buf[i]) * 0x100000001b3ull;
+    return h;
+}
+
+int nvn_copy_b2t_recorded(uint64_t src, const void *tex, uint64_t *hash, uint32_t w[4]) {
+    uint64_t best = 0;
+    for (int i = 0; i < B2T_RING; i++)
+        if (b2t_ring[i].src == src && b2t_ring[i].tex == tex && b2t_ring[i].seq > best)
+            best = b2t_ring[i].seq, *hash = b2t_ring[i].hash, memcpy(w, b2t_ring[i].w, 16);
+    return best != 0;
+}
+
 NVN_API(nvnCommandBufferCopyBufferToTexture) {
     p_copy_b2t *o = REC(cmd_of(c), OP_COPY_B2T, p_copy_b2t);
     o->src = arg_x(c, 1);
@@ -542,6 +570,12 @@ NVN_API(nvnCommandBufferCopyBufferToTexture) {
     cmd_copy_view(&o->view, &o->has_view, arg_p(c, 3));
     o->r = *(const NVNcopyRegion *)arg_p(c, 4);
     o->flags = (int)arg_x(c, 5);
+    if (vk_trace_3d_on() && o->tex && o->tex->d.target == 2) {
+        uint64_t s = __atomic_add_fetch(&b2t_seq, 1, __ATOMIC_RELAXED);
+        uint32_t i = (uint32_t)(s % B2T_RING);
+        b2t_ring[i].src = o->src, b2t_ring[i].tex = o->tex, b2t_ring[i].seq = s;
+        b2t_ring[i].hash = nvn_bytes_hash(o->src, 4096, b2t_ring[i].w);
+    }
 }
 // void nvnCommandBufferCopyTextureToBuffer(NVNcommandBuffer *cmd, const NVNtexture *src, const NVNtextureView *view,
 // const NVNcopyRegion *region, NVNbufferAddress dst, int flags): p_copy_b2t with src = the destination address

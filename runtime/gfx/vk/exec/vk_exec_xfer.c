@@ -568,6 +568,9 @@ static int buffer_side(const VkExec *ex, const Sub *s, uint64_t addr, uint64_t *
     return 1;
 }
 
+uint64_t nvn_bytes_hash(uint64_t addr, uint32_t n, uint32_t w[4]);                          // nvn_api_state.c
+int nvn_copy_b2t_recorded(uint64_t src, const void *tex, uint64_t *hash, uint32_t w[4]);   // nvn_api_state.c
+
 static void copy_buffer_image(VkExec *ex, const p_copy_b2t *p, int to_image) {
     Sub s;
     if (!sub_resolve(p->tex, &p->view, p->has_view, &p->r, 1, &s, 0)) return;
@@ -581,6 +584,17 @@ static void copy_buffer_image(VkExec *ex, const p_copy_b2t *p, int to_image) {
                (unsigned long long)__atomic_load_n(&gfx_counters.frames, __ATOMIC_RELAXED), to_image ? "into" : "out of",
                (unsigned long long)(uintptr_t)p->tex->mem, p->tex->d.width, p->tex->d.height, p->tex->d.depth,
                p->tex->d.format, (unsigned long long)p->src, (unsigned long long)size, s.x, s.y, s.z, s.w, s.h, s.nz);
+    if (to_image && s.img->type == VK_IMAGE_TYPE_3D && vk_trace_3d_on()) {
+        // the source's first 4 KiB as the game recorded the copy and now, at its replay: a difference means the CPU
+        // rewrote the staging buffer before the copy ran here (nvn_api_state.c nvn_copy_b2t_recorded)
+        uint64_t rh = 0, nh;
+        uint32_t rw[4] = {0}, nw[4];
+        int known = nvn_copy_b2t_recorded(p->src, p->tex, &rh, rw);
+        nh = nvn_bytes_hash(p->src, 4096, nw);
+        rt_log("vk:   source at record %s %08x %08x %08x %08x, at replay %s %08x %08x %08x %08x",
+               !known ? "(not kept)" : rh == nh ? "(same)" : "(DIFFERENT)", rw[0], rw[1], rw[2], rw[3],
+               rh == nh ? "same" : "", nw[0], nw[1], nw[2], nw[3]);
+    }
     vk_exec_pass_end(ex);
     vk_exec_barrier(ex);
     uint32_t crumb = vk_crumb_op(ex->cb, to_image ? "buffer to image copy" : "image to buffer copy", s.w, s.h);
