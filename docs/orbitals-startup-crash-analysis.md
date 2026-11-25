@@ -960,3 +960,105 @@ This resolves the apparent contradiction without assuming that UCRT corrupted R1
 ### Updated next step
 
 Disassemble `orbitalgame.dll+0x1C11DEF0..0x1C11E400` from the same dump. Follow the wrapper's input context pointer, its +`0xA0` descriptor pointer, and the argument passed to `orbitals-recomp.exe+0x40CE0`. Then identify the exact stores that produce inner descriptor +0, +8, +0x10. This is now the primary root-cause boundary; do not patch the guest call-site's R13 mask based on the earlier mistaken structure conflation.
+
+
+## 25/11/2026 decisive correction: memcpy arguments are Cpu.x0-x2; large-copy caller path found
+
+The earlier "outer context / inner descriptor" explanation was incorrect. The native helper's RCX is a `Cpu *`, not a separate memcpy descriptor. The source definition `runtime/cpu/cpu.h` declares `uint64_t x[32]` at offset 0; `sp` begins at +0x100 and `pc` at +0x108. The helper's instructions `mov rdi,[rcx]`, `mov rbx,[rcx+8]`, `mov r14,[rcx+0x10]` therefore read `Cpu.x[0]`, `Cpu.x[1]`, and `Cpu.x[2]`.
+
+At the exception:
+- `Cpu * = 0x1C92EAB0540`
+- `x0 = 0x12E1A8000C` (destination)
+- `x1 = 0x01460149013D0140` (source)
+- `x2 = 0x05240500` (length)
+- `x25 = 0x01490140`
+- `x27 = 0x0CE01F2C00`
+- `x28 = 0x11C51F8A8`
+
+The guest caller return address in the stack is `orbitalgame.dll+0x1B5A939F`, confirming the call instruction at `+0x1B5A939A`.
+
+### Exact large-copy path explains the 86-MiB length
+
+The earlier conclusion that this call must pass through the `R13 & 4` / size-4 block was wrong. There is an earlier large-copy branch which jumps directly to the common call block and bypasses that small-copy block.
+
+The relevant path is:
+
+```asm
+; count copied from the guest object's adjacent count field into a local
+1B5A8B96  mov  r9, [rcx+r8-0x08]
+1B5A8BAD  mov  [rbx-0x98], r9
+
+; restore the count into guest X25
+1B5A8E13  movsxd r8, dword ptr [rbx-0x98]
+1B5A8E1A  mov    [rsi+0xC8], r8       ; Cpu.x25
+
+; build the large-copy size and store guest X2
+1B5A8EA7  mov  r10, [rsi+0xC8]        ; X25
+1B5A8EAE  lea  r13, [r10*4]
+1B5A8EB6  mov  [rsi+0x10], r13        ; Cpu.x2 = X25 * 4
+
+; choose the source pointer and store guest X1
+1B5A8EC5  mov  r8, [rbx-0xA0]
+1B5A8ECC  test r8, r8
+1B5A8ECF  mov  r9, r8
+1B5A8ED2  cmove r9, rcx
+1B5A8ED6  mov  [rsi+8], r9            ; Cpu.x1 = source
+
+; size > 0x40 branches around the small-copy block
+1B5A8EDA  cmp  r13, 0x40
+1B5A8EDE  ja   0x1B5A937E
+
+; common large-copy path eventually writes X0 and calls the import
+1B5A938C  mov  [rsi], rdx             ; Cpu.x0 = destination
+1B5A9397  mov  rcx, rsi               ; pass Cpu*
+1B5A939A  call memcpy_wrapper
+```
+
+The observed values prove the branch:
+- `X25 = 0x01490140`
+- `X25 * 4 = 0x05240500 = X2`
+- `0x05240500 > 0x40`, so `ja 0x1B5A937E` is taken.
+- That path bypasses the later `and r13,4` block. Its size-4 store is not relevant to this crash.
+
+### Exact producer of the invalid source candidate
+
+The source pointer is not invented by `memcpy` or by the native helper. Earlier in the same guest function:
+
+```asm
+1B5A8B51  mov  rax, [rcx+r8-0x10]  ; load pointer field
+1B5A8B86  mov  [rbx-0xA0], rax     ; save pointer in local
+1B5A8B8D  mov  qword ptr [rcx+r8-0x10], 0
+1B5A8B96  mov  r9, [rcx+r8-0x08]  ; adjacent count/metadata field
+1B5A8BAD  mov  [rbx-0x98], r9     ; save count/metadata
+...
+1B5A8EC5  mov  r8, [rbx-0xA0]
+1B5A8ED6  mov  [rsi+8], r9        ; Cpu.x1
+```
+
+The source candidate `0x01460149013D0140` is therefore taken from the guest object's field at `[rcx+r8-0x10]` (unless that field is zero, in which case the code falls back to RCX). The adjacent field at `[rcx+r8-0x08]` supplies the count used to calculate the copy size. The code also clears the source field after extracting it, consistent with a move/ownership-transfer operation.
+
+This is the first precise producer chain for both bad arguments:
+- source: guest object field `[rcx+r8-0x10]` → local `[rbx-0xA0]` → `Cpu.x1`
+- count: adjacent guest object field `[rcx+r8-0x08]` → local `[rbx-0x98]` → `Cpu.x25` → `Cpu.x2 = X25 * 4`
+
+The qword source breaks down into four 16-bit words `0x0140, 0x013D, 0x0149, 0x0146`. This is suspicious for a pointer field, but the underlying object type and field address are not yet identified. Do not label it a TArray or another specific type until the object layout is proven.
+
+### Earlier hypotheses withdrawn
+
+1. The stack bytes at `0x19AFFFF160` were incorrectly described as a distinct outer context structure. They are only a candidate stack window; the available evidence does not establish that base as a C structure.
+2. `0x1C92EAB0540` is the `Cpu` object itself, not an inner memcpy descriptor.
+3. The `R13 & 4` / size-4 branch is not the path taken by this crash.
+4. The separate `(2-EDX)*0x38` calculation at RVA `0x1B5A8FF0` is not established as the producer of this copy's X25. In the confirmed path X25 is loaded from `[rbx-0x98]`, which was populated from the adjacent object field at `[rcx+r8-0x08]`.
+5. The -3 value at `0x0CE01F2C00+0xD8` remains a separate observation until the exact runtime path proves it feeds the source/count pair.
+
+### Next root-cause work
+
+The remaining task is to recover the effective address `rcx+r8-0x10` and the adjacent count field address `rcx+r8-0x08` at the producer, identify their owning guest object, and determine why the pointer field contains packed-looking data. The destination is computed separately at `+0x1B5A8EC1` as `r8 + rdx*4`; its allocation capacity must also be validated.
+
+The extractor on branch `analysis/extract-orbitals-caller-1b5a8ff0` now:
+- dumps the caller stack below the current UCRT RSP;
+- disassembles the full guest caller and `orbitalgame.dll+0x1C11DF00` wrapper;
+- disassembles the native large-copy tracker and UCRT memmove prologue;
+- scans all captured minidump memory for the exact source, count and size values.
+
+A retry of a previously failed Actions job is queued to run this updated extractor. No game rebuild and no global memcpy/memmove patch is warranted.
