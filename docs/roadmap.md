@@ -251,14 +251,14 @@ Cette section fait foi sur les conclusions les plus récentes et corrige les hyp
 - La PR #19 (fix/record-subtable-175dc04) ajoute un second garde indépendant à main+0x175dbec, validé contre le mot d'instruction original f9400008. Le fallback redirige la base nulle vers la page zéro ; il doit encore être validé dans le jeu.
 - Ne pas modifier TPIDR, l'allocation TLS ou le scheduler sur la seule base de ce crash : les éléments recueillis ne démontrent pas une panne de TLS.
 
-### 6.2a Crash memcpy : helper natif vérifié, arguments transmis tels quels (25/11/2026)
+### 6.2a Crash memcpy : wrapper externe / descripteur interne distingués (25/11/2026)
 
-- Désassemblage du vrai `orbitals-recomp.exe+0x40CE0` depuis le minidump : charge `[RCX]`, `[RCX+8]`, `[RCX+0x10]` dans RDI/RBX/R14 (destination/source/taille).
-- Si taille >= `0x400`, il appelle d'abord un callback de suivi mémoire avec (source, taille), puis transmet les registres sauvegardés inchangés à la thunk `+0x70C430` (memmove).
-- Au crash, les paires `RDI=RCX=destination`, `RBX=RDX=source`, `R14=R8=taille` correspondent exactement au code du helper. Le helper n'a donc pas fabriqué la source invalide ni la taille de 86 246 656 octets.
-- La cause est antérieure à l'entrée du helper, ou dans une écriture concurrente du descripteur avant sa lecture. Le callback de tracking reste à inspecter, mais le helper réutilise les valeurs sauvegardées pour l'appel memmove.
-- **Prochaine étape :** désassembler toute la plage guest `orbitalgame.dll RVA 0x1B5A8E00..0x1B5A9500` et le callback `orbitals-recomp.exe RVA 0x4AFCD0`; réconcilier les écritures +0/+8/+0x10 avec le contexte du crash et R13. Ne pas patcher memmove globalement.
-- Détails : [désassemblage natif et correspondance des registres](orbitals-startup-crash-analysis.md#25112026-native-ov_memcpy-body-verified-from-the-original-minidump).
+- Correction majeure : deux blocs distincts avaient été confondus.
+- Contexte externe sur la pile : base `0x19AFFFF160`; +`0x80` slot synthétique `0x700900A008`, +`0x88` retour wrapper `0x7FFA60A8DF58`, +`0x98` fonction guest `0x7001759B20`, +`0xA0` pointeur vers le descripteur interne `0x1C92EAB0540`, +`0xA8` buffer `0x11C51F7A0`, +`0xC0` taille/metadata `0x298`.
+- Le helper natif reçoit le descripteur interne `0x1C92EAB0540`, pas le contexte externe `0x19AFFFF160`. Les stores guest de `+0x1B5A9343..+0x1B5A9393` modifient le contexte externe; ils ne prouvent pas les valeurs du descripteur interne.
+- Le helper `+0x40CE0` charge inner +0/+8/+0x10 dans RDI/RBX/R14, fait éventuellement le suivi pour les copies >= `0x400`, puis transmet ces registres inchangés à memmove.
+- **Cible racine actuelle :** wrapper `orbitalgame.dll+0x1C11DF00` et dispatcher. Désassembler `+0x1C11DEF0..+0x1C11E400`, suivre le pointeur externe +`0xA0` et déterminer comment le descripteur interne est créé/rempli. Ne pas patcher le masque R13 du caller.
+- Détails : [deux blocs de contexte et correction de l'analyse](orbitals-startup-crash-analysis.md#25112026-correction-two-different-context-blocks-were-conflated).
 
 ### 6.2 Crash A : le Binned3 tente de libérer sa propre pile
 
