@@ -275,22 +275,23 @@ static int unsized_mode(void) {
 // (core/boot/patches.c): the CPU never sees those bytes, so a GPU readback buffer among them reads stale memory.
 // A ring, written without a lock: approximate, for diagnosis only.
 #define UNSIZED_RING 4096
-static struct { uint64_t addr, size, submit; int vram; } unsized_ring[UNSIZED_RING];
+static struct { uint64_t addr, size, submit; int kind; } unsized_ring[UNSIZED_RING];
 static volatile uint32_t unsized_next;
 
-// every written storage binding; vram: an unsized one kept in VRAM (the others go back to guest memory at the fence)
-static void unsized_note(uint64_t addr, uint64_t size, int vram) {
+// every written storage binding; kind 0 a storage buffer, 1 an unsized one kept in VRAM (the others go back to guest
+// memory at the fence), 2 a storage texel buffer (imageStore into a buffer texture)
+static void unsized_note(uint64_t addr, uint64_t size, int kind) {
     uint32_t i = __atomic_fetch_add(&unsized_next, 1, __ATOMIC_RELAXED) % UNSIZED_RING;
-    unsized_ring[i].addr = addr, unsized_ring[i].size = size, unsized_ring[i].vram = vram;
+    unsized_ring[i].addr = addr, unsized_ring[i].size = size, unsized_ring[i].kind = kind;
     unsized_ring[i].submit = __atomic_load_n(&vk_replay_submit, __ATOMIC_RELAXED);
 }
 
-// vram 1: the unsized VRAM-kept ones; 0: the others
-int vk_unsized_written_find(int vram, uint64_t addr, uint64_t size, uint64_t *baddr, uint64_t *bsize, uint64_t *submit) {
+// kind as unsized_note
+int vk_unsized_written_find(int kind, uint64_t addr, uint64_t size, uint64_t *baddr, uint64_t *bsize, uint64_t *submit) {
     int hits = 0;
     for (int i = 0; i < UNSIZED_RING; i++) {
         uint64_t a = unsized_ring[i].addr, n = unsized_ring[i].size;
-        if (!n || unsized_ring[i].vram != vram || a >= addr + size || a + n <= addr) continue;
+        if (!n || unsized_ring[i].kind != kind || a >= addr + size || a + n <= addr) continue;
         if (!hits++ || unsized_ring[i].submit > *submit) *baddr = a, *bsize = n, *submit = unsized_ring[i].submit;
     }
     return hits;
@@ -530,7 +531,7 @@ static VkBufferView texel_view(VkExec *ex, uint64_t h, int storage) {
                   (unsigned long long)addr);
         return Z.zview;
     }
-    if (storage) note_written(ex, addr, bi.range);
+    if (storage) note_written(ex, addr, bi.range), unsized_note(addr, bi.range, 2);
     VkDeviceSize range = bi.range - bi.range % (VkDeviceSize)bpb;
     if (!range) return Z.zview;
     VkBufferView v = texel_view_make(bi.buffer, bi.offset, range, f.ideal);

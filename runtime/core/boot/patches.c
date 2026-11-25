@@ -27,7 +27,7 @@
 #define ORBITALS_READBACK_PROBE_LIMIT 24
 
 // vk_exec_bind.c, vk_mem_wback.c, vk_mem_capture.c (gfx/vk/device/vk.h)
-int vk_unsized_written_find(int vram, uint64_t addr, uint64_t size, uint64_t *baddr, uint64_t *bsize, uint64_t *submit);
+int vk_unsized_written_find(int kind, uint64_t addr, uint64_t size, uint64_t *baddr, uint64_t *bsize, uint64_t *submit);
 int vk_mem_gpu_may_write(uint64_t addr, uint64_t size);
 int vk_mem_shadow_state(uint64_t addr);
 extern uint64_t vk_replay_submit;
@@ -164,6 +164,24 @@ static void orbitals_readback_probe(Cpu *c) {
            (unsigned long long)d1, (unsigned long long)n1, near, (unsigned long long)q2, (unsigned long long)s2,
            (unsigned long long)d2, (unsigned long long)n2, sized, (unsigned long long)sa, (unsigned long long)ss,
            (unsigned long long)ssub);
+    // the copy's source: who writes it (a shader through a storage buffer, unsized or not, or a buffer texture, or a copy)
+    if (into && n1) {
+        uint64_t a[3] = {0}, z[3] = {0}, q[3] = {0}, cs = 0, cd = 0, cn = 0, cq = 0;
+        int k[3];
+        for (int i = 0; i < 3; i++) k[i] = vk_unsized_written_find(i, s1, n1, &a[i], &z[i], &q[i]);
+        int cin = nvn_copy_b2b_find(1, s1, n1, 0, 0, &cs, &cd, &cn, &cq, &total);
+        uint32_t head[4] = {0};
+        int hok = plat_mem_read(s1, head, sizeof head);
+        rt_log("  readback probe #%llu: source %#llx (%s, first words %08x %08x %08x %08x): storage-buffer stores %d "
+               "(newest %#llx+%#llx at submit %llu), unsized VRAM-kept %d (%#llx+%#llx at %llu), buffer-texture stores %d "
+               "(%#llx+%#llx at %llu), copies into it %d (#%llu %#llx -> %#llx, %#llx bytes)",
+               (unsigned long long)n, (unsigned long long)s1, hok ? "readable" : "unreadable",
+               head[0], head[1], head[2], head[3],
+               k[0], (unsigned long long)a[0], (unsigned long long)z[0], (unsigned long long)q[0],
+               k[1], (unsigned long long)a[1], (unsigned long long)z[1], (unsigned long long)q[1],
+               k[2], (unsigned long long)a[2], (unsigned long long)z[2], (unsigned long long)q[2],
+               cin, (unsigned long long)cq, (unsigned long long)cs, (unsigned long long)cd, (unsigned long long)cn);
+    }
 }
 
 static void orbitals_vcall_probe(Cpu *c) {
