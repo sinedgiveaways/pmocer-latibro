@@ -24,6 +24,15 @@ class TexOps:
                 return bank, byte // 4
             if i.has(n) and i.v(n) in self.ur_or:
                 return self.or_key(i, self.ur_or[i.v(n)])
+            # written by a guarded ULOP3 (@UPg): taken when this TEX runs only where UPg held, that is UPg not
+            # negated and either made by VOTEU.ANY from the predicate this TEX is guarded by, or copied into that
+            # predicate by a PLOP3 (mem.py track_ssbo)
+            if i.has(n) and i.v(n) in self.ur_or_g:
+                pair, (up, up_not) = self.ur_or_g[i.v(n)]
+                g = self.pred_of(i)
+                implied = g is not None and (self.up_any.get(up) == g or (not g[1] and self.p_is_up.get(g[0]) == up))
+                if not up_not and implied:
+                    return self.or_key(i, pair)
         # tex_scr_b_noConst_: the handle in a general register, written under the guard this instruction runs under
         # (or unguarded): another guard may have left another texture's handle there (mem.py track_handle)
         g = self.pred_of(i)

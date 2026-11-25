@@ -311,3 +311,8 @@ Cette section fait foi sur les conclusions les plus récentes et corrige les hyp
 - Crashs: `rec-null-guard` corrigé (`asr` au lieu de `lsr`, et un `lsl #8` en trop) et second garde
   `rec-null-guard-vector` à `main+0x175dbec`; le log du build `b1bcbf4` atteint ce second site, ce qui confirme le
   premier correctif.
+- Traducteur, sur les 23 432 programmes hors jeu (25/11/2026): 97,5 % traduits au départ; les handles OR'és par un
+  ULOP3 sous garde uniforme (`VOTEU.ANY`, `PLOP3 P = UP`) étaient la première cause. Après le correctif: 98,8 %
+  (280 échecs, 0 nouveau), et les 3 programmes vus en jeu qui échouaient passent, dont `93b54007c4699bde` et
+  `e2d9a1f0ae647869` (1.3, refusés depuis le 17/11). Restent surtout `tex_scr_b_noConst_` (82), `tex_scr_urc_` (68),
+  `STS.S16` (62).

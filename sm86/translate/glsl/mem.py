@@ -119,7 +119,7 @@ class MemOps:
         out = []
         for k in range(size):   # a new value: no longer what was traced (track_ssbo leaves ULDC to this)
             self.ur_ssbo.pop(n + k, None), self.ur_derived.pop(n + k, None), self.ur_const.pop(n + k, None)
-            self.ur_or.pop(n + k, None)
+            self.ur_or.pop(n + k, None), self.ur_or_g.pop(n + k, None)
         if i.has("URa") and i.v("URa") != URZ:
             # ULDC URd, c[bank][URa + offset]: a dynamic address. The index was dropped and every read took word
             # `offset`: the race's colour-grading LUT read the same table entry for all 32 slices (no blue, 31/10/2026).
@@ -362,6 +362,28 @@ class MemOps:
         """reg_ssbo after i: a register written from a bank-0 word that is a storage buffer's address (LEA/IADD3 of
         an index with it, LDC.64 of it), or from a register already holding one, keeps that buffer; any other write
         drops it. Straight-line approximation of Ryujinx's search, enough for the address arithmetic ptxas emits."""
+        # up_any: a write of a predicate ends what a vote said of it (Pu/Pv, UPu/UPv are the predicate destinations;
+        # 7 is PT/UPT, no write). Then VOTEU.ANY UPu, Pp records UPu <- Pp.
+        for f in ("Pu", "Pv"):
+            if i.has(f) and i.v(f) != PT:
+                p = i.v(f)
+                for up in [u for u, (q, _) in self.up_any.items() if q == p]:
+                    del self.up_any[up]
+                self.p_is_up.pop(p, None)
+        for f in ("UPu", "UPv"):
+            if i.has(f) and i.v(f) != PT:
+                up = i.v(f)
+                self.up_any.pop(up, None)
+                for p in [p for p, u in self.p_is_up.items() if u == up]:
+                    del self.p_is_up[p]
+        # PLOP3 Pu = PT & PT & UPr (table 0x80 over two true inputs): Pu holds UPr's value
+        if i.op == "PLOP3" and i.has("UPr") and i.v("Pg", PT) == PT and not i.v("Pg@not", 0) \
+                and i.v("uimm8", 0) == 0x80 and i.v("Pu", PT) != PT and not i.v("UPr@not", 0) \
+                and all(i.v(f, PT) == PT and not i.v(f + "@not", 0) for f in ("Pp", "Pq")):
+            self.p_is_up[i.v("Pu")] = i.v("UPr")
+        if i.op == "VOTEU" and i.sym("voteop") == "ANY" and i.v("UPu", PT) != PT and i.v("Pg", PT) == PT \
+                and not i.v("Pg@not", 0):
+            self.up_any[i.v("UPu")] = (i.v("Pp", PT), i.v("Pp@not", 0))
         if i.has("URd") and i.op != "ULDC":   # ULDC keeps uldc's record
             # uniform: a register derived from a ULDC.64 base (ur_ssbo) or from one derived already (ur_derived).
             # Any other write ends both: a base kept after `UIADD3 UR4, UR4, 0x100` lost the offset of the accesses
@@ -372,20 +394,25 @@ class MemOps:
             # The table is a | b whatever URc is (0xfc), or with URc = URZ any table whose c = 0 half reads a | b: the
             # 6 programs still refused on 18/11/2026 had ULOP3 URd, URa, URb, URc with a non-zero URc (base_origin.py
             # --tex). UMOV copies a word or a combination (3 of them moved the ULDC word first).
-            combo = copied = None
+            combo = copied = guarded = None
             lut, c = i.v("imm8", 0), i.v("URc", URZ)
-            if i.op == "ULOP3" and (lut == 0xFC or (c == URZ and lut & 0x55 == 0x54)) and not i.v("UPg@not", 0) \
-                    and i.v("UPg", PT) == PT:
+            if i.op == "ULOP3" and (lut == 0xFC or (c == URZ and lut & 0x55 == 0x54)):
                 a, b = i.v("URa", URZ), i.v("URb", URZ)
                 if a in self.ur_const and b in self.ur_const:
-                    combo = (self.ur_const[a], self.ur_const[b])
+                    pair = (self.ur_const[a], self.ur_const[b])
+                    if i.v("UPg", PT) == PT and not i.v("UPg@not", 0):
+                        combo = pair
+                    else:   # @UPg: the pair only where the guard held (tex_key asks for a TEX guard implying it)
+                        guarded = (pair, (i.v("UPg"), i.v("UPg@not", 0)))
             if i.op == "UMOV" and i.v("UPg", PT) == PT and not i.v("UPg@not", 0):
                 src = next((i.v(r) for r in ("URb", "URa") if i.has(r) and i.v(r) != URZ), None)
                 if src is not None and (src in self.ur_const or src in self.ur_or):
                     copied = (self.ur_const.get(src), self.ur_or.get(src))
-            self.ur_const.pop(n, None), self.ur_or.pop(n, None)
+            self.ur_const.pop(n, None), self.ur_or.pop(n, None), self.ur_or_g.pop(n, None)
             if combo is not None and n != URZ:
                 self.ur_or[n] = combo
+            if guarded is not None and n != URZ:
+                self.ur_or_g[n] = guarded
             if copied is not None and n != URZ:
                 if copied[0] is not None:
                     self.ur_const[n] = copied[0]

@@ -53,6 +53,7 @@ uniform register not traced to a constant bank; likely a predicated UMOV/ULOP3 o
 | `d59d10a` | TLD4 with a packed texel offset (AOFFI, 6-bit signed fields; Ryujinx) |
 | `9f9ea7a` | FMUL/FFMA `.FMZ` (a zero factor gives 0); encoding bit 76 checked against nvdisasm. Orbitals uses `.FTZ`, not `.FMZ` |
 | `7e1ef12` | **Geometry programs** (`glsl/geom.py`): per-vertex `ALD` (`gl_in`, input arrays), `AST` to the layer (`a[0x64]`) and viewport index (`a[0x68]`), `OUT.EMIT`/`CUT`, `ISBERD` (passes the vertex index), `S2R SR_INVOCATION_INFO` (input vertices << 16), layouts from SPH words 3-4 (topology, vertex count); triangles in |
+| (25/11/2026) | Handles OR'ed by a **guarded** ULOP3: `VOTEU.ANY UP0, P0` then `@UP0 ULOP3` then `@P0 TEX`, or `PLOP3 P2 = UP2` then `@UP2 ULOP3` then `@P2 TEX` (mem.py `up_any`, `p_is_up`, `ur_or_g`). Over the 23 432 programs of the libraries: 575 failures to 280, none new; among them `93b54007c4699bde`, `e2d9a1f0ae647869` (refused since 17/11) and `e8c6aa666d19af3f`, the only programs seen in play that failed |
 
 Not translated: tessellation (no Orbitals program seen with it; `vk_exec_draw.c` logs any program that has a
 geometry or tessellation stage, `has a geometry stage ...: run on its triangle draws` or `not run`).

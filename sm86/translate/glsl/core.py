@@ -76,6 +76,14 @@ class Builder(AluOps, MemOps, TexOps, ThreadOps, GeomOps):
         self.ur_const: dict[int, tuple[int, int]] = {}  # uniform register -> (bank, byte) its ULDC word came from
         # uniform register -> the two constant words a ULOP3 OR made it from (Unreal's texture | sampler handle words)
         self.ur_or: dict[int, tuple[tuple[int, int], tuple[int, int]]] = {}
+        # the same, written by a ULOP3 under a uniform guard (UPg, negated): Unreal's `VOTEU.ANY UP0, P0` then
+        # `@UP0 ULOP3 UR4 = UR10 | UR4` then `@P0 TEX ... UR4` (tex.py tex_key; 360 Orbitals programs, 25/11/2026)
+        self.ur_or_g: dict[int, tuple[tuple[tuple[int, int], tuple[int, int]], tuple[int, int]]] = {}
+        # uniform predicate -> the general predicate (P, negated) a VOTEU.ANY made it from: where that P holds, the
+        # uniform one does too (any lane with P makes the vote true), while neither is written again
+        self.up_any: dict[int, tuple[int, int]] = {}
+        # general predicate -> the uniform predicate a `PLOP3 Pu, PT, PT, UPr, 0x80` copied into it (the same value)
+        self.p_is_up: dict[int, int] = {}
         self.tex_h2: dict[tuple[int, int], int] = {}  # texture key -> the word index OR'ed into its handle
         # general registers, as ur_const and ur_or: (bank, byte) a MOV of a constant word gave, and the two words a LOP3
         # OR of such a register with a constant word made (Unreal's handles in a register: 8 Orbitals programs)
