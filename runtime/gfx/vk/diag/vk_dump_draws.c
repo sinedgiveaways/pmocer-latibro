@@ -24,15 +24,26 @@
 static int draw_lo = -1, draw_hi = -1; // ORBITALS_DUMP_DRAWS=<from>-<to>: passes copied after every draw (-1: none)
 static uint32_t draw_rect[4];          // ORBITALS_DUMP_DRAWS_RECT: x, y, w, h of the snapshots (w 0: the whole target)
 static int draw_n;                     // snapshots in the selected run
-static uint64_t draw_fs;               // or the pass that draws with this fragment shader (0: none)
+static uint64_t draw_fs[16];           // or the pass that draws with one of these fragment shaders (none: ndraw_fs 0)
+static int ndraw_fs;
 static int draw_run_on;                // latched through replay's splits of the selected pass
 static uint64_t draw_targets;          // targets of that pass, to stop at the next pass
 static _Thread_local int draw_pending; // this thread recorded a draw selected for a snapshot
 
 void draws_init(void) {
     const char *dp = cfg_get("ORBITALS_DUMP_DRAWS");
-    if (dp && strlen(dp) == 16) draw_fs = strtoull(dp, NULL, 16);   // one fragment shader, not a pass range
-    else if (dp && sscanf(dp, "%d-%d", &draw_lo, &draw_hi) == 2 && draw_hi - draw_lo > 64) draw_lo = draw_hi = -1;
+    if (dp && strlen(dp) >= 16 && (dp[16] == 0 || dp[16] == ',')) {
+        // fragment shaders, not a pass range: "H" or "H,H,..." (16 hex digits each, up to 16): the run starts at the first
+        // draw by any of them, so a list of every material of the translucent pass starts it at the pass's first draw
+        for (const char *q = dp; *q && ndraw_fs < 16;) {
+            char *end;
+            uint64_t h = strtoull(q, &end, 16);
+            if (end == q) break;
+            draw_fs[ndraw_fs++] = h;
+            if (*end != ',') break;
+            q = end + 1;
+        }
+    } else if (dp && sscanf(dp, "%d-%d", &draw_lo, &draw_hi) == 2 && draw_hi - draw_lo > 64) draw_lo = draw_hi = -1;
     const char *dr = cfg_get("ORBITALS_DUMP_DRAWS_RECT");
     if (dr && sscanf(dr, "%u,%u,%u,%u", &draw_rect[0], &draw_rect[1], &draw_rect[2], &draw_rect[3]) != 4) draw_rect[2] = 0;
     if (!draw_rect[3]) draw_rect[2] = 0;
@@ -57,7 +68,10 @@ void draws_select(VkExec *ex, const VkPipeState *s, int pass) {
     pend_nbuf = 0;
     if (frame_now() == dump_frame && !draw_run_on) {
         int match = pass >= draw_lo && pass <= draw_hi;
-        if (draw_fs && shader_hash(s->fs) == draw_fs) match = 1;
+        if (ndraw_fs) {
+            uint64_t fh = shader_hash(s->fs);
+            for (int k = 0; k < ndraw_fs; k++) match |= draw_fs[k] == fh;
+        }
         if (match) draw_run_on = 1, draw_targets = targets_sig(ex);   // draw_n goes on: a later run must not reuse names
     }
     if (draw_run_on && frame_now() == dump_frame) draw_pending = 1;
