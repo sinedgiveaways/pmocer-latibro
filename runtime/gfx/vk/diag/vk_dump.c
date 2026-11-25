@@ -426,11 +426,38 @@ static void trace_ubo(VkExec *ex, const VkPipeState *s) {
     fflush(tu_f);
 }
 
+// A draw selected by ORBITALS_DUMP_DRAWS: its buffer textures (Niagara's particle and ribbon data are read through
+// them) are queued for a copy after the draw (draws_note_buf), to read the values its vertex shader saw. NVN formats
+// of those buffers: R16 family 2 bytes, RG32 and RGBA16 8, RGBA32 16, the rest 4. At most 64 KiB each.
+static void note_draw_buffers(const VkExec *ex, const VkPipeInfo *info) {
+    static const char *stn[8] = {"vs", "fs", "?", "?", "?", "cs", "task", "mesh"};
+    for (uint32_t i = 0; i < info->n_bindings; i++) {
+        const VkPipeBinding *bd = &info->bindings[i];
+        const GfxShaderRes *r = bd->res;
+        if (!r || (bd->kind != GFX_RES_TEX && bd->kind != GFX_RES_IMG)) continue;
+        if (bd->type != VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER && bd->type != VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER) continue;
+        int st = nvn_stage(bd->stage), img = bd->kind == GFX_RES_IMG;
+        for (uint32_t k = 0; k < (bd->count ? bd->count : 1u); k++) {
+            uint64_t h = handle_of(ex, st, r, k, img), addr = 0;
+            int fmt = 0;
+            uint32_t texels = 0;
+            if (!h || !vk_texture_slot_buffer((int)(h & 0xfffff), &addr, &fmt, &texels) || !addr || !texels) continue;
+            uint32_t tb = fmt >= 5 && fmt <= 9 ? 2 : (fmt >= 0x16 && fmt <= 0x18) || (fmt >= 0x29 && fmt <= 0x2d) ? 8
+                          : (fmt >= 0x22 && fmt <= 0x24) || (fmt >= 0x2e && fmt <= 0x30) ? 16 : 4;
+            uint64_t bytes = (uint64_t)texels * tb;
+            char tag[48];
+            snprintf(tag, sizeof tag, "%s_c%d_%02x_f%x_%u", stn[st & 7], r->cbuf_slot, r->handle * 4, fmt, texels);
+            draws_note_buf(addr, bytes < 65536 ? bytes : 65536, tag);
+        }
+    }
+}
+
 void vk_dump_draw(VkExec *ex, const VkPipeState *s, VkPipeline p, const VkPipeInfo *info) {
     plat_mutex_lock(&rec_lock);
     trace_ubo(ex, s);
     if (!active()) goto out;
     draws_select(ex, s, seq);
+    if (draws_pending()) note_draw_buffers(ex, info);
     pass_draws++;
     if (nwant_fs && s->fs && !fs_hit) {
         uint64_t fh = shader_hash(s->fs);

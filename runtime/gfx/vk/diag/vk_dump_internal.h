@@ -44,9 +44,14 @@ extern uint64_t bd_addr, bd_size, bd_off, bd_stride;
 extern uint32_t bd_w, bd_h;
 extern FILE *bufs_f;
 void buf_snap(VkExec *ex, int pass);
+// A copy of size bytes of the GPU's view of the buffer at guest address addr, written to <name>.bin when it completes
+// and its first 16 dwords (hex and float) appended to drawbufs.txt. Returns NULL, or why it was skipped.
+const char *buf_copy_named(VkExec *ex, uint64_t addr, uint64_t size, const char *name);
 
 // vk_dump_draws.c: ORBITALS_DUMP_DRAWS, called with rec_lock held
 void draws_init(void);    // reads the environment (vk_dump_init)
 void draws_reset(void);   // a new dump (vk_dump_rearm)
 void draws_select(VkExec *ex, const VkPipeState *s, int pass);   // a draw of pass: starts the run, marks it
 const char *draws_pass_end(uint64_t sig, const char *skip);      // the pass's skip reason, "draw snapshots instead" in a run
+int draws_pending(void);   // the draw being recorded is selected for a snapshot
+void draws_note_buf(uint64_t addr, uint64_t bytes, const char *tag);   // one of its buffer textures, copied after the draw

@@ -6,6 +6,10 @@
 // drift7). Copies split and resume rendering with LOAD, so they observe the just-recorded draw; the passes those splits
 // end copy no targets (the snapshots stand for them). ORBITALS_DUMP_DRAWS_RECT=x,y,w,h copies only that rectangle of the
 // target, so the DRAW_CAP snapshots of a long run (the race's particles, ~120 draws) fit in INFLIGHT_CAP.
+// Each selected draw also copies its buffer textures (up to 64 KiB each; Niagara's particle and ribbon data): the GPU's
+// bytes to drawbuf_<n>_<stage>_c<slot>_<offset>_f<nvn format>_<texels>.bin, the first dwords to drawbufs.txt
+// (vk_dump_buf.c buf_copy_named). Colony fire of 25/11/2026: an arc ribbon writes 40000 where the scene holds a few units;
+// the buffers show whether its vertex shader was fed garbage.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,8 +40,21 @@ void draws_init(void) {
 
 void draws_reset(void) { draw_n = draw_run_on = 0; }
 
+#define PEND_BUFS 12
+static _Thread_local struct { uint64_t addr, bytes; char tag[48]; } pend_buf[PEND_BUFS];   // the selected draw's buffer textures
+static _Thread_local int pend_nbuf;
+
+int draws_pending(void) { return draw_pending; }
+
+void draws_note_buf(uint64_t addr, uint64_t bytes, const char *tag) {
+    if (!draw_pending || pend_nbuf >= PEND_BUFS) return;
+    pend_buf[pend_nbuf].addr = addr, pend_buf[pend_nbuf].bytes = bytes;
+    snprintf(pend_buf[pend_nbuf++].tag, sizeof pend_buf[0].tag, "%s", tag);
+}
+
 void draws_select(VkExec *ex, const VkPipeState *s, int pass) {
     draw_pending = 0;
+    pend_nbuf = 0;
     if (frame_now() == dump_frame && !draw_run_on) {
         int match = pass >= draw_lo && pass <= draw_hi;
         if (draw_fs && shader_hash(s->fs) == draw_fs) match = 1;
@@ -67,6 +84,17 @@ void vk_dump_draw_after(VkExec *ex) {
     int reopen;
     VkCommandBuffer cb = vk_exec_inline_begin(&reopen);
     if (!cb) return;
+    for (int i = 0; i < pend_nbuf; i++) {   // the draw's buffer textures: what its vertex shader read
+        char bn[120];
+        snprintf(bn, sizeof bn, "drawbuf_%03d_%s", n, pend_buf[i].tag);
+        const char *why = buf_copy_named(ex, pend_buf[i].addr, pend_buf[i].bytes, bn);
+        if (why) {
+            plat_mutex_lock(&rec_lock);
+            fprintf(passes_f, "    draw buffer %s skipped: %s\n", bn, why);
+            plat_mutex_unlock(&rec_lock);
+        }
+    }
+    pend_nbuf = 0;
     const VkExecTarget *t = &ex->color[0];
     if (!t->image || t->samples > 1 || t->is3d) {
         vk_exec_inline_end(reopen);

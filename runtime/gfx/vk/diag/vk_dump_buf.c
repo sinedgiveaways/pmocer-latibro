@@ -114,3 +114,71 @@ void buf_snap(VkExec *ex, int pass) {
     vk_completion_add(ex->fence, buf_done, j);
 }
 
+
+// ---- buf_copy_named: the buffer textures of a draw selected by ORBITALS_DUMP_DRAWS (vk_dump_draws.c). The GPU's bytes
+// of the range go to <name>.bin, and the first 16 dwords, as hex and as float, to drawbufs.txt: enough to see whether the
+// particle data a ribbon's vertex shader reads is sane (a colour of 40000 against a few units) or garbage.
+
+typedef struct { VkBuffer buf; VmaAllocation alloc; const uint8_t *map; uint64_t size; char name[120]; } NamedJob;
+
+static void named_done(void *arg) {
+    NamedJob *j = arg;
+    vmaInvalidateAllocation(dvma(), j->alloc, 0, VK_WHOLE_SIZE);
+    char path[600];
+    snprintf(path, sizeof path, "%s/%s.bin", dump_dir, j->name);
+    FILE *f = fopen(path, "wb");
+    if (f) fwrite(j->map, 1, j->size, f), fclose(f);
+    snprintf(path, sizeof path, "%s/drawbufs.txt", dump_dir);
+    plat_mutex_lock(&img_lock);
+    if ((f = fopen(path, "a"))) {
+        fprintf(f, "%s (%llu bytes):", j->name, (unsigned long long)j->size);
+        for (uint64_t i = 0; i < 16 && (i + 1) * 4 <= j->size; i++) {
+            uint32_t v;
+            float fv;
+            memcpy(&v, j->map + i * 4, 4);
+            memcpy(&fv, &v, 4);
+            fprintf(f, " %08x/%g", v, (double)fv);
+        }
+        fputc('\n', f);
+        fclose(f);
+    }
+    plat_mutex_unlock(&img_lock);
+    vmaDestroyBuffer(dvma(), j->buf, j->alloc);
+    free(j);
+}
+
+const char *buf_copy_named(VkExec *ex, uint64_t addr, uint64_t size, const char *name) {
+    VkMemSpan s;
+    if (!size || !vk_mem_resolve(addr, size, &s) || s.avail < size) return "not backed";
+    VK_MEM_PICK(s);   // the GPU's view of the buffer
+    NamedJob *j = calloc(1, sizeof *j);
+    if (!j) rt_fatal("vk_dump: out of memory");
+    VkBufferCreateInfo bi = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, .size = size,
+                             .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT};
+    VmaAllocationCreateInfo ai = {.usage = VMA_MEMORY_USAGE_AUTO,
+                                  .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT};
+    VmaAllocationInfo info;
+    if (vmaCreateBuffer(dvma(), &bi, &ai, &j->buf, &j->alloc, &info) != VK_SUCCESS || !info.pMappedData) {
+        free(j);
+        return "host buffer allocation failed";
+    }
+    j->map = info.pMappedData, j->size = size;
+    snprintf(j->name, sizeof j->name, "%s", name);
+    VkMemoryBarrier2 mb[2] = {
+        {.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2, .srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+         .srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT, .dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT,
+         .dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT},
+        {.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2, .srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT,
+         .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+         .dstStageMask = VK_PIPELINE_STAGE_2_HOST_BIT | VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+         .dstAccessMask = VK_ACCESS_2_HOST_READ_BIT}};
+    VkDependencyInfo di = {.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO, .memoryBarrierCount = 1, .pMemoryBarriers = &mb[0]};
+    vkCmdPipelineBarrier2(ex->cb, &di);
+    VkBufferCopy c = {s.offset, 0, size};
+    vkCmdCopyBuffer(ex->cb, s.buffer, j->buf, 1, &c);
+    di.pMemoryBarriers = &mb[1];
+    vkCmdPipelineBarrier2(ex->cb, &di);
+    ex->recorded += 3;
+    vk_completion_add(ex->fence, named_done, j);
+    return NULL;
+}
