@@ -273,9 +273,9 @@ void vk_mem_shadow_capture(uint64_t sub);  // game thread, at submit sub: the CP
 int vk_mem_shadow_on(void);                // shadow mode (probes)
 // 1 when a GPU write recorded and not copied back yet may touch [addr, addr+size), or nothing tells (no shadow)
 int vk_mem_gpu_may_write(uint64_t addr, uint64_t size);
-// The newest of the last 512 unsized storage bindings a shader wrote and that stayed in VRAM over [addr, addr+size):
-// their count, and that binding (vk_exec_bind.c; the readback probe of core/boot/patches.c)
-int vk_unsized_written_find(uint64_t addr, uint64_t size, uint64_t *baddr, uint64_t *bsize, uint64_t *submit);
+// Among the last 4096 storage bindings a shader wrote, those over [addr, addr+size): unsized ones kept in VRAM (vram 1)
+// or the others (vram 0); their count, and the newest (vk_exec_bind.c; the readback probe of core/boot/patches.c)
+int vk_unsized_written_find(int vram, uint64_t addr, uint64_t size, uint64_t *baddr, uint64_t *bsize, uint64_t *submit);
 // ORBITALS_SHADOW_LOST (vk_mem_lost.c): an indirect draw of `vs` reads its arguments at [addr, addr+size) of span.pool; one
 // line per present of what the shadow lost of the CPU's writes.
 void vk_mem_lost_watch(const void *pool, uint64_t addr, uint64_t size, uint32_t vs);

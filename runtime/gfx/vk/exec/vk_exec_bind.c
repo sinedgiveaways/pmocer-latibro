@@ -271,24 +271,26 @@ static int unsized_mode(void) {
     return m;
 }
 
-// The last unsized storage bindings a shader writes and that stay in VRAM (unsized_mode 3), for the readback probe
+// The last storage bindings a shader writes (marked when unsized and kept in VRAM, unsized_mode 3), for the readback probe
 // (core/boot/patches.c): the CPU never sees those bytes, so a GPU readback buffer among them reads stale memory.
 // A ring, written without a lock: approximate, for diagnosis only.
-#define UNSIZED_RING 512
-static struct { uint64_t addr, size, submit; } unsized_ring[UNSIZED_RING];
+#define UNSIZED_RING 4096
+static struct { uint64_t addr, size, submit; int vram; } unsized_ring[UNSIZED_RING];
 static volatile uint32_t unsized_next;
 
-static void unsized_note(uint64_t addr, uint64_t size) {
+// every written storage binding; vram: an unsized one kept in VRAM (the others go back to guest memory at the fence)
+static void unsized_note(uint64_t addr, uint64_t size, int vram) {
     uint32_t i = __atomic_fetch_add(&unsized_next, 1, __ATOMIC_RELAXED) % UNSIZED_RING;
-    unsized_ring[i].addr = addr, unsized_ring[i].size = size;
+    unsized_ring[i].addr = addr, unsized_ring[i].size = size, unsized_ring[i].vram = vram;
     unsized_ring[i].submit = __atomic_load_n(&vk_replay_submit, __ATOMIC_RELAXED);
 }
 
-int vk_unsized_written_find(uint64_t addr, uint64_t size, uint64_t *baddr, uint64_t *bsize, uint64_t *submit) {
+// vram 1: the unsized VRAM-kept ones; 0: the others
+int vk_unsized_written_find(int vram, uint64_t addr, uint64_t size, uint64_t *baddr, uint64_t *bsize, uint64_t *submit) {
     int hits = 0;
     for (int i = 0; i < UNSIZED_RING; i++) {
         uint64_t a = unsized_ring[i].addr, n = unsized_ring[i].size;
-        if (!n || a >= addr + size || a + n <= addr) continue;
+        if (!n || unsized_ring[i].vram != vram || a >= addr + size || a + n <= addr) continue;
         if (!hits++ || unsized_ring[i].submit > *submit) *baddr = a, *bsize = n, *submit = unsized_ring[i].submit;
     }
     return hits;
@@ -345,7 +347,7 @@ static VkDescriptorBufferInfo ssbo_info(VkExec *ex, int st, const GfxShaderRes *
         if (bind_range(ex, b->addr - lead, size, align, max, ubo ? VK_MUSE_UBO : VK_MUSE_SSBO,
                        wmode, &bi)) {
             if (written && bi.buffer != VK_NULL_HANDLE) note_written(ex, b->addr - lead, bi.range);
-            if (written && wmode == 3 && bi.buffer != VK_NULL_HANDLE) unsized_note(b->addr - lead, bi.range);
+            if (written && bi.buffer != VK_NULL_HANDLE) unsized_note(b->addr - lead, bi.range, wmode == 3);
             return bi;
         }
         if (b->addr) warn_once(W_SSBO_ALIGN, "storage buffer %#llx is not backed or not aligned: a zero buffer is bound",

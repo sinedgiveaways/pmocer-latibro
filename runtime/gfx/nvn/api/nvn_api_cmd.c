@@ -466,8 +466,33 @@ NVN_API(nvnCommandBufferReportCounter) {
 }
 // void nvnCommandBufferCopyBufferToBuffer(NVNcommandBuffer *cmd, NVNbufferAddress src, NVNbufferAddress dst,
 // size_t size, int flags)
+// The last 2048 buffer copies the game recorded, for the readback probe (core/boot/patches.c): which copy, if any,
+// fills the GPU readback buffer the record walk reads. Written without a lock: approximate, for diagnosis only.
+#define B2B_RING 2048
+static struct { uint64_t src, dst, size, seq; } b2b_ring[B2B_RING];
+static volatile uint64_t b2b_seq;
+
 NVN_API(nvnCommandBufferCopyBufferToBuffer) {
     *REC(cmd_of(c), OP_COPY_B2B, p_copy_b2b) = (p_copy_b2b){arg_x(c, 1), arg_x(c, 2), arg_x(c, 3)};
+    uint64_t s = __atomic_add_fetch(&b2b_seq, 1, __ATOMIC_RELAXED);
+    uint32_t i = (uint32_t)(s % B2B_RING);
+    b2b_ring[i].src = arg_x(c, 1), b2b_ring[i].dst = arg_x(c, 2), b2b_ring[i].size = arg_x(c, 3), b2b_ring[i].seq = s;
+}
+
+// The newest recorded copy whose destination overlaps [addr, addr+size) (over = 1), or whose size is within
+// [size_lo, size_hi] (over = 0); 0 when none. *total: copies recorded so far.
+int nvn_copy_b2b_find(int over, uint64_t addr, uint64_t size, uint64_t size_lo, uint64_t size_hi, uint64_t *src,
+                      uint64_t *dst, uint64_t *n, uint64_t *seq, uint64_t *total) {
+    int hits = 0;
+    *seq = 0, *total = __atomic_load_n(&b2b_seq, __ATOMIC_RELAXED);
+    for (int i = 0; i < B2B_RING; i++) {
+        uint64_t d = b2b_ring[i].dst, z = b2b_ring[i].size;
+        if (!z) continue;
+        if (over ? (d >= addr + size || d + z <= addr) : (z < size_lo || z > size_hi)) continue;
+        hits++;
+        if (b2b_ring[i].seq > *seq) *src = b2b_ring[i].src, *dst = d, *n = z, *seq = b2b_ring[i].seq;
+    }
+    return hits;
 }
 // void nvnCommandBufferUpdateUniformBuffer(NVNcommandBuffer *cmd, NVNbufferAddress buffer, size_t buffer_size,
 // ptrdiff_t offset, size_t size, const void *data): the data is copied at record time (the caller may change it

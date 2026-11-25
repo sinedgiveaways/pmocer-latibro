@@ -27,10 +27,12 @@
 #define ORBITALS_READBACK_PROBE_LIMIT 24
 
 // vk_exec_bind.c, vk_mem_wback.c, vk_mem_capture.c (gfx/vk/device/vk.h)
-int vk_unsized_written_find(uint64_t addr, uint64_t size, uint64_t *baddr, uint64_t *bsize, uint64_t *submit);
+int vk_unsized_written_find(int vram, uint64_t addr, uint64_t size, uint64_t *baddr, uint64_t *bsize, uint64_t *submit);
 int vk_mem_gpu_may_write(uint64_t addr, uint64_t size);
 int vk_mem_shadow_state(uint64_t addr);
 extern uint64_t vk_replay_submit;
+int nvn_copy_b2b_find(int over, uint64_t addr, uint64_t size, uint64_t size_lo, uint64_t size_hi, uint64_t *src,
+                      uint64_t *dst, uint64_t *n, uint64_t *seq, uint64_t *total);   // gfx/nvn/api/nvn_api_cmd.c
 
 // At main+0x1750524 the caller loads X25 = [X22+8]. It later adds 0x3810
 // and passes that pointer through main+0x17508e0 to f_7001759b20, where
@@ -141,7 +143,9 @@ static void orbitals_readback_probe(Cpu *c) {
     if (bad) __atomic_add_fetch(&odd, 1, __ATOMIC_RELAXED);
     if (n > ORBITALS_READBACK_PROBE_LIMIT && !(bad && odd <= ORBITALS_READBACK_PROBE_LIMIT)) return;
     uint64_t ba = 0, bs = 0, bsub = 0;
-    int unsized = buf ? vk_unsized_written_find(buf, 0x7ffc, &ba, &bs, &bsub) : 0;
+    int unsized = buf ? vk_unsized_written_find(1, buf, 0x7ffc, &ba, &bs, &bsub) : 0;
+    uint64_t sa = 0, ss = 0, ssub = 0;
+    int sized = buf ? vk_unsized_written_find(0, buf, 0x7ffc, &sa, &ss, &ssub) : 0;
     rt_log("readback probe #%llu: buffer %#llx (%s) count %u%s pairs {%u,%u} {%u,%u} {%u,%u} {%u,%u}; shadow state %d, GPU "
            "write pending %d; unsized VRAM-kept stores over it %d (newest %#llx+%#llx at submit %llu, now %llu)",
            (unsigned long long)n, (unsigned long long)buf, ok ? "readable" : "unreadable", w[0],
@@ -149,6 +153,17 @@ static void orbitals_readback_probe(Cpu *c) {
            buf ? vk_mem_shadow_state(buf) : -1, buf ? vk_mem_gpu_may_write(buf, 0x7ffc) : -1, unsized,
            (unsigned long long)ba, (unsigned long long)bs, (unsigned long long)bsub,
            (unsigned long long)__atomic_load_n(&vk_replay_submit, __ATOMIC_RELAXED));
+    // buffer copies (nvnCommandBufferCopyBufferToBuffer, the readback's usual filler) into it, and of about its size
+    uint64_t s1 = 0, d1 = 0, n1 = 0, q1 = 0, s2 = 0, d2 = 0, n2 = 0, q2 = 0, total = 0;
+    int into = buf ? nvn_copy_b2b_find(1, buf, 0x7ffc, 0, 0, &s1, &d1, &n1, &q1, &total) : 0;
+    int near = nvn_copy_b2b_find(0, 0, 0, 0x7000, 0x8000, &s2, &d2, &n2, &q2, &total);
+    rt_log("  readback probe #%llu: copies recorded %llu; into the buffer %d (newest #%llu %#llx -> %#llx, %#llx bytes); "
+           "of 0x7000-0x8000 bytes %d (newest #%llu %#llx -> %#llx, %#llx bytes); other shader stores over it %d (newest "
+           "%#llx+%#llx at submit %llu)",
+           (unsigned long long)n, (unsigned long long)total, into, (unsigned long long)q1, (unsigned long long)s1,
+           (unsigned long long)d1, (unsigned long long)n1, near, (unsigned long long)q2, (unsigned long long)s2,
+           (unsigned long long)d2, (unsigned long long)n2, sized, (unsigned long long)sa, (unsigned long long)ss,
+           (unsigned long long)ssub);
 }
 
 static void orbitals_vcall_probe(Cpu *c) {
