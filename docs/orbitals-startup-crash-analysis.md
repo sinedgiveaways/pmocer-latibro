@@ -882,3 +882,63 @@ Likewise, the crash-time `RSI+0xC8/D8` values do not arithmetically produce the 
 **This contradiction moves the next investigation boundary downstream of the caller's source code:** inspect the native wrapper/dispatcher path between `orbitalgame.dll+0x1C11DF00`, `orbitals-recomp.exe+0x40CE0`, and `orbitals-recomp.exe+0x70C430`. Specifically determine whether the helper copies/mutates the context, misreads its field offsets, or passes a different descriptor to UCRT. A new dump extraction job now disassembles both native addresses directly. Do not patch the guest caller based solely on the static call-site sequence; do not patch UCRT memcpy/memmove globally.
 
 The pointer source `0x01460149013D0140` remains the actual invalid source operand at the AV instruction. The exception stream's access-violation parameter address remains inconsistent (`0xFFFFFFFFFFFFFFFF`) and is not used as evidence.
+
+
+## 25/11/2026: native `ov_memcpy` body verified from the original minidump
+
+The successful GitHub Actions artifact from run `45515422739` contains the actual mapped bytes of `orbitals-recomp.exe`. The module base in this dump is `0x7FF6C8260000`.
+
+### Exact helper at RVA 0x40CE0
+
+```asm
+7FF6C82A0CE0  push r14
+7FF6C82A0CE2  push rsi
+7FF6C82A0CE3  push rdi
+7FF6C82A0CE4  push rbx
+7FF6C82A0CE5  sub  rsp, 0x28
+7FF6C82A0CE9  mov  rsi, rcx
+7FF6C82A0CEC  mov  rdi, [rcx]       ; destination
+7FF6C82A0CEF  mov  rbx, [rcx+8]    ; source
+7FF6C82A0CF3  mov  r14, [rcx+0x10] ; size
+7FF6C82A0CF7  cmp  r14, 0x400
+7FF6C82A0CFE  jb   7FF6C82A0D11
+7FF6C82A0D00  call 7FF6C82AFCD0
+7FF6C82A0D05  mov  rcx, rbx
+7FF6C82A0D08  mov  rdx, r14
+7FF6C82A0D0B  call qword ptr [rax+0xA0]
+7FF6C82A0D11  mov  rcx, rdi
+7FF6C82A0D14  mov  rdx, rbx
+7FF6C82A0D17  mov  r8, r14
+7FF6C82A0D1A  call 7FF6C896C430
+7FF6C82A0D1F  mov  [rsi], rdi
+7FF6C82A0D22  add  rsp, 0x28
+7FF6C82A0D26  pop  rbx
+7FF6C82A0D27  pop  rdi
+7FF6C82A0D28  pop  rsi
+7FF6C82A0D29  pop  r14
+7FF6C82A0D2B  ret
+```
+
+This confirms the helper loads destination/source/size once into nonvolatile registers RDI/RBX/R14. For lengths >= 0x400 it first invokes a runtime tracking callback with (source, size), then passes the saved original (destination, source, size) directly to the thunk at EXE RVA `0x70C430`. The helper does not arithmetically transform these values. It writes the original destination back to descriptor offset +0 after the copy returns.
+
+### Crash-time consistency
+
+The exception context inside UCRT shows:
+
+- `RSI = 0x1C92EAB0540` (descriptor)
+- `RDI = RCX = 0x12E1A8000C` (destination)
+- `RBX = RDX = 0x01460149013D0140` (source)
+- `R14 = R8 = 0x05240500` (length)
+
+These register pairs exactly match the helper's saved fields and its call setup. This rules out the helper's field-loading sequence as the source of the bad source pointer or oversized length. The values were already present in the descriptor when the helper read it, or were changed in descriptor memory before helper entry.
+
+### What this does and does not establish
+
+- Established: `ov_memcpy` forwards its saved fields unchanged to `memmove`.
+- Established: the optional large-copy tracker is called for this 86-MB request before the `memmove` call, but the helper reloads the arguments from saved registers afterward.
+- Not yet established: whether the tracker callback mutates pointed-to memory or whether it is merely bookkeeping. The helper's actual RCX/RDX/R8 arguments to `memmove` still come from RDI/RBX/R14.
+- Not established: why the crash-time descriptor does not agree with the earlier static interpretation of the guest caller's stores. That mismatch remains the main target.
+
+### Immediate next step
+
+Disassemble the full guest caller range `orbitalgame.dll RVA 0x1B5A8E00..0x1B5A9500` from the same minidump, and the tracker callback target `orbitals-recomp.exe RVA 0x4AFCD0`. Verify the exact call instruction, the context pointer register, and all writes to descriptor offsets +0, +8, +0x10. The previous claim that the caller necessarily wrote a 4-byte size is not accepted until the actual branch path and call context are reconciled with the preserved crash-time R13 value.
