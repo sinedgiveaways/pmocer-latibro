@@ -942,3 +942,21 @@ These register pairs exactly match the helper's saved fields and its call setup.
 ### Immediate next step
 
 Disassemble the full guest caller range `orbitalgame.dll RVA 0x1B5A8E00..0x1B5A9500` from the same minidump, and the tracker callback target `orbitals-recomp.exe RVA 0x4AFCD0`. Verify the exact call instruction, the context pointer register, and all writes to descriptor offsets +0, +8, +0x10. The previous claim that the caller necessarily wrote a 4-byte size is not accepted until the actual branch path and call context are reconciled with the preserved crash-time R13 value.
+
+
+## 25/11/2026 correction: two different context blocks were conflated
+
+Re-examining the saved stack at `RSP=0x19AFFFF1D8` together with the guest caller disassembly reveals the source of the apparent contradiction.
+
+There are two distinct structures:
+
+1. The **outer guest wrapper context**, based at `0x19AFFFF160` (RSP - `0x78`). It contains the synthetic import slot at +`0x80` (`0x700900A008`), wrapper return at +`0x88` (`0x7FFA60A8DF58`), guest function `0x7001759B20` at +`0x98`, and a pointer to the inner descriptor `0x1C92EAB0540` at +`0xA0`. Its +`0xA8` field is `0x11C51F7A0`, and +`0xC0` is `0x298`.
+2. The **inner native helper argument descriptor**, based at `0x1C92EAB0540`. The exception context has `RSI=0x1C92EAB0540`; its +0/+8/+0x10 fields are the exact destination/source/size consumed by `ov_memcpy`.
+
+The stores in guest code at `orbitalgame.dll+0x1B5A9343..0x1B5A9393` operate on the outer context pointer in the guest caller's RSI. They do **not** prove that the same stores write the inner descriptor at `0x1C92EAB0540`. The previous conclusion that the guest caller directly set the inner descriptor size to 4 was therefore incorrect and is withdrawn.
+
+This resolves the apparent contradiction without assuming that UCRT corrupted R13 or that a race occurred. The unresolved transformation is now between the outer context (which points to the inner descriptor at +`0xA0`) and the helper's RCX argument. The exact wrapper `orbitalgame.dll+0x1C11DF00` and its dispatcher must be disassembled to establish how the inner descriptor is allocated/populated and why its source/size become `0x01460149013D0140` / `0x05240500`.
+
+### Updated next step
+
+Disassemble `orbitalgame.dll+0x1C11DEF0..0x1C11E400` from the same dump. Follow the wrapper's input context pointer, its +`0xA0` descriptor pointer, and the argument passed to `orbitals-recomp.exe+0x40CE0`. Then identify the exact stores that produce inner descriptor +0, +8, +0x10. This is now the primary root-cause boundary; do not patch the guest call-site's R13 mask based on the earlier mistaken structure conflation.
