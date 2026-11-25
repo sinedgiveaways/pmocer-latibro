@@ -120,6 +120,47 @@ void plat_mem_watch_hook(int (*fn)(uint64_t addr, uint64_t rip)) {
 }
 
 static void (*crash_fn)(const PlatCrash *c);
+static void (*foreign_fn)(const char *line);
+static volatile LONG foreign_n;
+
+// One line for a fault in another module (plat_foreign_fault_hook): where, what, and the first frame of ours below it.
+static void foreign_fault(EXCEPTION_POINTERS *ep, const char *what, HMODULE at, HMODULE exe, HMODULE game) {
+    if (!foreign_fn || InterlockedIncrement(&foreign_n) > 16) return;
+    uintptr_t rip = (uintptr_t)ep->ContextRecord->Rip;
+    char name[64] = "?";
+    MODULEINFO mi = {0};
+    GetModuleBaseNameA(GetCurrentProcess(), at, name, sizeof name);
+    GetModuleInformation(GetCurrentProcess(), at, &mi, sizeof mi);
+    char acc[64] = "";
+    if (ep->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION && ep->ExceptionRecord->NumberParameters >= 2)
+        snprintf(acc, sizeof acc, ", %s %#llx", ep->ExceptionRecord->ExceptionInformation[0] ? "writing" : "reading",
+                 (unsigned long long)ep->ExceptionRecord->ExceptionInformation[1]);
+    // our first frame: the dispatcher's frames, then the faulting one and its callers (x64 unwinds through
+    // KiUserExceptionDispatcher)
+    void *frames[48];
+    USHORT n = RtlCaptureStackBackTrace(0, 48, frames, NULL);
+    char ours[96] = "none";
+    for (USHORT i = 0; i < n; i++) {
+        HMODULE m = NULL;
+        uintptr_t pc = (uintptr_t)frames[i];
+        if (pc == rip || !GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                                             GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCWSTR)pc, &m))
+            continue;
+        if (m != exe && m != game) continue;
+        MODULEINFO om = {0};
+        GetModuleInformation(GetCurrentProcess(), m, &om, sizeof om);
+        snprintf(ours, sizeof ours, "%s+%#llx", m == exe ? "orbitals-recomp" : "orbitalgame",
+                 (unsigned long long)(pc - (uintptr_t)om.lpBaseOfDll));
+        if (m == game) break;   // the game code's frame names the lifted function; an exe frame may be the VEH's
+    }
+    char line[320];
+    snprintf(line, sizeof line, "crash: %s (%#lx) in %s+%#llx%s, thread %lu; first frame of ours %s (left to that "
+             "module's handler: a process that ends here was this)", what, ep->ExceptionRecord->ExceptionCode, name,
+             (unsigned long long)(rip - (uintptr_t)mi.lpBaseOfDll), acc, GetCurrentThreadId(), ours);
+    foreign_fn(line);
+}
+
+void plat_foreign_fault_hook(void (*fn)(const char *line)) { foreign_fn = fn; }
 
 // The VEH copies the faulting host context before calling runtime code. Keep it thread-local: the crash
 // reporter runs synchronously on the faulting thread and must not inspect a CONTEXT after the VEH returns.
@@ -177,7 +218,10 @@ static LONG CALLBACK crash_veh(EXCEPTION_POINTERS *ep) {
     HMODULE at = NULL, exe = GetModuleHandleW(NULL), game = GetModuleHandleW(L"orbitalgame.dll");
     int in_module = GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
                                        (LPCWSTR)rip, &at);
-    if (in_module && at != exe && (!game || at != game)) return EXCEPTION_CONTINUE_SEARCH;
+    if (in_module && at != exe && (!game || at != game)) {
+        foreign_fault(ep, what, at, exe, game);
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
     MODULEINFO mi = {0};
     if (in_module) GetModuleInformation(GetCurrentProcess(), at, &mi, sizeof mi);
     PlatCrash c = {what, (uint32_t)code, rip, in_module ? rip - (uintptr_t)mi.lpBaseOfDll : rip, -1, 0};

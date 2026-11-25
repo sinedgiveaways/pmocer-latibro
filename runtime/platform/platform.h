@@ -255,6 +255,11 @@ typedef struct {
     uintptr_t ret;             // rip in no module: the word at rsp, the caller's return address after a wild call
 } PlatCrash;
 void plat_crash_hook(void (*fn)(const PlatCrash *c));
+// Faults in other modules (a driver, the C runtime, ntdll) stay with their own handlers, but the first 16 are given
+// to fn as one line (module+offset, the access, our first frame on the stack): a process that died there left an
+// empty log (Orbitals 25/11/2026, a load that ended with no FATAL). A driver that handles its own faults adds lines,
+// nothing else. Windows only; a no-op elsewhere (Linux signals reach plat_crash_hook's handler).
+void plat_foreign_fault_hook(void (*fn)(const char *line));
 int plat_mem_read(uint64_t addr, void *out, size_t n);    // copies n bytes, 0 instead of faulting on unmapped memory
 int plat_mem_readable(uint64_t addr, uint64_t n);         // every page of [addr, addr + n) can be read; no fault
 void *plat_aligned_alloc(size_t size, size_t align);      // free with plat_aligned_free; NULL on failure

@@ -673,6 +673,9 @@ static int run_launcher(int argc, char **argv) {
     plat_reexec();
 }
 
+// A fault in a driver or the C runtime, before its own handler runs (platform.h plat_foreign_fault_hook)
+static void foreign_fault_log(const char *line) { rt_log("%s", line); }
+
 int main(int argc, char **argv) {
     // --unpack PACKAGE DEST [PREFIX...]: a packed dump's files written out (sdk/fs/pack_unpack.c), for the setup; first,
     // as the setup runs it before the game code exists (no address space, launcher or log file needed)
@@ -689,6 +692,7 @@ int main(int argc, char **argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
     plat_crash_hook(crash_handler);
+    plat_foreign_fault_hook(foreign_fault_log);
     parse_trace();
     prof_start();
     // Timed guest waits (kernel.c block_inner) sleep in whole milliseconds; at the default 15.6 ms tick a 1 ms wait

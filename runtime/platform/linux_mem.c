@@ -367,6 +367,8 @@ void plat_mem_fault_hook(int (*fn)(uint64_t addr)) {
     fault_install();
 }
 
+void plat_foreign_fault_hook(void (*fn)(const char *line)) { (void)fn; }
+
 void plat_crash_hook(void (*fn)(const PlatCrash *c)) {
     crash_fn = fn;
     fault_install();
