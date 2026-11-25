@@ -350,6 +350,64 @@ static void op_dispatch_ind_body(VkExec *ex, const p_dispatch_ind *d) {
     ex->prog = g;
 }
 
+// ORBITALS_TRACE_CS=<key prefix>[,<key prefix>...] (16 hex digits at most each; "0" none): for those compute programs,
+// the first 48 dispatches log their group counts, the storage buffers the replay binds (address from the uniform
+// block, the size word after it, the backing) and words 0-7 of their uniform blocks 3 and 4. The default names the
+// producer of the record walk's GPU readback list and its clear (Orbitals, 25/11/2026: the CPU reads that list stale
+// and the record walk then pops elements below index 0; patches.c orbitals_readback_probe).
+static uint64_t tcs_keys[8];
+static int tcs_n = -1;
+static volatile int32_t tcs_lines;
+
+static void trace_cs_init(void) {
+    const char *e = cfg_get("ORBITALS_TRACE_CS");
+    if (!e || !*e) e = "567ed7cdc5b1df36,565a0b530c43107c,492caf3a4878adae";
+    int n = 0;
+    while (*e && n < 8 && strcmp(e, "0")) {
+        char *end;
+        uint64_t v = strtoull(e, &end, 16);
+        if (end == e) break;
+        int digits = (int)(end - e);
+        tcs_keys[n++] = digits >= 16 ? v : v << (4 * (16 - digits));
+        e = *end == ',' ? end + 1 : end;
+    }
+    tcs_n = n;
+}
+
+static void trace_cs(VkExec *ex, const GfxShader *cs, const VkPipeInfo *info, const p_dispatch *d, int indirect) {
+    if (tcs_n < 0) trace_cs_init();
+    if (!tcs_n || __atomic_load_n(&tcs_lines, __ATOMIC_RELAXED) >= 48) return;
+    const uint8_t *k = gfx_shader_key(cs);
+    uint64_t key = 0;
+    for (int j = 0; j < 8; j++) key = key << 8 | k[j];
+    int hit = 0;
+    for (int i = 0; i < tcs_n && !hit; i++) hit = key == tcs_keys[i];
+    if (!hit || plat_inc32(&tcs_lines) > 48) return;
+    char line[1400];
+    int o = snprintf(line, sizeof line, "vk: trace-cs %016llx submit %llu %s %dx%dx%d:", (unsigned long long)key,
+                     (unsigned long long)__atomic_load_n(&vk_replay_submit, __ATOMIC_RELAXED),
+                     indirect ? "indirect" : "groups", d ? d->x : 0, d ? d->y : 0, d ? d->z : 0);
+    for (uint32_t i = 0; i < info->n_bindings && o < (int)sizeof line - 200; i++) {
+        const VkPipeBinding *b = &info->bindings[i];
+        const GfxShaderRes *r = b->res;
+        if (b->kind != GFX_RES_SSBO || !r || r->cbuf_slot < 3) continue;
+        uint64_t a = ubo_ptr(ex, NVN_STAGE_CS, r);
+        uint32_t size = ubo_word(ex, NVN_STAGE_CS, r->cbuf_slot, r->handle + 2u);
+        VkMemSpan sp;
+        int backed = a && vk_mem_resolve(a, 1, &sp);
+        o += snprintf(line + o, sizeof line - (size_t)o, " sb c%d[%#x]%s=%#llx size %#x (%s, offset %% 64 = %llu, avail %#llx)",
+                      r->cbuf_slot, r->handle * 4u, r->flags & 1 ? " written" : "", (unsigned long long)a, size,
+                      !backed ? "not backed" : sp.pool ? "pool" : "device", backed ? (unsigned long long)(sp.offset % 64) : 0ull,
+                      backed ? (unsigned long long)sp.avail : 0ull);
+    }
+    for (int slot = 3; slot <= 4 && o < (int)sizeof line - 120; slot++) {
+        o += snprintf(line + o, sizeof line - (size_t)o, " c%d:", slot);
+        for (uint32_t w = 0; w < 8; w++)
+            o += snprintf(line + o, sizeof line - (size_t)o, " %08x", ubo_word(ex, NVN_STAGE_CS, slot, w));
+    }
+    rt_log("%s", line);
+}
+
 static void op_dispatch_body(VkExec *ex, const p_dispatch *d) {
     if (d->x <= 0 || d->y <= 0 || d->z <= 0) return;
     if (!ex->prog) return warn_once(W_PROGRAM, "a dispatch without a bound program is skipped");
@@ -374,6 +432,7 @@ static void op_dispatch_body(VkExec *ex, const p_dispatch *d) {
     c0_dim[0] = (uint32_t)d->x, c0_dim[1] = (uint32_t)d->y, c0_dim[2] = (uint32_t)d->z, c0_cs = cs;
     c0_push = d->push_n ? d->push : NULL, c0_push_n = d->push_n;
     bind_resources(ex, info);
+    trace_cs(ex, cs, info, d, 0);
     c0_push = NULL, c0_push_n = 0;
     int pt = vk_pt_enabled();
     if (vk_spec_census_on()) spec_census(ex, cs, NVN_STAGE_CS);
@@ -421,6 +480,7 @@ static void op_dispatch_ind(VkExec *ex, const p_dispatch_ind *d) {
     c0_dim[0] = c0_dim[1] = c0_dim[2] = 0, c0_cs = cs;
     B.c0_valid[2] = 0;   // a fresh c0 range: the copy below must not change one an earlier dispatch reads
     bind_resources(ex, info);
+    trace_cs(ex, cs, info, NULL, 1);
     if (B.c0_valid[2]) {   // the shader binds c0
         VkBufferCopy cp = {ip.offset, B.c0_off[2] + VK_C0_DISPATCH, sizeof(VkDispatchIndirectCommand)};
         vkCmdCopyBuffer(ex->cb, ip.buffer, B.c0_buf[2], 1, &cp);
