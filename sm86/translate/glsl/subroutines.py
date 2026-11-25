@@ -19,7 +19,9 @@ STOP = {"BRX", "BRXU", "CALL", "RET", "EXIT", "BSSY", "BSYNC", "BREAK", "WARPSYN
 
 
 def _plain(i: Insn) -> bool:
-    return i.v("Pg", PT) == PT and not i.v("Pg@not", 0) and i.v("UPg", PT) == PT and not i.v("UPg@not", 0)
+    """Unconditional: no guard, and for BRA and EXIT no second predicate (Pp, ANDed with the guard)."""
+    pp = i.op in ("BRA", "EXIT") and (i.v("Pp", PT) != PT or bool(i.v("Pp@not", 0)))
+    return i.v("Pg", PT) == PT and not i.v("Pg@not", 0) and i.v("UPg", PT) == PT and not i.v("UPg@not", 0) and not pp
 
 
 def _branch_target(i: Insn) -> int:

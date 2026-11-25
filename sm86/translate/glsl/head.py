@@ -133,7 +133,12 @@ def declarations(b, stage: str, shape: tuple[int, int, int, int] | None) -> list
         refl["sbufs"].append({"binding": nb, "slot": len(refl["sbufs"]), "cb_slot": o >> 16, "cb_offset": (o & 0xFFFF) // 4,
                               "flags": 1 if o in b.ssbos_written else 0})  # fmt: skip
         nb += 1
+    # A handle only TXQ reads that is also an image is the image's: its size comes from imageSize, with no sampler
+    # binding (a 3D storage image bound as a sampler2D gave a depth of 1, tex.py txq).
+    img_txq = {k for k in b.txq_guess if k in b.images}
     for (bank, idx), t in sorted(b.textures.items()):
+        if (bank, idx) in img_txq:
+            continue
         head.append(f"layout(binding = {nb}) uniform {t} t{bank}_{idx};")
         refl["textures"].append({"binding": nb, "type": sampler_type(t), "format": "Unknown", "cbuf_slot": bank,
                                  "handle": idx & 0xFFFF, "handle2": b.tex_h2.get((bank, idx), -1), "array": 1,
@@ -171,6 +176,20 @@ def declarations(b, stage: str, shape: tuple[int, int, int, int] | None) -> list
                                "flags": 4})  # fmt: skip
         nb += 1
     for bank, idx in sorted(b.txq_tex):
+        if (bank, idx) in img_txq:
+            # imageSize has no level: an image view has one (vk_exec_view.c), so level l is level 0 halved l times
+            dim = b.images[(bank, idx)].removeprefix("u").removeprefix("image")
+            im = f"i{bank}_{idx}"
+            v = {"1D": f"ivec3(max(imageSize({im}) >> l, 1), 1, 1)", "Buffer": f"ivec3(imageSize({im}), 1, 1)",
+                 "2D": f"ivec3(max(imageSize({im}) >> l, ivec2(1)), 1)", "3D": f"max(imageSize({im}) >> l, ivec3(1))",
+                 "1DArray": f"ivec3(max(imageSize({im}).x >> l, 1), imageSize({im}).y, 1)",
+                 "2DArray": f"ivec3(max(imageSize({im}).xy >> l, ivec2(1)), imageSize({im}).z)"}[dim]  # fmt: skip
+            head.append(f"ivec3 txqsz_{bank}_{idx}(int l) {{ return {v}; }}")
+            if (bank, idx) in b.txq_lv:
+                head.append(f"int txqlv_{bank}_{idx}() {{ return 1; }}")
+            continue
+        if (bank, idx) in b.txq_lv:
+            head.append(f"int txqlv_{bank}_{idx}() {{ return textureQueryLevels(t{bank}_{idx}); }}")
         n = {"sampler1D": 1, "sampler2D": 2, "sampler3D": 3, "samplerCube": 2, "sampler2DArray": 3,
              "samplerCubeArray": 3, "sampler1DArray": 2}.get(b.textures[(bank, idx)].replace("Shadow", ""), 2)  # fmt: skip
         sz = f"textureSize(t{bank}_{idx}, l)"

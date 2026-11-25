@@ -177,8 +177,22 @@ Two readings remain: (a) the game's CPU light culling finds no light (a runtime/
 code), or (b) the grid is not where Orbitals' colony light comes from and the cause is elsewhere (the storage buffer
 of binding 4, c7, the r8 volume). **Next, decisive:** the same grids and the lighting pass's inputs on Lichii (its GPU
 trace, `docs/nx2/gpu-trace.md` in `sinedgiveaways/tool`): if Lichii's grids hold light indices, (a); if they are empty
-too, (b). Also a runtime bug seen on the way: a storage-image write into a mirrored texture is not marked GPU-owned
-(`vk_texture_storage_bound_locked`), so a later CPU page write re-uploads the storage over the GPU's result.
+too, (b). (A storage image the shader stores into is marked GPU-owned now: `vk_texture_storage_bound_locked` goes
+through `vk_texture_gpu_written`.)
+recomp52-53 (`ORBITALS_TRACE_3D` with the record/replay source hash, `706a86a`): the volumetric lightmap's
+indirection (rgba8ui 144x128x64 at `0xf88b70000`) is copied in whole from a valid source (record and replay hashes
+equal). Level streaming then moves it twice with `FMoveWholeIndirectionTextureCS` (`cdf018b79a597e9c`, dispatch
+36x32x16) into two new textures whose memory held brick staging data (first word `0xaf776183`, the word the base
+pass's samples showed). The translation of that compute program had two bugs, both fixed in the translator:
+- its bounds check `TXQ` on the destination `RWTexture3D` was declared as a `sampler2D` (TXQ names no dimension),
+  so the depth read 1 and only slice z = 0 was written; the rest kept the staging bytes. A TXQ-only handle that is
+  also an image now takes its size from `imageSize` (`glsl/tex.py txq`, `glsl/head.py`; 2 programs);
+- `@P0 EXIT P2` dropped its second predicate (BRA's was handled, EXIT's not): every cell whose brick index is at or
+  above the moved range exited unwritten (`glsl/thread.py exit`; 26 programs, among them the Lumen translucency
+  radiance cache mark pixel shaders, `FClearIndirectArgBufferCS`, `FDenoiserSpatialCS` and the
+  `FOrbPostProcessMaterialPS` of `PP_A90_Stage_2`).
+Full retranslation: 23 176 of 23 432 valid as before; `flow_check.py` finds no difference on the changed programs.
+**Next:** a run into the colony with the new setup: lit walls if this was the cause.
 
 ### 1.2 A crash after the logos in about one run in three
 

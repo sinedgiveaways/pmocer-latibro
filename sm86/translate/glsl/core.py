@@ -60,6 +60,8 @@ class Builder(AluOps, MemOps, TexOps, ThreadOps, GeomOps):
         self.uses_nminmax = False
         self.uses_fmz = False   # FMUL/FFMA .FMZ: fmzmul/fmzfma in the head
         self.txq_tex: set[tuple[int, int]] = set()  # textures TXQ reads the size of (txqsz_* functions)
+        self.txq_guess: set[tuple[int, int]] = set()  # textures typed only by TXQ so far (sampler2D, tex.py txq)
+        self.txq_lv: set[tuple[int, int]] = set()  # those TXQ reads the level count of (txqlv_* functions)
         self.tld1d: set[tuple[int, int]] = set()  # 1D textures TLD fetches from: they may be buffer textures (head.py)
         self.uses_shadow_lod = False
         self.uses_demote = False
@@ -352,7 +354,14 @@ def inline_single_call(insns: list[Insn]) -> list[Insn]:
     t = next((k for k, i in enumerate(insns) if i.pc == target), None)
     if t is None or not (c < t <= r or r < c):  # body after the call site, or wholly before it
         return insns
-    if t <= c <= r or t == 0 or insns[t - 1].op not in ("EXIT", "BRA") or insns[t - 1].v("Pg", PT) != PT:
+    if (
+        t <= c <= r
+        or t == 0
+        or insns[t - 1].op not in ("EXIT", "BRA")
+        or insns[t - 1].v("Pg", PT) != PT
+        or insns[t - 1].v("Pp", PT) != PT
+        or insns[t - 1].v("Pp@not", 0)
+    ):
         return insns
     body = range(t, r)
     lo, hi = insns[t].pc, ret.pc

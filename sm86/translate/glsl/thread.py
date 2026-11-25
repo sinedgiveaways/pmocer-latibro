@@ -215,10 +215,19 @@ class ThreadOps:
         return f"{{ uint ib = {addr} - 4u; if (ib < MESH_PRIMS * 3u) mib[ib] = {reg(b)} & 0xffu; }}"
 
     def exit(self, i: Insn) -> str:
+        # EXIT's own predicate operand (`@P0 EXIT P2`): the lane exits when the guard and it both hold, as BRA's
+        # (core.py, eden-nx2 lower_to_maxwell.h:2178-2193). Dropped, FMoveWholeIndirectionTextureCS exited for every
+        # brick at or above the moved range instead of only those inside it, and left their indirection cells
+        # unwritten (25/11/2026).
+        pp = i.v("Pp", PT) != PT or bool(i.v("Pp@not", 0)) if i.has("Pp") else False
+        stmt = self.exit_plain(i, pp)
+        return f"if ({pred(i.v('Pp'), i.v('Pp@not'))}) {{ {stmt} }}" if pp else stmt
+
+    def exit_plain(self, i: Insn, pp: bool) -> str:
         if self.stage != "ps":
             # a predicated EXIT of a program with BAR (Builder.zombie): the lane goes on as exited; the unconditional
             # one at the end still returns, as every lane reaching it does
-            predicated = i.v("Pg", PT) != PT or i.v("Pg@not", 0)
+            predicated = i.v("Pg", PT) != PT or i.v("Pg@not", 0) or pp
             return "exited = true;" if self.zombie and predicated else "return;"
         # Each target with any component takes four registers, component c in base + c, written or not (Ryujinx
         # EmitterContext.PrepareForReturn, MIT; eden-nx2 exit_program.cpp): packing the written ones read the wrong

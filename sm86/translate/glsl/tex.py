@@ -58,18 +58,31 @@ class TexOps:
                 return key
         raise Unsupported(f"{i.cls}: texture word {(b1, y1 // 4)} OR'ed with more than 64 words")
 
+    def set_tex(self, key: tuple[int, int], sampler: str, keep: bool = False) -> None:
+        """The sampler type of a handle a sampling instruction reads; keep: TLD and TMML, which keep the type a TEX or
+        TXD gave it (a shadow sampler), but not the guess of a TXQ (txq_guess)."""
+        if keep and key in self.textures and key not in self.txq_guess:
+            return
+        self.textures[key] = sampler
+        self.txq_guess.discard(key)
+
     def txq(self, i: Insn) -> str:
         """TXQ TEX_HEADER_DIMENSION: width, height, depth/layers, levels of the texture at lod Ra."""
         if i.sym("query") != "TEX_HEADER_DIMENSION":
             raise Unsupported(f"TXQ {i.sym('query')}")
         key = self.tex_key(i)
-        self.textures.setdefault(key, "sampler2D")
-        t = f"t{key[0]}_{key[1]}"
+        # TXQ does not name a dimension: sampler2D is a guess (txq_guess) that a later TEX/TLD/TMML of the handle
+        # replaces, and that head.py drops for the image of the same handle (a compute program's bounds check on its
+        # RWTexture3D: as a sampler2D its depth read 1 and FMoveWholeIndirectionTextureCS wrote only slice 0 of the
+        # volumetric lightmap's indirection, the colony dark, 25/11/2026)
+        if key not in self.textures:
+            self.textures[key] = "sampler2D"
+            self.txq_guess.add(key)
         # the sampler's type is final only after the whole program (a later TEX may make it an array): the size comes
         # from txqsz_<bank>_<idx>, written with the declarations, as an ivec3 padded with 1
         self.txq_tex.add(key)
         size = f"txqsz_{key[0]}_{key[1]}(int({self.src_u(i, 'a')}))"
-        comps = [f"uint(sz[{k}])" for k in range(3)] + [f"uint(textureQueryLevels({t}))"]
+        comps = [f"uint(sz[{k}])" for k in range(3)] + [f"uint(txqlv_{key[0]}_{key[1]}())"]
         rd, rd2 = i.v("Rd"), i.v("Rd2")
         dests = [rd, rd + 1 if rd != RZ else RZ, rd2, rd2 + 1 if rd2 != RZ else RZ]
         outs, comp, mask = [], 0, i.v("wmsk", 0xF)
@@ -80,6 +93,8 @@ class TexOps:
                 if d != RZ:
                     self.regs.add(d)
                     outs.append(f"r{d} = {comps[c]};")
+                    if c == 3:
+                        self.txq_lv.add(key)
         return f"{{ ivec3 sz = {size}; {' '.join(outs)} }}" if outs else ""
 
     # Images: bound like textures (handle at c[bank5][tsPtrIdx * 4], named i<bank>_<idx>), declared without a format
@@ -232,7 +247,7 @@ class TexOps:
             coords.append(f("ref"))
         vec = coords[0] if len(coords) == 1 else f"vec{len(coords)}({', '.join(coords)})"
         sampler = f"sampler{name}{'Shadow' if dc else ''}"
-        self.textures[key] = sampler
+        self.set_tex(key, sampler)
         if dc and lod == "LL":
             self.uses_shadow_lod = True  # textureLod on array and cube shadow samplers
         if ptp:
@@ -299,7 +314,7 @@ class TexOps:
 
         key = self.tex_key(i)
         t = f"t{key[0]}_{key[1]}"
-        self.textures[key] = f"sampler{name}"
+        self.set_tex(key, f"sampler{name}")
         outs = self.tex_outs(i)
         call = f"textureGrad({t}, {vec(coords)}, {vec(dx)}, {vec(dy)})"
         return f"{{ vec4 tv = {call}; {' '.join(outs)} }}" if outs else ""
@@ -362,7 +377,7 @@ class TexOps:
         )
         vec = ints[0] if len(ints) == 1 else f"ivec{len(ints)}({', '.join(ints)})"
         key = self.tex_key(i)
-        self.textures.setdefault(key, f"sampler{name}")
+        self.set_tex(key, f"sampler{name}", keep=True)
         lv = f"int({reg(regs['ms' if ms else 'lod'])})" if ms or lod == "LL" else "0"
         call = f"texelFetch(t{key[0]}_{key[1]}, {vec}, {lv})"
         if name == "1D":
@@ -387,7 +402,7 @@ class TexOps:
         self.regs.update(r for r in range(a, a + idx + ncoord) if r != RZ)
         vec = coords[0] if ncoord == 1 else f"vec{ncoord}({', '.join(coords)})"
         key = self.tex_key(i)
-        self.textures.setdefault(key, f"sampler{name}")
+        self.set_tex(key, f"sampler{name}", keep=True)
         t = f"t{key[0]}_{key[1]}"
         rd, rd2 = i.v("Rd"), i.v("Rd2")
         dests = [rd, rd + 1 if rd != RZ else RZ, rd2, rd2 + 1 if rd2 != RZ else RZ]
