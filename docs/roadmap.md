@@ -251,14 +251,14 @@ Cette section fait foi sur les conclusions les plus récentes et corrige les hyp
 - La PR #19 (fix/record-subtable-175dc04) ajoute un second garde indépendant à main+0x175dbec, validé contre le mot d'instruction original f9400008. Le fallback redirige la base nulle vers la page zéro ; il doit encore être validé dans le jeu.
 - Ne pas modifier TPIDR, l'allocation TLS ou le scheduler sur la seule base de ce crash : les éléments recueillis ne démontrent pas une panne de TLS.
 
-### 6.2a Crash memcpy : frontière caller/helper identifiée (25/11/2026)
+### 6.2a Crash memcpy : helper natif vérifié, arguments transmis tels quels (25/11/2026)
 
-- Le descripteur au crash (`RSI=0x1C92EAB0540`) contient `+C8=0x01490140`, `+D0=0x11C51F8A8`, `+D8=0xCE01F2C00`, `+E0=0x11C51F8A8`.
-- Le call-site `+0x1B5A939A` n'est atteint que sur le chemin où `R13 & 4 != 0`; ce chemin écrit normalement la taille 4 dans `[RSI+0x10]`. Le chemin qui conserve la taille initiale saute ce call.
-- Pourtant, au crash, `[RSI+0x10]` et `R8` valent `0x05240500`. Les champs C8/D8 ne produisent pas non plus la source observée `0x01460149013D0140`.
-- **Conclusion :** contradiction concrète entre les stores du caller et le contexte observé à UCRT. Le prochain périmètre est le wrapper/dispatcher natif `orbitalgame.dll+0x1C11DF00` → `orbitals-recomp.exe+0x40CE0` → `+0x70C430`, pas le helper UCRT ni un patch global.
-- Une extraction GitHub Actions désassemble désormais directement les deux adresses natives depuis le dump. Ne pas modifier le code guest avant d'avoir compris la transformation du contexte.
-- Détails : [contradiction caller/helper et champs du descripteur](orbitals-startup-crash-analysis.md#25112026-exact-crash-descriptor-fields-and-the-callerhelper-contradiction).
+- Désassemblage du vrai `orbitals-recomp.exe+0x40CE0` depuis le minidump : charge `[RCX]`, `[RCX+8]`, `[RCX+0x10]` dans RDI/RBX/R14 (destination/source/taille).
+- Si taille >= `0x400`, il appelle d'abord un callback de suivi mémoire avec (source, taille), puis transmet les registres sauvegardés inchangés à la thunk `+0x70C430` (memmove).
+- Au crash, les paires `RDI=RCX=destination`, `RBX=RDX=source`, `R14=R8=taille` correspondent exactement au code du helper. Le helper n'a donc pas fabriqué la source invalide ni la taille de 86 246 656 octets.
+- La cause est antérieure à l'entrée du helper, ou dans une écriture concurrente du descripteur avant sa lecture. Le callback de tracking reste à inspecter, mais le helper réutilise les valeurs sauvegardées pour l'appel memmove.
+- **Prochaine étape :** désassembler toute la plage guest `orbitalgame.dll RVA 0x1B5A8E00..0x1B5A9500` et le callback `orbitals-recomp.exe RVA 0x4AFCD0`; réconcilier les écritures +0/+8/+0x10 avec le contexte du crash et R13. Ne pas patcher memmove globalement.
+- Détails : [désassemblage natif et correspondance des registres](orbitals-startup-crash-analysis.md#25112026-native-ov_memcpy-body-verified-from-the-original-minidump).
 
 ### 6.2 Crash A : le Binned3 tente de libérer sa propre pile
 
