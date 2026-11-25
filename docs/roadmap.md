@@ -251,18 +251,17 @@ Cette section fait foi sur les conclusions les plus récentes et corrige les hyp
 - La PR #19 (fix/record-subtable-175dc04) ajoute un second garde indépendant à main+0x175dbec, validé contre le mot d'instruction original f9400008. Le fallback redirige la base nulle vers la page zéro ; il doit encore être validé dans le jeu.
 - Ne pas modifier TPIDR, l'allocation TLS ou le scheduler sur la seule base de ce crash : les éléments recueillis ne démontrent pas une panne de TLS.
 
-### 6.2a Crash memcpy : branche grande copie et producteurs guest identifiés (25/11/2026)
+### 6.2a Crash memcpy : l'index -3 sélectionne le record fautif (25/11/2026)
 
-- Le helper `+0x40CE0` reçoit un `Cpu *`, pas un descripteur autonome : il lit `Cpu.x0/x1/x2` aux offsets 0/+8/+0x10. `Cpu` est défini dans `runtime/cpu/cpu.h`.
-- `runtime/cpu/dispatch.c` appelle `f(c)` et `runtime/cpu/hostfn.c` appelle `s->fn(c)` avec le même pointeur `Cpu *`; le dispatcher ne fabrique pas de second contexte.
-- Le call-site dont le retour est `orbitalgame.dll+0x1B5A939F` passe par le chemin grande copie. `Cpu.x25=0x01490140`; le caller calcule `X2=X25*4=0x05240500` (86 246 656 octets), puis `cmp X2,0x40; ja +0x1B5A937E` contourne le bloc petit-copy qui aurait mis 4.
-- La source `Cpu.x1=0x01460149013D0140` vient du champ guest `[rcx+r8-0x10]`, sauvegardé à `[rbx-0xA0]`, puis recopié dans X1. Le code met ensuite ce champ à zéro.
-- Le compte utilisé pour la taille vient du champ adjacent `[rcx+r8-0x08]`, sauvegardé à `[rbx-0x98]`, rechargé en X25 puis multiplié par 4. Ces deux champs appartiennent au même objet guest; son type et son adresse effective restent à identifier.
-- Le helper natif lit X0/X1/X2 et transmet les valeurs sauvegardées à memmove. Le problème est donc déjà présent dans les arguments guest; ne pas patcher memcpy/memmove ni le dispatcher global.
-- L'ancienne hypothèse « contexte externe + descripteur interne » est retirée. La fenêtre de pile à `0x19AFFFF160` n'est pas prouvée comme une structure. Le calcul `(2-EDX)*0x38` à `+0x1B5A8FF0` n'est pas établi comme producteur de X25 sur le chemin observé.
-- **Prochaine étape :** retrouver les valeurs de RCX/R8 à `+0x1B5A8B51`, donc les adresses effectives des champs `[rcx+r8-0x10]` et `[rcx+r8-0x08]`; identifier l'objet propriétaire et pourquoi son champ pointeur contient `0x01460149013D0140`. Vérifier séparément la capacité de destination.
-- L'extracteur GitHub recherche désormais les occurrences exactes de la source, du compte et de la taille dans toute la mémoire capturée, et produit le désassemblage wrapper/caller.
-- Détails : [branche grande copie et chaîne source/compte](orbitals-startup-crash-analysis.md#25112026-decisive-correction-memcpy-arguments-are-cpux0-x2-large-copy-caller-path-found).
+- Le helper `+0x40CE0` reçoit le même `Cpu *` que le caller et lit `Cpu.x0/x1/x2`. `rt_dispatch(Cpu *c)` et `hostfn_entry(Cpu *c)` transmettent le pointeur `c` sans copie.
+- Le chemin crash est le large-copy branch : `X25=0x01490140`; `X2=X25*4=0x05240500` (86 246 656 octets); `ja 0x1B5A937E` contourne le petit-copy branch.
+- Source `X1=0x01460149013D0140` chargée depuis `[rcx+r8-0x10]`; count depuis `[rcx+r8-0x08]`. Le premier champ est sauvegardé en local puis remis à zéro; le second fournit le low dword utilisé pour X25.
+- **Lien direct avec l'objet -3 :** `Cpu.x27=0x0CE01F2C00`, `[x27+0xD0]=0`, `[x27+0xD8]=-3`. Le caller prend la base `x27+0x10`, applique `-3*0x40=-0xC0), puis sélectionne le record base `0x0CE01F2B10`.
+- Dans ce record, source `+0x30 = 0x0CE01F2B40`; count `+0x38 = 0x0CE01F2B48`. Le source field contenait `0x01460149013D0140` avant d'être effacé; le count low dword est `0x01490140`.
+- **Correction :** l'index -3 est directement impliqué, mais via une stride de `0x40`, pas le calcul indépendant `(2-EDX)*0x38` à `+0x1B5A8FF0`.
+- **Prochaine étape :** identifier le propriétaire et le producteur du record `0x0CE01F2B10), et comprendre pourquoi le slot sélectionné par -3 contient une valeur non-pointer dans son champ source et un count de `0x01490140`. Vérifier si l'index -3 est attendu, stale ou hors limites. Ne pas patcher memcpy/memmove.
+- L'extracteur GitHub dump maintenant le record dérivé, le count qword, les occurrences des valeurs fautives et les régions mémoire. La relance Actions est encore en file d'attente; aucun nouvel artefact de cette extraction n'est disponible à cet instant.
+- Détails : [index -3 et record source/count exact](orbitals-startup-crash-analysis.md#25112026-the-index--3-directly-selects-the-bad-sourcecount-record).
 
 ### 6.2 Crash A : le Binned3 tente de libérer sa propre pile
 
