@@ -539,7 +539,7 @@ NVN_API(nvnCommandBufferSetSamplerPool) { REC(cmd_of(c), OP_SET_SAMP_POOL, p_set
 // replay with what the copy reads (vk_exec_xfer.c). Orbitals fills its volumetric lightmap's indirection and brick
 // textures this way, several of them from one staging buffer in one frame, and the indirection reached the GPU holding
 // brick-like bytes (25/11/2026). A ring, written without a lock: approximate, for diagnosis only.
-int vk_trace_3d_on(void);   // vk_dump.c
+int vk_trace_3d_enabled(void);   // vk_dump.c
 #define B2T_RING 256
 static struct { uint64_t src; const void *tex; uint64_t hash, seq; uint32_t w[4]; } b2t_ring[B2T_RING];
 static volatile uint64_t b2t_seq;
@@ -570,7 +570,7 @@ NVN_API(nvnCommandBufferCopyBufferToTexture) {
     cmd_copy_view(&o->view, &o->has_view, arg_p(c, 3));
     o->r = *(const NVNcopyRegion *)arg_p(c, 4);
     o->flags = (int)arg_x(c, 5);
-    if (vk_trace_3d_on() && o->tex && o->tex->d.target == 2) {
+    if (vk_trace_3d_enabled() && o->tex && o->tex->d.target == 2) {
         uint64_t s = __atomic_add_fetch(&b2t_seq, 1, __ATOMIC_RELAXED);
         uint32_t i = (uint32_t)(s % B2T_RING);
         b2t_ring[i].src = o->src, b2t_ring[i].tex = o->tex, b2t_ring[i].seq = s;

@@ -192,7 +192,8 @@ void vk_dump_draw(VkExec *ex, const VkPipeState *s, VkPipeline p, const VkPipeIn
 void vk_dump_draw_after(VkExec *ex);     // after vkCmdDraw*: ORBITALS_DUMP_DRAWS copies after the actual draw
 void vk_dump_dispatch(VkExec *ex, const GfxShader *cs, VkPipeline p, const VkPipeInfo *info, const p_dispatch *d);
 void vk_trace_3d_writes(VkExec *ex, const GfxShader *cs, const VkPipeInfo *info, const p_dispatch *d);
-int vk_trace_3d_on(void);   // ORBITALS_TRACE_3D: log uploads, clears and copies into 3D textures (vk_dump.c)
+int vk_trace_3d_on(void);
+int vk_trace_3d_enabled(void);   // the same switch without counting a line   // ORBITALS_TRACE_3D: log uploads, clears and copies into 3D textures (vk_dump.c)
 void vk_dump_copy(VkExec *ex, uint32_t op, const void *payload);   // before a copy or texture clear is replayed
 void vk_dump_present(uint64_t frame);    // vk_be_present: waits for the dump frame's copies and closes the logs
 

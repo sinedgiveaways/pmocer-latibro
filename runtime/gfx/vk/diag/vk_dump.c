@@ -624,14 +624,18 @@ out:
     plat_mutex_unlock(&rec_lock);
 }
 
-// ORBITALS_TRACE_3D=1 also logs every upload, clear and copy into a 3D texture (vk_trace_3d_on gates them, at most 512
+// ORBITALS_TRACE_3D=1 also logs every upload, clear and copy into a 3D texture (vk_trace_3d_on gates them, at most 4096
 // lines): Orbitals' light grids (20x20x100 r32ui) read all ones on the GPU while their guest memory is zero, and no
 // pass of the dumped frame writes them (18/11/2026).
-int vk_trace_3d_on(void) {
+int vk_trace_3d_enabled(void) {   // the switch alone, no line counted (the record-time source hash, nvn_api_state.c)
     static int on = -1;
-    static volatile int32_t n;
     if (on < 0) on = cfg_get("ORBITALS_TRACE_3D") && atoi(cfg_get("ORBITALS_TRACE_3D"));
-    return on && plat_inc32(&n) <= 512;
+    return on;
+}
+
+int vk_trace_3d_on(void) {   // 4096 lines: Orbitals' level load alone makes over 100 copies into 3D textures
+    static volatile int32_t n;
+    return vk_trace_3d_enabled() && plat_inc32(&n) <= 4096;
 }
 
 // ORBITALS_TRACE_3D=1 (diagnosis): the first dispatch that writes each 3D storage image is logged with its frame, size,

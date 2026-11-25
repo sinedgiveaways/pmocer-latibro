@@ -579,12 +579,13 @@ static void copy_buffer_image(VkExec *ex, const p_copy_b2t *p, int to_image) {
     VkMemSpan m;
     if (!buffer_side(ex, &s, p->src, &size, &c, &m)) return;
     vk_mem_count(m.cls, to_image ? VK_MUSE_COPY_SRC : VK_MUSE_GPU_WRITE, size);
-    if (s.img->type == VK_IMAGE_TYPE_3D && vk_trace_3d_on())
+    int tr3d = s.img->type == VK_IMAGE_TYPE_3D && vk_trace_3d_on();
+    if (tr3d)
         rt_log("vk: frame %llu: copy %s 3D %#llx %ux%ux%u fmt %#x, buffer %#llx, %llu bytes, region %d,%d,%d %ux%ux%u",
                (unsigned long long)__atomic_load_n(&gfx_counters.frames, __ATOMIC_RELAXED), to_image ? "into" : "out of",
                (unsigned long long)(uintptr_t)p->tex->mem, p->tex->d.width, p->tex->d.height, p->tex->d.depth,
                p->tex->d.format, (unsigned long long)p->src, (unsigned long long)size, s.x, s.y, s.z, s.w, s.h, s.nz);
-    if (to_image && s.img->type == VK_IMAGE_TYPE_3D && vk_trace_3d_on()) {
+    if (to_image && tr3d) {
         // the source's first 4 KiB as the game recorded the copy and now, at its replay: a difference means the CPU
         // rewrote the staging buffer before the copy ran here (nvn_api_state.c nvn_copy_b2t_recorded)
         uint64_t rh = 0, nh;
