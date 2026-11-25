@@ -169,22 +169,29 @@ int vk_mem_changed(uint64_t addr, uint64_t size, uint32_t since, uint32_t *now) 
     return tracked ? changed : -1;
 }
 
-// Whether every page of [addr, addr+size) carries a CPU-origin stamp (cpu_gen_chunk) newer than since, after the write
-// watch of the range was read in. 0 for an empty range or one not tracked. A GPU write reported at its fence stamps
-// only gen_chunk, so it does not count (vk_tex_upload.c merge_cpu_writes: a level the CPU wrote whole).
-int vk_mem_cpu_rewrote_all(uint64_t addr, uint64_t size, uint32_t since) {
+// The pages of [addr, addr+size) that carry a CPU-origin stamp (cpu_gen_chunk) newer than since, after the write watch
+// of the range was read in; *pages gets the range's page count. 0 for an empty range or one not tracked. A GPU write
+// reported at its fence stamps only gen_chunk, so it does not count (vk_tex_upload.c merge_cpu_writes: a level the CPU
+// wrote whole; stale_note: how much of each level).
+uint64_t vk_mem_cpu_pages(uint64_t addr, uint64_t size, uint32_t since, uint64_t *pages) {
     uint32_t now;
-    if (!size || vk_mem_changed(addr, size, since, &now) != 1) return 0;
     uint64_t lo = addr & ~0xfffull, hi = (addr + size + 0xfff) & ~0xfffull;
+    *pages = size ? (hi - lo) >> GEN_PAGE_SHIFT : 0;
+    if (!size || vk_mem_changed(addr, size, since, &now) != 1) return 0;
     gen_lock_x();
-    int all = 1;
-    for (uint64_t a = lo; a < hi && all; a += 1ull << GEN_PAGE_SHIFT) {
+    uint64_t n = 0;
+    for (uint64_t a = lo; a < hi; a += 1ull << GEN_PAGE_SHIFT) {
         uint64_t ci = a >> GEN_CHUNK_SHIFT;
         const uint32_t *c = ci < GEN_CHUNKS ? cpu_gen_chunk[ci] : NULL;
-        all = c && c[(a >> GEN_PAGE_SHIFT) & (GEN_PER_CHUNK - 1)] > since;
+        n += c && c[(a >> GEN_PAGE_SHIFT) & (GEN_PER_CHUNK - 1)] > since;
     }
     plat_mutex_unlock(&gen_lock);
-    return all;
+    return n;
+}
+
+int vk_mem_cpu_rewrote_all(uint64_t addr, uint64_t size, uint32_t since) {
+    uint64_t pages, n = vk_mem_cpu_pages(addr, size, since, &pages);
+    return pages && n == pages;
 }
 
 // Write-watch snapshots per submission: the guest address space in 2 MiB regions, each queried at most once per epoch

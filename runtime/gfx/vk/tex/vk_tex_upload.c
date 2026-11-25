@@ -431,34 +431,46 @@ static int same_storage(Tex *e) {
     return 0;
 }
 
-// ORBITALS_TRACE_STALE=1 (diagnosis): a mirrored texture the GPU wrote is not uploaded again (make_fresh), whatever the
-// CPU writes to its storage afterwards. Logs, once per entry, a draw-bound one whose storage the game rewrote after its
-// newest GPU write (the write-back's own writes not counted): those CPU bytes never reach the image. The mask: which
-// sixteenths of the storage were rewritten (bit 0 the start: level 0 of a mip chain, layer 0). Hypothesis it tests: the
-// colony's multicoloured blocks (BC material textures, nearly all GPU-owned in the 4500 dump of recomp41) are mips
-// that Unreal's streaming writes with the CPU after copying the old mips on the GPU (25/11/2026).
+// ORBITALS_TRACE_STALE=1 (diagnosis): a draw-bound mirrored texture the GPU wrote whose storage the game rewrote since
+// (the write-back's own writes not counted), before merge_cpu_writes looks at it: per level (all layers), the pages
+// with a CPU-origin stamp against the level's pages. A level with some but not all is one the merge skips. Only those
+// events are logged (all: also the whole ones), up to 4 per entry and 400 in all. The first form (b978be8, logs26)
+// found the streamed mips the colony's sofa lacked; this one asks whether the speckled asteroid outside the colony's
+// window (logs28) is a mip the CPU rewrote in part (25/11/2026).
 void stale_note(Tex *e) {
     static int on = -1;
     static volatile int32_t n_logged;
-    if (on < 0) on = cfg_get("ORBITALS_TRACE_STALE") && atoi(cfg_get("ORBITALS_TRACE_STALE")) != 0;
-    if (!on || e->stale_noted || !e->t.L.size) return;
+    if (on < 0) on = cfg_get("ORBITALS_TRACE_STALE") ? atoi(cfg_get("ORBITALS_TRACE_STALE")) : 0;
+    if (!on || e->stale_noted >= 4 || !e->t.L.size || __atomic_load_n(&n_logged, __ATOMIC_RELAXED) > 400) return;
     uint32_t now;
     if (storage_rewritten(e, e->gpu_gen, &now) != 1) return;
-    e->stale_noted = 1;
-    if (plat_inc32(&n_logged) > 400) return;
-    uint64_t size = e->t.L.size, part = (size + 15) / 16;
-    unsigned mask = 0;
-    for (int k = 0; k < 16 && (uint64_t)k * part < size; k++) {
-        uint64_t a = e->pub.addr + (uint64_t)k * part, n = size - (uint64_t)k * part < part ? size - (uint64_t)k * part : part;
-        if (vk_mem_changed(a, n, e->gpu_gen, &now) == 1) mask |= 1u << k;
-    }
     const nvn_texdesc *d = &e->t.d;
-    rt_log("vk: frame %llu: stale GPU-owned texture %#llx %ux%ux%u fmt %#x levels %u layers %u, %llu bytes: the CPU "
-           "rewrote its storage after the GPU wrote it (mask %04x of sixteenths), uploads %u, gpu_dirty %d, GPU writer "
-           "build/orbitals-recomp+%#llx, wt %u",
+    int linear = nvn_tex_is_linear(d), is3d = d->target == NVN_TEXTURE_TARGET_3D;
+    unsigned nl = linear ? 1 : e->pub.levels + e->pub.drop, layers = linear || is3d ? 1 : e->pub.layers;
+    if (nl > 16) nl = 16;
+    uint64_t lsz = layers > 1 && e->t.L.layer_size ? e->t.L.layer_size : e->t.L.size, off[17];
+    for (unsigned lv = 0; lv < nl; lv++) off[lv] = linear ? 0 : nvn_tex_level_offset(d, lv);
+    off[nl] = lsz;
+    char lvs[400];
+    int k = 0, partial = 0, any = 0;
+    for (unsigned lv = 0; lv < nl && k < (int)sizeof lvs - 40; lv++) {
+        uint64_t n = 0, pages = 0;
+        for (unsigned ly = 0; ly < layers; ly++) {
+            uint64_t a = e->pub.addr + ly * lsz + off[lv], b = e->pub.addr + ly * lsz + off[lv + 1], p;
+            if (b > a) n += vk_mem_cpu_pages(a, b - a, e->gpu_gen, &p), pages += p;
+        }
+        any |= n > 0;
+        partial |= n > 0 && n < pages && pages > 1;
+        k += snprintf(lvs + k, sizeof lvs - (size_t)k, " %u:%llu/%llu", lv, (unsigned long long)n, (unsigned long long)pages);
+    }
+    if (!any || (!partial && on < 2)) return;
+    e->stale_noted++;
+    plat_inc32(&n_logged);
+    rt_log("vk: frame %llu: stale GPU-owned texture %#llx %ux%ux%u fmt %#x levels %u layers %u, %llu bytes%s: CPU pages "
+           "per level%s; uploads %u, gpu_dirty %d, GPU writer build/orbitals-recomp+%#llx, wt %u",
            (unsigned long long)__atomic_load_n(&gfx_counters.frames, __ATOMIC_RELAXED), (unsigned long long)e->pub.addr,
-           d->width, d->height, d->depth, d->format, e->pub.levels, e->pub.layers, (unsigned long long)size, mask, e->n_up,
-           e->gpu_dirty, (unsigned long long)e->gpu_caller, e->wt_n);
+           d->width, d->height, d->depth, d->format, e->pub.levels, e->pub.layers, (unsigned long long)e->t.L.size,
+           partial ? ", PARTIAL" : "", lvs, e->n_up, e->gpu_dirty, (unsigned long long)e->gpu_caller, e->wt_n);
 }
 
 // A mirrored texture the GPU wrote keeps its content in the image, and make_fresh no longer uploads it. Unreal's mip

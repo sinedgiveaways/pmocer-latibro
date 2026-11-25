@@ -326,6 +326,7 @@ uint64_t vk_mem_gen(void);
 int vk_mem_changed(uint64_t addr, uint64_t size, uint32_t since, uint32_t *now);
 // Every page of the range written by the CPU (not a GPU write reported at its fence) after generation since.
 int vk_mem_cpu_rewrote_all(uint64_t addr, uint64_t size, uint32_t since);
+uint64_t vk_mem_cpu_pages(uint64_t addr, uint64_t size, uint32_t since, uint64_t *pages);   // how many of its pages
 // The same answer from per-epoch write-watch snapshots of 2 MiB regions: no system call once the regions were queried in
 // this epoch (a guest submission). For checks that may see writes made during the epoch one epoch late.
 int vk_mem_changed_snap(uint64_t addr, uint64_t size, uint32_t since, uint32_t epoch, uint32_t *now);

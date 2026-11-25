@@ -48,7 +48,7 @@ typedef struct Tex {
     uint64_t wseq;                // order of the newest content its image got (GPU write, storage binding, upload or
                                   // alias copy) among every entry's (tex_wseq): the newest of a storage's aliases wins
     uint8_t gpu_src;              // that content came from the GPU (alias_wrote), not from the storage's bytes (upload)
-    uint8_t stale_noted;          // ORBITALS_TRACE_STALE logged it (vk_tex_upload.c stale_note)
+    uint8_t stale_noted;          // ORBITALS_TRACE_STALE lines about it (vk_tex_upload.c stale_note)
     uintptr_t gpu_caller;         // the replay function of its newest GPU write, an offset in the executable
 } Tex;
 
