@@ -327,3 +327,6 @@ Cette section fait foi sur les conclusions les plus récentes et corrige les hyp
   l'exécution ne connaissait pas (store perdu). Corrigé dans le traducteur (docs/shaders.md, 25/11/2026). Les deux
   gardes de records restent comme protection. Les sondes (`ORBITALS_TRACE_READBACK`, `ORBITALS_TRACE_CS`) restent
   jusqu'à la confirmation en jeu.
+- **Confirmé en jeu (25/11/2026, build `3d49420`):** 4 parties jusqu'au niveau, fermées normalement, aucun crash. Les 96
+  lectures du tampon de relecture donnent un compte de 2 et les paires `{0,3} {1,3}` (avant: compte aléatoire à chaque
+  lecture). Aucun programme sans SPIR-V dans ces parties.
