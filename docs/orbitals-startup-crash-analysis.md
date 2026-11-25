@@ -760,51 +760,26 @@ Resolved: the missing caller window has been obtained from the GitHub release; t
 Remaining: obtain a trustworthy exception CONTEXT for the failing thread and correlate its EDX, RSI, R8/R9, and stack to the branch at `0x7FFA5FF18FD7`. Then read the memory at `[RSI+0xD8]` and the resulting table entry at the computed signed offset. The first exception-context extractor revision used the wrong field within the context-location descriptor and was corrected; its follow-up run is `45475825616`. Until that run succeeds and yields validated context bytes, do not claim a runtime value for EDX or propose a patch.
 
 
-## 24/11/2026 correction: exact memcpy arguments at the crashing call site
+## 24/11/2026 correction: the size-4 block is a different branch, not this crash path
 
-The complete 4-KiB host-code window extracted from the original minidump has now been inspected at the actual call return address `orbitalgame.dll+0x1B5A939F` (call instruction at RVA `0x1B5A939A`). This corrects the earlier interpretation of the stack qword window at `0x19AFFFF160`: that window was not proven to be the three-argument block for this call, and its first three qwords must **not** be reported as the actual memcpy destination/source/size.
-
-### Exact producer sequence
-
-At the call site (module VA based on dump ImageBase `0x7FFA44970000`):
+The 4-KiB caller window contains a small-copy path immediately before the common call at RVA `0x1B5A939A`:
 
 ```asm
-1B5A9347  mov  rdx, [rsi+0xD0]     ; save old D0 in RDX
-1B5A934E  mov  r9,  [rsi+0xE0]
-1B5A9355  mov  [rsi+0xD0], r9     ; update D0, RDX still holds old D0
-1B5A935C  and  r13, 4             ; length becomes exactly 0 or 4
-1B5A9362  mov  rax, [rsi+0xD8]
-1B5A9369  mov  r9,  [rsi+0xC8]
+1B5A935C  and  r13, 4
+1B5A9360  je   1B5A93A7
+1B5A9369  mov  r9, [rsi+0xC8]
 1B5A9370  add  r9, rax
-1B5A9373  mov  [rsi+0x08], r9     ; source = C8 + D8
-1B5A9377  mov  [rsi+0x10], r13    ; size = (old R13 & 4)
-1B5A937B  add  rdx, rax
-1B5A938C  mov  [rsi], rdx         ; destination = old D0 + D8
-1B5A9397  mov  rcx, rsi
-1B5A939A  call orbitalgame.dll+0x1C11DF00
-1B5A939F  ...                    ; return address recorded in crash
+1B5A9373  mov  [rsi+0x08], r9
+1B5A9377  mov  [rsi+0x10], r13
+1B5A938C  mov  [rsi], rdx
+1B5A939A  call memcpy_wrapper
 ```
 
-Therefore, for this specific failing call, the caller-side argument expressions are:
+That block can prepare a size of 4, but it is **not** the path taken by the observed 86-MiB copy. The large-copy path branches from `0x1B5A8EDE` directly to `0x1B5A937E`, bypassing the `R13 & 4` block. The call at `0x1B5A939A` is a common join and its return address alone does not distinguish the paths.
 
-- destination = **old** `[RSI+0xD0]` + `[RSI+0xD8]`
-- source = `[RSI+0xC8]` + `[RSI+0xD8]`
-- size = `R13 & 4` (only 0 or 4)
+The actual path is established by the runtime value: `Cpu.x25=0x01490140`, `Cpu.x2=0x05240500`, and `x25*4=x2`. Since `0x05240500 > 0x40`, the branch `ja 0x1B5A937E` is taken. The full producer chain is in the 25/11 decisive correction below.
 
-The `[RSI+0xD0]` value used for destination is read into RDX before the subsequent write replaces `[RSI+0xD0]` with `[RSI+0xE0]`. This ordering matters.
-
-### Consequences / corrected conclusions
-
-1. The previously inferred `0x01460149013D0140`, `0x05240500`, `0x05240500` triple from the stack window at `0x19AFFFF160` is **not established as this call's argument triple**. The earlier assertion that descriptor `0x1C92EAB0540+0x40` directly supplies the failing destination is withdrawn pending a dataflow proof.
-2. The `0x298` value is not the size argument at this particular call site. The static caller code computes the size from `R13 & 4`.
-3. The `0x38` index calculation at RVA `0x1B5A8FF0` is a separate earlier path in the same function window; it must not be conflated with the argument construction at `0x1B5A939A`.
-
-### What remains to finish the root cause
-
-The remaining task is now sharply bounded: recover the crash-time values of `RSI+0xC8`, `RSI+0xD0` (before overwrite), `RSI+0xD8`, and `R13`, or reconstruct them from the saved caller frame. Then calculate the exact destination/source and validate the two address ranges against captured minidump memory. If the length is 0, the reported invalid read may instead come from a different call or from the helper's argument/context interpretation; if it is 4, inspect those exact 4-byte ranges. Do not patch the descriptor field or the generic memcpy override based on the earlier, now-withdrawn qword mapping.
-
-The original dump's exception stream/context extraction is being published as a separate artifact; the previous attempt's artifact upload path was wrong, so the run's extraction step completed but its output was not attached. The workflow path has since been corrected.
-
+The earlier `(2-EDX)*0x38` calculation at `0x1B5A8FF0` is not established as the producer of this copy's X25. On the confirmed path, X25 is loaded from `[rbx-0x98]`, which was populated from the adjacent guest-object field `[rcx+r8-0x08]`. Do not use the small-copy formula or the 0x38 calculation to patch this crash.
 
 ## 24/11/2026: crash-time CPU argument registers recovered from the real minidump
 
