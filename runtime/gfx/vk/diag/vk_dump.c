@@ -864,6 +864,19 @@ static void open_dir(const char *d) {
     if (!passes_f || !images_f) rt_fatal("vk_dump: cannot write to %s", dump_dir);
 }
 
+// ORBITALS_DUMP_FS's list ("H,H", hex SPIR-V hashes as passes.txt prints them), up to a space or the end.
+static void set_want_fs(const char *q) {
+    nwant_fs = fs_after_left = 0;
+    while (q && *q && nwant_fs < 16) {
+        char *end;
+        uint64_t h = strtoull(q, &end, 16);
+        if (end == q) break;
+        want_fs[nwant_fs++] = h;
+        if (*end != ',') break;
+        q = end + 1;
+    }
+}
+
 // ORBITALS_CTL (ctl.c): dumps the next frame into d (ubo: ORBITALS_DUMP_UBO; luts: only the sampled 3D volumes and small
 // textures, a few MB instead of hundreds). 0 while an earlier dump is not written yet.
 // from..to and runs are ORBITALS_DUMP_PASSES and ORBITALS_DUMP_SKIP_RUNS for a dump asked of a running game, which reads
@@ -871,12 +884,17 @@ static void open_dir(const char *d) {
 // colony's translucent passes (its fires, 25/11/2026) were logged without images; a range gives them. The range is set
 // here, only when the dump is armed: set before the busy check, a refused second command replaced the range of the dump
 // still pending (logs31: "passes 505-545", refused, made dump_feu2 skip its 470-504).
-int vk_dump_rearm(const char *d, int ubo, int luts, int log_n, int from, int to, int runs) {
+// Pass numbers move by dozens from one frame to the next as the shadowed lights in view change (logs32: the colony's
+// left-view post-process at 517-520 in one frame, 535-538 in the next, both outside the ranges asked), so fs and after
+// pick the passes by what they draw instead: the fire's and the smoke's shaders, and the post-process after them.
+int vk_dump_rearm(const char *d, int ubo, int luts, int log_n, int from, int to, int runs, const char *fs, int after) {
     plat_mutex_lock(&rec_lock);
     int busy = passes_f != NULL;
     if (!busy) {
         if (from < 0 || to < from) from = 0, to = -1;
         pass_from = from, pass_to = to, skip_runs = runs;
+        set_want_fs(fs);
+        fs_after = after > 0 ? after : 0;
         open_dir(d);
         seq = copied = nluts = nluts_done = stat_n = 0, stat_open = -1, png_bytes = 0;
         draws_reset();
@@ -919,15 +937,7 @@ void vk_dump_init(void) {
         pass_to = *q == '-' ? (int)strtol(q + 1, NULL, 10) : pass_from;
         if (pass_from < 0 || pass_to < pass_from) pass_from = 0, pass_to = -1;
     }
-    const char *df = cfg_get("ORBITALS_DUMP_FS");
-    for (const char *q = df; q && *q && nwant_fs < 16;) {
-        char *end;
-        uint64_t h = strtoull(q, &end, 16);
-        if (end == q) break;
-        want_fs[nwant_fs++] = h;
-        q = *end == ',' ? end + 1 : end;
-        if (*end != ',') break;
-    }
+    set_want_fs(cfg_get("ORBITALS_DUMP_FS"));
     const char *dfa = cfg_get("ORBITALS_DUMP_FS_AFTER");
     if (dfa && *dfa) fs_after = atoi(dfa);
     const char *du = cfg_get("ORBITALS_DUMP_UBO");
