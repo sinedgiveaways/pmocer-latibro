@@ -296,6 +296,7 @@ void vk_texture_gpu_written(const tex_t *t) {
     if (e) {
         make_fresh(e);   // a partial render keeps what the storage held before
         e->pub.gpu_owned = 1;
+        e->gpu_caller = (uintptr_t)__builtin_return_address(0) - plat_exe_base();
         alias_wrote(e);
         uint64_t f = vk_exec_recording_fence();
         if (f > e->wr_fence) e->wr_fence = f;

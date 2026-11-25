@@ -48,6 +48,8 @@ typedef struct Tex {
     uint64_t wseq;                // order of the newest content its image got (GPU write, storage binding, upload or
                                   // alias copy) among every entry's (tex_wseq): the newest of a storage's aliases wins
     uint8_t gpu_src;              // that content came from the GPU (alias_wrote), not from the storage's bytes (upload)
+    uint8_t stale_noted;          // ORBITALS_TRACE_STALE logged it (vk_tex_upload.c stale_note)
+    uintptr_t gpu_caller;         // the replay function of its newest GPU write, an offset in the executable
 } Tex;
 
 // A slot keeps what vk_texture_by_id resolved for it, so a draw binding skips the key lookup and the address chain: the
@@ -134,6 +136,7 @@ void make_fresh_snap(Tex *e);
 void expand_rgb(int format, const uint8_t *src, uint8_t *dst, size_t n);
 void shrink_rgb(int format, const uint8_t *src, uint8_t *dst, size_t n);
 int storage_rewritten(const Tex *e, uint32_t since, uint32_t *now);
+void stale_note(Tex *e);   // ORBITALS_TRACE_STALE (diagnosis)
 extern uint64_t trace_addr;
 int tracing(uint64_t addr);
 

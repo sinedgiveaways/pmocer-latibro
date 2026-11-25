@@ -264,6 +264,9 @@ static void write_back(Tex *e) {
             free(buf);
         }
     e->gpu_dirty = 0;
+    // the write-back is a write to the storage too: gpu_gen past it, so that stale_note sees only the game's writes
+    // (gpu_gen is read only while gpu_dirty is set, which a new GPU write sets with a new gpu_gen)
+    storage_rewritten(e, 0, &e->gpu_gen);
 }
 
 // Mirrored textures overlapping [addr, addr+size) that the GPU wrote since their last write-back.

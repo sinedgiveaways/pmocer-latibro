@@ -431,6 +431,36 @@ static int same_storage(Tex *e) {
     return 0;
 }
 
+// ORBITALS_TRACE_STALE=1 (diagnosis): a mirrored texture the GPU wrote is not uploaded again (make_fresh), whatever the
+// CPU writes to its storage afterwards. Logs, once per entry, a draw-bound one whose storage the game rewrote after its
+// newest GPU write (the write-back's own writes not counted): those CPU bytes never reach the image. The mask: which
+// sixteenths of the storage were rewritten (bit 0 the start: level 0 of a mip chain, layer 0). Hypothesis it tests: the
+// colony's multicoloured blocks (BC material textures, nearly all GPU-owned in the 4500 dump of recomp41) are mips
+// that Unreal's streaming writes with the CPU after copying the old mips on the GPU (25/11/2026).
+void stale_note(Tex *e) {
+    static int on = -1;
+    static volatile int32_t n_logged;
+    if (on < 0) on = cfg_get("ORBITALS_TRACE_STALE") && atoi(cfg_get("ORBITALS_TRACE_STALE")) != 0;
+    if (!on || e->stale_noted || !e->t.L.size) return;
+    uint32_t now;
+    if (storage_rewritten(e, e->gpu_gen, &now) != 1) return;
+    e->stale_noted = 1;
+    if (plat_inc32(&n_logged) > 400) return;
+    uint64_t size = e->t.L.size, part = (size + 15) / 16;
+    unsigned mask = 0;
+    for (int k = 0; k < 16 && (uint64_t)k * part < size; k++) {
+        uint64_t a = e->pub.addr + (uint64_t)k * part, n = size - (uint64_t)k * part < part ? size - (uint64_t)k * part : part;
+        if (vk_mem_changed(a, n, e->gpu_gen, &now) == 1) mask |= 1u << k;
+    }
+    const nvn_texdesc *d = &e->t.d;
+    rt_log("vk: frame %llu: stale GPU-owned texture %#llx %ux%ux%u fmt %#x levels %u layers %u, %llu bytes: the CPU "
+           "rewrote its storage after the GPU wrote it (mask %04x of sixteenths), uploads %u, gpu_dirty %d, GPU writer "
+           "build/orbitals-recomp+%#llx, wt %u",
+           (unsigned long long)__atomic_load_n(&gfx_counters.frames, __ATOMIC_RELAXED), (unsigned long long)e->pub.addr,
+           d->width, d->height, d->depth, d->format, e->pub.levels, e->pub.layers, (unsigned long long)size, mask, e->n_up,
+           e->gpu_dirty, (unsigned long long)e->gpu_caller, e->wt_n);
+}
+
 // A mirrored texture is uploaded on first use and again when its storage pages carry a newer write generation.
 void make_fresh(Tex *e) {
     if (!e->pub.mirrored || e->pub.gpu_owned) return;
@@ -453,6 +483,7 @@ void make_fresh(Tex *e) {
 // vk_mem_changed_snap) instead of a system call per texture. A write the snapshot of the texture's region missed (made
 // after it, during this replay) keeps its write-watch bit and is caught by the next submission's snapshot.
 void make_fresh_snap(Tex *e) {
+    if (e->pub.mirrored && e->pub.gpu_owned) stale_note(e);
     if (!e->pub.mirrored || e->pub.gpu_owned) return;
     uint32_t now;
     n_checks++;
