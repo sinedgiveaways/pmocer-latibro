@@ -120,7 +120,7 @@ PINS = {
 # every tool it names is here: until 13/11/2026 none was, and the page failed with "no setup tools" in every package)
 SOURCES = ["recomp", "sm86", "tools/build/build.py", "tools/prepare", "tools/mod",
            "tools/i18n/catalog.py", "tools/i18n/game_texts.py",
-           "tools/shaders/extract.py", "tools/shaders/translate.py", "tools/shaders/shaderc_lib.py",
+           "tools/shaders/extract.py", "tools/shaders/iostore.py", "tools/shaders/translate.py", "tools/shaders/shaderc_lib.py",
            # a game this port has no version row for: its spin loops and NVN2 proc table, found at setup
            "tools/cpu/spin_waits.py", "tools/gpu/nvn2_procs.py",
            "runtime/cpu",
