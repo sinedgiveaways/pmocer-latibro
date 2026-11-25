@@ -461,51 +461,38 @@ void stale_note(Tex *e) {
            e->gpu_dirty, (unsigned long long)e->gpu_caller, e->wt_n);
 }
 
-// Whether the CPU wrote the pages wholly inside [a, b) after generation since; 0 for a range within one page (it may
-// share that page with other data: 1x1 textures and the small mips of a chain, 197 of the 262 stale_note lines of
-// logs26 had their whole storage "rewritten" this way or by the write-back).
-static int inner_rewritten(uint64_t a, uint64_t b, uint32_t since) {
-    uint64_t lo = (a + 0xfff) & ~0xfffull, hi = b & ~0xfffull;
-    uint32_t now;
-    return hi > lo && vk_mem_changed(lo, hi - lo, since, &now) == 1;
-}
-
 // A mirrored texture the GPU wrote keeps its content in the image, and make_fresh no longer uploads it. Unreal's mip
 // streaming on NVN writes a texture with both: a GPU copy of the mips the old texture had, and CPU writes of the new
-// ones into the storage, in either order. Dropped, the CPU's mips kept the image's stale bytes: the colony's sofa, tree
-// and props in multicoloured blocks (ORBITALS_TRACE_STALE, logs26 of 25/11/2026: 262 sampled textures, nearly all BC
-// mip chains written by one copy, the storage rewritten from its start, the large mips, 0fff to ffff of sixteenths).
-// So each level (and layer) whose own pages the CPU wrote since the GPU write goes into the image from the storage,
-// the others keep the GPU's texels. Written back since (gpu_dirty 0), the storage holds the GPU's texels too, and the
-// whole of it is uploaded. gpu_gen then moves past those writes: a later write-back sends the merged image back.
-// Without a write watch (vk_mem_changed -1) the image stays as the GPU left it, as before.
+// ones into the storage. Dropped, the CPU's mips kept the image's stale bytes: the colony's sofa, tree and props in
+// multicoloured blocks (ORBITALS_TRACE_STALE, logs26 of 25/11/2026: 262 sampled textures, nearly all BC mip chains
+// written by one copy, the storage rewritten from its start: mask 0fff of a 2048x2048 BC1 is exactly its level 0).
+// So a level (and layer) of a mip chain whose every page the CPU wrote since the GPU write goes into the image from
+// the storage; the others keep the GPU's texels. Narrower than "a page changed": with that, any texture (the
+// volumetric lightmap's single-level brick atlases among them) took stale storage over its GPU content and the colony's
+// ceiling turned to big saturated blocks (logs27). A write-back of GPU bytes stamps pages too, a streamed mip is
+// written whole, and the 262 were all chains. gpu_gen then moves past those writes. Without a write watch nothing is
+// merged, as before.
 static void merge_cpu_writes(Tex *e) {
     static volatile int32_t n_log;
-    uint32_t now;
-    if (!e->uploaded || !e->t.mem || !e->t.L.size) return;
-    if (storage_rewritten(e, e->gpu_gen, &now) != 1) return;
     const nvn_texdesc *d = &e->t.d;
-    if (!e->gpu_dirty) {
-        upload(e);
-        log_limited(&n_log, "texture %#llx %ux%u fmt %#x: the CPU rewrote its storage after the GPU wrote it and the "
-                    "GPU content was written back: uploaded again", (unsigned long long)e->pub.addr, d->width, d->height,
-                    d->format);
-        storage_rewritten(e, 0, &e->gpu_gen);
-        return;
-    }
-    int linear = nvn_tex_is_linear(d), is3d = d->target == NVN_TEXTURE_TARGET_3D;
-    unsigned nl = linear ? 1 : e->pub.levels + e->pub.drop, layers = linear || is3d ? 1 : e->pub.layers;
+    if (!e->uploaded || !e->t.mem || !e->t.L.size || e->pub.levels < 2 || nvn_tex_is_linear(d)) return;
+    uint32_t now;
+    if (storage_rewritten(e, e->gpu_gen, &now) != 1) return;
+    int is3d = d->target == NVN_TEXTURE_TARGET_3D;
+    unsigned nl = e->pub.levels + e->pub.drop, layers = is3d ? 1 : e->pub.layers;
     uint64_t lsz = layers > 1 && e->t.L.layer_size ? e->t.L.layer_size : e->t.L.size;
     uint64_t off[17];
     if (nl > 16) nl = 16;
-    for (unsigned lv = 0; lv < nl; lv++) off[lv] = linear ? 0 : nvn_tex_level_offset(d, lv);
+    for (unsigned lv = 0; lv < nl; lv++) off[lv] = nvn_tex_level_offset(d, lv);
     off[nl] = lsz;
     unsigned merged = 0, total = 0;
     for (unsigned ly = 0; ly < layers; ly++)
         for (unsigned lv = e->pub.drop; lv < nl; lv++) {
             uint64_t a = e->pub.addr + ly * lsz + off[lv], b = e->pub.addr + ly * lsz + off[lv + 1];
             total++;
-            if (b <= a || !inner_rewritten(a, b, e->gpu_gen)) continue;
+            // whole pages only: a level within one page shares it with other data (the chain's small mips)
+            uint64_t pa = (a + 0xfff) & ~0xfffull, pb = b & ~0xfffull;
+            if (pb <= pa || !vk_mem_cpu_rewrote_all(a, b - a, e->gpu_gen)) continue;
             view_t v = {.set_levels = 1, .set_layers = 1, .base_level = (uint8_t)lv, .min_layer = (uint16_t)ly};
             NVNcopyRegion r = {.width = (int)(d->width >> lv ? d->width >> lv : 1),
                                .height = d->target == 0 || d->target == 3 ? 1 : (int)(d->height >> lv ? d->height >> lv : 1),
@@ -519,9 +506,9 @@ static void merge_cpu_writes(Tex *e) {
         }
     storage_rewritten(e, 0, &e->gpu_gen);
     if (merged)
-        log_limited(&n_log, "texture %#llx %ux%u fmt %#x: the CPU rewrote %u of its %u levels x layers after the GPU "
-                    "wrote it: those taken from the storage", (unsigned long long)e->pub.addr, d->width, d->height,
-                    d->format, merged, total);
+        log_limited(&n_log, "texture %#llx %ux%u fmt %#x levels %u: the CPU rewrote %u of its %u levels x layers after "
+                    "the GPU wrote it: those taken from the storage", (unsigned long long)e->pub.addr, d->width,
+                    d->height, d->format, e->pub.levels, merged, total);
 }
 
 // A mirrored texture is uploaded on first use and again when its storage pages carry a newer write generation.

@@ -201,8 +201,11 @@ sampled textures whose storage the CPU rewrote after the GPU wrote them: BC mip 
 to 12 levels) written by one copy (`build/orbitals-recomp+0xd821f`), the storage rewritten from its start. Mask `0fff`
 of a 2048x2048 BC1 is exactly its level 0 (0x200000 of 0x2ab400 bytes): Unreal's mip streaming copies the old mips on
 the GPU and writes the new large mip with the CPU, which the runtime dropped for a GPU-owned texture. Fixed in
-`vk_tex_upload.c merge_cpu_writes`: each level and layer whose own pages the CPU wrote since the GPU write goes into
-the image from the storage. **Next:** a run into the colony: the sofa, the tree and the props without blocks.
+`vk_tex_upload.c merge_cpu_writes` (`93b106b`): the sofa, the tree and the props were clean in logs27. But that first
+rule (any level with a changed page) also took stale storage over GPU-written single-level textures, and the
+ceiling turned to big saturated blocks, likely the volumetric lightmap's brick atlases. Narrowed: only mip chains, and
+only a level whose every page carries a CPU-origin stamp since the GPU write (`vk_mem_cpu_rewrote_all`).
+**Next:** a run into the colony: sofa, tree, props and ceiling without blocks.
 
 ### 1.2 A crash after the logos in about one run in three
 
