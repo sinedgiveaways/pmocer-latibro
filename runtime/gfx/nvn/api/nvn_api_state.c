@@ -120,8 +120,66 @@ NVN_API(nvnCommandBufferSetRenderEnableConditional) {
     r->addr = arg_x(c, 2);
 }
 // void nvnCommandBufferBindProgram(NVNcommandBuffer *cmd, const NVNprogram *program, int stages)
+// ---- per command buffer: the compute program bound last and the last dispatches (nvn_cmd_dispatches). A small table
+// replaced round robin; the game records on a few threads, so under a lock. Diagnosis only (the readback probe).
+#define DH_CMDS 64
+typedef struct { const cmd_t *cmd; const prog_t *cs; NvnDispRec d[NVN_DISP_HIST]; int n; } DispHist;
+static DispHist dh[DH_CMDS];
+static int dh_next;
+static PlatMutex dh_lock = PLAT_MUTEX_INIT;
+
+static DispHist *dh_of(const cmd_t *o) {   // dh_lock held
+    for (int i = 0; i < DH_CMDS; i++)
+        if (dh[i].cmd == o) return &dh[i];
+    DispHist *h = &dh[dh_next++ % DH_CMDS];
+    memset(h, 0, sizeof *h);
+    h->cmd = o;
+    return h;
+}
+
+static uint64_t cs_key8(const prog_t *p) {
+    for (uint32_t i = 0; p && i < p->nstage && i < 6; i++) {
+        const uint8_t *ctl = (const uint8_t *)(uintptr_t)p->sd[i].control, *code = (const uint8_t *)(uintptr_t)p->sd[i].data;
+        if (!ctl || !code || nvn2_program_stage(ctl, code) != NVN_SHADER_STAGE_COMPUTE) continue;
+        uint8_t k[32];
+        nvn2_program_key(ctl, code, k);
+        uint64_t v = 0;
+        for (int j = 0; j < 8; j++) v = v << 8 | k[j];
+        return v;
+    }
+    return 0;
+}
+
+static void dh_dispatch(const cmd_t *o, int x, int y, int z, int ind, uint64_t lr) {
+    plat_mutex_lock(&dh_lock);
+    DispHist *h = dh_of(o);
+    memmove(&h->d[1], &h->d[0], sizeof h->d[0] * (NVN_DISP_HIST - 1));
+    h->d[0] = (NvnDispRec){0, lr, x, y, z, ind};
+    h->d[0].key = cs_key8(h->cs);
+    if (h->n < NVN_DISP_HIST) h->n++;
+    plat_mutex_unlock(&dh_lock);
+}
+
+int nvn_cmd_dispatches(const cmd_t *o, NvnDispRec *out, int max) {
+    plat_mutex_lock(&dh_lock);
+    int n = 0;
+    for (int i = 0; i < DH_CMDS; i++)
+        if (dh[i].cmd == o) {
+            n = dh[i].n < max ? dh[i].n : max;
+            memcpy(out, dh[i].d, sizeof *out * (size_t)n);
+            break;
+        }
+    plat_mutex_unlock(&dh_lock);
+    return n;
+}
+
 NVN_API(nvnCommandBufferBindProgram) {
     *REC(cmd_of(c), OP_BIND_PROGRAM, p_bind_program) = (p_bind_program){arg_p(c, 1), (int)arg_x(c, 2)};
+    if (arg_x(c, 2) & NVN_SHADER_STAGE_COMPUTE_BIT) {
+        plat_mutex_lock(&dh_lock);
+        dh_of(cmd_of(c))->cs = arg_p(c, 1);
+        plat_mutex_unlock(&dh_lock);
+    }
     static volatile int32_t seen;   // the stage masks the game binds with (vk_exec_ops.c bind_program)
     if (plat_inc32(&seen) <= 24) {
         const prog_t *p = arg_p(c, 1);
@@ -448,10 +506,12 @@ NVN_API(nvnCommandBufferDispatchCompute) {
     int k = push_slot(cmd_of(c), 0);
     if (k >= 0 && push_tab[k].n) d->push_n = push_tab[k].n, memcpy(d->push, push_tab[k].data, push_tab[k].n);
     plat_mutex_unlock(&push_lock);
+    dh_dispatch(cmd_of(c), (int)arg_x(c, 1), (int)arg_x(c, 2), (int)arg_x(c, 3), 0, c->x[30]);
 }
 // void nvnCommandBufferDispatchComputeIndirect(NVNcommandBuffer *cmd, NVNbufferAddress indirect): vkCmdDispatchIndirect
 NVN_API(nvnCommandBufferDispatchComputeIndirect) {
     *REC(cmd_of(c), OP_DISPATCH_IND, p_dispatch_ind) = (p_dispatch_ind){arg_x(c, 1), c->x[30]};
+    dh_dispatch(cmd_of(c), 0, 0, 0, 1, c->x[30]);
 }
 // void nvnCommandBufferClearBuffer(NVNcommandBuffer *cmd, NVNbufferAddress addr, size_t size, uint32_t value)
 NVN_API(nvnCommandBufferClearBuffer) {

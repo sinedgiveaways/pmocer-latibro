@@ -34,6 +34,7 @@ int vk_mem_shadow_state(uint64_t addr);
 extern uint64_t vk_replay_submit;
 int nvn_copy_b2b_find(int over, uint64_t addr, uint64_t size, uint64_t size_lo, uint64_t size_hi, uint64_t *src,
                       uint64_t *dst, uint64_t *n, uint64_t *seq, uint64_t *total);   // gfx/nvn/api/nvn_api_cmd.c
+int nvn_copy_b2b_dispatches(uint64_t seq, char *out, size_t cap);
 
 // At main+0x1750524 the caller loads X25 = [X22+8]. It later adds 0x3810
 // and passes that pointer through main+0x17508e0 to f_7001759b20, where
@@ -186,6 +187,11 @@ static void orbitals_readback_probe(Cpu *c) {
         rt_log("  readback probe #%llu: the newest writers of the source: storage buffer stage %d program %016llx; unsized "
                "VRAM-kept stage %d program %016llx (compute programs only; 0 otherwise)",
                (unsigned long long)n, ps[0], (unsigned long long)pk[0], ps[1], (unsigned long long)pk[1]);
+        // the compute dispatches the game recorded before that copy in the same command buffer: the producer is there
+        char hist[768];
+        int nd = nvn_copy_b2b_dispatches(q1, hist, sizeof hist);
+        rt_log("  readback probe #%llu: dispatches before copy #%llu in its command buffer (newest first): %s",
+               (unsigned long long)n, (unsigned long long)q1, nd ? hist : "none recorded");
     }
 }
 

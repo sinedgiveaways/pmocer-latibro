@@ -469,7 +469,7 @@ NVN_API(nvnCommandBufferReportCounter) {
 // The last 2048 buffer copies the game recorded, for the readback probe (core/boot/patches.c): which copy, if any,
 // fills the GPU readback buffer the record walk reads. Written without a lock: approximate, for diagnosis only.
 #define B2B_RING 2048
-static struct { uint64_t src, dst, size, seq; } b2b_ring[B2B_RING];
+static struct { uint64_t src, dst, size, seq; NvnDispRec d[NVN_DISP_HIST]; int nd; } b2b_ring[B2B_RING];
 static volatile uint64_t b2b_seq;
 
 NVN_API(nvnCommandBufferCopyBufferToBuffer) {
@@ -477,6 +477,27 @@ NVN_API(nvnCommandBufferCopyBufferToBuffer) {
     uint64_t s = __atomic_add_fetch(&b2b_seq, 1, __ATOMIC_RELAXED);
     uint32_t i = (uint32_t)(s % B2B_RING);
     b2b_ring[i].src = arg_x(c, 1), b2b_ring[i].dst = arg_x(c, 2), b2b_ring[i].size = arg_x(c, 3), b2b_ring[i].seq = s;
+    b2b_ring[i].nd = nvn_cmd_dispatches(cmd_of(c), b2b_ring[i].d, NVN_DISP_HIST);   // the source's producer is among them
+}
+
+// The dispatches recorded before copy #seq in its command buffer, newest first, as text; 0 when the copy left the ring.
+int nvn_copy_b2b_dispatches(uint64_t seq, char *out, size_t cap) {
+    uint32_t i = (uint32_t)(seq % B2B_RING);
+    if (!seq || b2b_ring[i].seq != seq) return 0;
+    size_t o = 0;
+    out[0] = 0;
+    for (int k = 0; k < b2b_ring[i].nd && o < cap; k++) {
+        const NvnDispRec *d = &b2b_ring[i].d[k];
+        char lr[64];
+        ldr_describe(d->lr - 4, lr, sizeof lr);
+        if (d->ind)
+            o += (size_t)snprintf(out + o, cap - o, "%s[%d] cs %016llx indirect from %s", k ? "; " : "", k,
+                                  (unsigned long long)d->key, lr);
+        else
+            o += (size_t)snprintf(out + o, cap - o, "%s[%d] cs %016llx %dx%dx%d from %s", k ? "; " : "", k,
+                                  (unsigned long long)d->key, d->x, d->y, d->z, lr);
+    }
+    return b2b_ring[i].nd;
 }
 
 // The newest recorded copy whose destination overlaps [addr, addr+size) (over = 1), or whose size is within
