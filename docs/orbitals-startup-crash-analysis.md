@@ -806,87 +806,45 @@ The remaining task is now sharply bounded: recover the crash-time values of `RSI
 The original dump's exception stream/context extraction is being published as a separate artifact; the previous attempt's artifact upload path was wrong, so the run's extraction step completed but its output was not attached. The workflow path has since been corrected.
 
 
-## 24/11/2026: crash-time native arguments recovered from the real minidump
+## 24/11/2026: crash-time CPU argument registers recovered from the real minidump
 
-The corrected exception-context extraction from the original 8.8-GB minidump has now been downloaded and inspected. This is the first direct register-level confirmation at the actual AV in `ucrtbase.dll`.
-
-### Exception and faulting instruction
+The corrected exception-context extraction records the actual AV in `ucrtbase.dll`.
 
 - Exception thread: `0x5B10`
-- Exception code: `0xC0000005` (access violation)
+- Exception code: `0xC0000005`
 - Exception RIP: `ucrtbase.dll+0xAE44D` (`0x7FFB2D4AE44D`)
 - Faulting instruction: `vmovdqu ymm0, ymmword ptr [rdx]`
-- Crash-time registers:
-  - `RCX = 0x12E1A8000C`
-  - `RDX = 0x01460149013D0140`
-  - `R8  = 0x05240500` (86,246,656 bytes)
-  - `RSI = 0x1C92EAB0540`
-  - `RDI = 0x12E1A8000C`
-  - `RBX = 0x01460149013D0140`
-  - `R14 = 0x05240500`
+- At the fault: `RDX=0x01460149013D0140`, `R8=0x05240500`, `RCX=0x12E1A8000C`.
 
-At the faulting instruction, UCRT's vectorized `memmove` is reading from `[RDX]`. Thus the immediate bad operand is the **source pointer `0x01460149013D0140`**. The requested copy length is also highly suspicious: 86,246,656 bytes (about 82.25 MiB), which selects the large-copy path. The destination `0x12E1A8000C` has captured memory at its address in the dump; the source address has no captured memory range in the extracted register-pointed-memory report.
+The value in RDX is the invalid source operand being read. The copy length is 86,246,656 bytes (about 82.25 MiB). The exception-information address parsed from the minidump is inconsistent with the effective operand and remains suspect.
 
-### Descriptor contents confirm argument ordering
+**Important layout correction:** `RSI=0x1C92EAB0540` is a `Cpu *`, as confirmed by `runtime/cpu/cpu.h` and the native helper's loads. Its first qwords are `Cpu.x0`, `Cpu.x1`, and `Cpu.x2`; offset +`0x40` is `Cpu.x8`, which also contains the source value. This is not a separate memcpy descriptor.
 
-The exception context has `RSI=0x1C92EAB0540`. The first qwords at that address are:
+| Cpu field | Value at crash | Meaning |
+|---|---:|---|
+| `x0` (+0x00) | `0x12E1A8000C` | destination |
+| `x1` (+0x08) | `0x01460149013D0140` | source |
+| `x2` (+0x10) | `0x05240500` | size |
+| `x8` (+0x40) | `0x01460149013D0140` | caller's duplicate/source temporary |
 
-| Descriptor offset | Value | Meaning confirmed by native registers |
-|---:|---:|---|
-| `+0x00` | `0x12E1A8000C` | destination (`RCX`) |
-| `+0x08` | `0x01460149013D0140` | source (`RDX`) |
-| `+0x10` | `0x05240500` | size (`R8`) |
-| `+0x40` | `0x01460149013D0140` | duplicate of source |
+The exact guest caller branch that creates these values is documented in the 25/11 decisive correction below. Do not interpret the earlier stack-window qwords as a separate context structure.
 
-This resolves the earlier ambiguity: descriptor+`0x40` is a duplicate of the **source**, not the destination. The earlier interpretation that the qwords at stack base `0x19AFFFF160` were the actual argument triple is withdrawn. The authoritative argument values are the native register state plus the descriptor at `RSI`.
+## 25/11/2026: crash-time Cpu register fields
 
-### Important consistency warning
+The exception context's `RSI=0x1C92EAB0540` points to the guest `Cpu` state. The relevant guest registers are:
 
-The exception record's two access-violation parameters were parsed as `(0, 0xFFFFFFFFFFFFFFFF)`, which does not match the effective address implied by the faulting instruction and `RDX`. The instruction bytes and register context agree with each other, but the exception-information address field is inconsistent and must be treated as suspect until the raw exception-stream bytes are independently checked. Do not claim the AV parameter address is confirmed.
-
-The caller disassembly around return address `orbitalgame.dll+0x1B5A939F` is useful for finding the producer, but its current static interpretation of the `R13 & 4` branch does not reconcile with the runtime size `0x05240500`. The exact wrapper/context field mapping and the relevant branch path must be revalidated before attributing the size to that instruction sequence. The runtime register/descriptor values above take precedence over an unverified static mapping.
-
-### Next root-cause target
-
-1. Trace the store that populates descriptor+`0x08` (source) and descriptor+`0x10` (size), and identify why source becomes `0x01460149013D0140` while size becomes `0x05240500`.
-2. Inspect the descriptor's duplicated source at +`0x40` and its neighboring fields to identify the owning structure and any base/offset calculation.
-3. Validate the full destination allocation size around `0x12E1A8000C` against the 86,246,656-byte request.
-4. Resolve the exception-information mismatch from the raw stream.
-5. Patch only the proven descriptor producer or length calculation. Do not patch `memcpy`/`memmove` globally.
-
-The exception-context artifact is `orbitals-caller-1B5A8FF0` from workflow run `45476215717`. Its corrected upload succeeded.
-
-
-## 25/11/2026: exact crash descriptor fields and the caller/helper contradiction
-
-The latest successful extraction includes the 0x200-byte descriptor at `RSI=0x1C92EAB0540` and confirms the four fields needed to follow the caller's address construction:
-
-| Field | Crash-time value |
+| Cpu register | Crash-time value |
 |---|---:|
-| `RSI+0xC8` | `0x0000000001490140` |
-| `RSI+0xD0` | `0x000000011C51F8A8` |
-| `RSI+0xD8` | `0x0000000CE01F2C00` |
-| `RSI+0xE0` | `0x000000011C51F8A8` |
+| `X25` | `0x01490140` |
+| `X26` | `0x11C51F8A8` |
+| `X27` | `0x0CE01F2C00` |
+| `X28` | `0x11C51F8A8` |
 
-The caller's call site at RVA `0x1B5A939A` is preceded by:
-
-- `mov [rsi+0x10], r13` at `+0x1B5A9343`
-- `and r13, 4` at `+0x1B5A935C`
-- conditional branch `je +0x1B5A93A7` at `+0x1B5A9360`
-- only on the nonzero-bit path, `mov [rsi+0x10], r13` at `+0x1B5A9377`, then the call at `+0x1B5A939A`.
-
-Thus the call at `+0x1B5A939A` is reached through the path where bit 2 is set and the caller should have overwritten the size field with 4. Yet the crash-time descriptor +0x10 and native `R8` both contain `0x05240500` (86,246,656). The crash-time `R13` also shows `0x05240500`, but that is a callee-time register and must not be treated as definitive caller state without ABI-preservation proof.
-
-Likewise, the crash-time `RSI+0xC8/D8` values do not arithmetically produce the descriptor source `RSI+0x08`. The runtime descriptor is internally inconsistent with the expected caller-side stores.
-
-**This contradiction moves the next investigation boundary downstream of the caller's source code:** inspect the native wrapper/dispatcher path between `orbitalgame.dll+0x1C11DF00`, `orbitals-recomp.exe+0x40CE0`, and `orbitals-recomp.exe+0x70C430`. Specifically determine whether the helper copies/mutates the context, misreads its field offsets, or passes a different descriptor to UCRT. A new dump extraction job now disassembles both native addresses directly. Do not patch the guest caller based solely on the static call-site sequence; do not patch UCRT memcpy/memmove globally.
-
-The pointer source `0x01460149013D0140` remains the actual invalid source operand at the AV instruction. The exception stream's access-violation parameter address remains inconsistent (`0xFFFFFFFFFFFFFFFF`) and is not used as evidence.
-
+The earlier claim that these values contradicted a mandatory size-4 path was wrong. The actual copy takes a large-copy branch at RVA `0x1B5A8EDE`, which jumps over the later small-copy block. See the 25/11 decisive correction below.
 
 ## 25/11/2026: native `ov_memcpy` body verified from the original minidump
 
-The successful GitHub Actions artifact from run `45515422739` contains the actual mapped bytes of `orbitals-recomp.exe`. The module base in this dump is `0x7FF6C8260000`.
+The successful GitHub Actions artifact from run `45515422739` contains the mapped bytes of `orbitals-recomp.exe`. The module base in this dump is `0x7FF6C8260000`.
 
 ### Exact helper at RVA 0x40CE0
 
@@ -897,9 +855,9 @@ The successful GitHub Actions artifact from run `45515422739` contains the actua
 7FF6C82A0CE4  push rbx
 7FF6C82A0CE5  sub  rsp, 0x28
 7FF6C82A0CE9  mov  rsi, rcx
-7FF6C82A0CEC  mov  rdi, [rcx]       ; destination
-7FF6C82A0CEF  mov  rbx, [rcx+8]    ; source
-7FF6C82A0CF3  mov  r14, [rcx+0x10] ; size
+7FF6C82A0CEC  mov  rdi, [rcx]       ; Cpu.x0: destination
+7FF6C82A0CEF  mov  rbx, [rcx+8]    ; Cpu.x1: source
+7FF6C82A0CF3  mov  r14, [rcx+0x10] ; Cpu.x2: size
 7FF6C82A0CF7  cmp  r14, 0x400
 7FF6C82A0CFE  jb   7FF6C82A0D11
 7FF6C82A0D00  call 7FF6C82AFCD0
@@ -919,48 +877,17 @@ The successful GitHub Actions artifact from run `45515422739` contains the actua
 7FF6C82A0D2B  ret
 ```
 
-This confirms the helper loads destination/source/size once into nonvolatile registers RDI/RBX/R14. For lengths >= 0x400 it first invokes a runtime tracking callback with (source, size), then passes the saved original (destination, source, size) directly to the thunk at EXE RVA `0x70C430`. The helper does not arithmetically transform these values. It writes the original destination back to descriptor offset +0 after the copy returns.
+This helper receives `Cpu *c`, reads `c->x[0..2]` into RDI/RBX/R14, optionally calls the large-copy tracker for lengths >= `0x400`, then forwards the saved values unchanged to the memmove thunk. It does not synthesize the invalid source or the length.
 
-### Crash-time consistency
+At the crash, the saved pairs agree exactly: `RDI=RCX=0x12E1A8000C`, `RBX=RDX=0x01460149013D0140`, and `R14=R8=0x05240500`. This confirms the helper forwards the guest CPU arguments. The producer is in the guest caller's large-copy path, not in UCRT or a generic memcpy override.
 
-The exception context inside UCRT shows:
+The tracker callback is still worth inspecting for completeness, but it is not needed to explain the bad values: the helper saved all three arguments before invoking it and uses those saved values for memmove.
 
-- `RSI = 0x1C92EAB0540` (descriptor)
-- `RDI = RCX = 0x12E1A8000C` (destination)
-- `RBX = RDX = 0x01460149013D0140` (source)
-- `R14 = R8 = 0x05240500` (length)
+## 25/11/2026 correction: previous stack-structure interpretation withdrawn
 
-These register pairs exactly match the helper's saved fields and its call setup. This rules out the helper's field-loading sequence as the source of the bad source pointer or oversized length. The values were already present in the descriptor when the helper read it, or were changed in descriptor memory before helper entry.
+The earlier interpretation of `0x19AFFFF160` as a proven outer context structure and `0x1C92EAB0540` as a separate inner memcpy descriptor is withdrawn. `0x19AFFFF160` was only a candidate stack-window base; its qwords do not establish a C structure. The helper's RCX is a `Cpu *` at `0x1C92EAB0540`, and the helper reads `Cpu.x0`, `Cpu.x1`, and `Cpu.x2`.
 
-### What this does and does not establish
-
-- Established: `ov_memcpy` forwards its saved fields unchanged to `memmove`.
-- Established: the optional large-copy tracker is called for this 86-MB request before the `memmove` call, but the helper reloads the arguments from saved registers afterward.
-- Not yet established: whether the tracker callback mutates pointed-to memory or whether it is merely bookkeeping. The helper's actual RCX/RDX/R8 arguments to `memmove` still come from RDI/RBX/R14.
-- Not established: why the crash-time descriptor does not agree with the earlier static interpretation of the guest caller's stores. That mismatch remains the main target.
-
-### Immediate next step
-
-Disassemble the full guest caller range `orbitalgame.dll RVA 0x1B5A8E00..0x1B5A9500` from the same minidump, and the tracker callback target `orbitals-recomp.exe RVA 0x4AFCD0`. Verify the exact call instruction, the context pointer register, and all writes to descriptor offsets +0, +8, +0x10. The previous claim that the caller necessarily wrote a 4-byte size is not accepted until the actual branch path and call context are reconciled with the preserved crash-time R13 value.
-
-
-## 25/11/2026 correction: two different context blocks were conflated
-
-Re-examining the saved stack at `RSP=0x19AFFFF1D8` together with the guest caller disassembly reveals the source of the apparent contradiction.
-
-There are two distinct structures:
-
-1. The **outer guest wrapper context**, based at `0x19AFFFF160` (RSP - `0x78`). It contains the synthetic import slot at +`0x80` (`0x700900A008`), wrapper return at +`0x88` (`0x7FFA60A8DF58`), guest function `0x7001759B20` at +`0x98`, and a pointer to the inner descriptor `0x1C92EAB0540` at +`0xA0`. Its +`0xA8` field is `0x11C51F7A0`, and +`0xC0` is `0x298`.
-2. The **inner native helper argument descriptor**, based at `0x1C92EAB0540`. The exception context has `RSI=0x1C92EAB0540`; its +0/+8/+0x10 fields are the exact destination/source/size consumed by `ov_memcpy`.
-
-The stores in guest code at `orbitalgame.dll+0x1B5A9343..0x1B5A9393` operate on the outer context pointer in the guest caller's RSI. They do **not** prove that the same stores write the inner descriptor at `0x1C92EAB0540`. The previous conclusion that the guest caller directly set the inner descriptor size to 4 was therefore incorrect and is withdrawn.
-
-This resolves the apparent contradiction without assuming that UCRT corrupted R13 or that a race occurred. The unresolved transformation is now between the outer context (which points to the inner descriptor at +`0xA0`) and the helper's RCX argument. The exact wrapper `orbitalgame.dll+0x1C11DF00` and its dispatcher must be disassembled to establish how the inner descriptor is allocated/populated and why its source/size become `0x01460149013D0140` / `0x05240500`.
-
-### Updated next step
-
-Disassemble `orbitalgame.dll+0x1C11DEF0..0x1C11E400` from the same dump. Follow the wrapper's input context pointer, its +`0xA0` descriptor pointer, and the argument passed to `orbitals-recomp.exe+0x40CE0`. Then identify the exact stores that produce inner descriptor +0, +8, +0x10. This is now the primary root-cause boundary; do not patch the guest call-site's R13 mask based on the earlier mistaken structure conflation.
-
+Likewise, the qword at `Cpu+0x40` is `Cpu.x8`, not a descriptor field. The latest large-copy dataflow explains the source and size before the helper call; the wrapper/dispatcher is no longer the primary suspected producer.
 
 ## 25/11/2026 decisive correction: memcpy arguments are Cpu.x0-x2; large-copy caller path found
 
