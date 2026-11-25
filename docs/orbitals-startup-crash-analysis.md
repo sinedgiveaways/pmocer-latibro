@@ -1005,3 +1005,30 @@ This directly links the previously noticed `-3` in object `0x0CE01F2C00` to the 
 The source pointer value loaded from the record is `0x01460149013D0140`; it is not a canonical user-mode pointer. Its four 16-bit words are `0x0140, 0x013D, 0x0149, 0x0146`. The record's source field is cleared after extraction, so the minidump at crash time may show zero at `0x0CE01F2B40`; the original value survives in the caller local and `Cpu.x1`. The new extractor now dumps the derived record and the adjacent count field to confirm the post-move bytes.
 
 **Current root-cause boundary:** why does the selected record at index -3 contain a packed/non-pointer value in its source field and a count of `0x01490140`? The next task is to identify the owner/producer of the 0x40-byte record and determine whether the -3 index is valid, stale, or selecting the wrong slot. Do not patch the copy helper or global memory functions.
+
+
+## 25/11/2026: the record walk reads a GPU readback buffer that holds stale memory
+
+Sources: the 25/11 log of build 39d8538 (`crash: access violation in ucrtbase.dll+0xee451, reading 0x710952c508 ...
+first frame of ours orbitalgame+0x1b5a93c2`, the new line for faults outside our modules) and its full minidump
+(8.9 GB). Guest memory, the `Cpu` of the faulting thread and main's code were read from the dump.
+
+- The fault is the large-copy `memmove` of the earlier analysis: `x1 = 0x7008030708`, `x2 = 0x1014fbe20` (X25 * 4).
+- The record walked is records[4] of the owner at `x21 = 0xb40012810` (10 records). Its inline array of 0x40-byte
+  elements (3 inline at +0x10, heap pointer +0xd0, Num +0xd8, Max +0xdc) has **Num = -2**: the walk popped it past
+  zero, and the elements at negative indices are the previous record's bytes, which give the copy its source and count.
+  This also explains the stack-address Free (crash A) and the null sub-table reads the two guards cover: all of them
+  read elements below index 0.
+- Why it pops: the loop over `i < x22` takes `{record index, target}` pairs and pops elements while `target < Num`
+  (it stores the target in the record's +0x0c). The pairs come from a buffer returned by `main+0x1583dc0`, which locks a
+  0x7ffc-byte buffer through the RHI's vtable slot +0x100: u32 count at +0 (clamped to 0xfff), then the pairs. In the
+  dump that buffer (`0xf935bff00`) holds unrelated, high-entropy data: count 0xfff, and a "pair" whose index (4) passed
+  the range and presence checks with a target of `0xa063e4a0` (the low half of a pointer). So the record's target was a
+  huge negative number and the pops ran below zero.
+- A GPU readback buffer whose contents are not what the GPU wrote fits roadmap §2: stores into storage buffers of
+  unknown size stay in the VRAM mirror (`ORBITALS_WB_UNSIZED=vram`) and the CPU never sees them. Not proven yet.
+
+The probe `orbitals-readback-probe` (patch at `main+0x1583df0`, runtime `orbitals_readback_probe`) logs, for that caller,
+the buffer, its count and first pairs, and whether an unsized shader store kept in VRAM covers it. If it does, the fix is
+to bring those GPU bytes back to guest memory for this buffer (a write-back of the readback range at its fence), not to
+clamp the loop; the guards stay containment.

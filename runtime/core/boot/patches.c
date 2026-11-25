@@ -23,6 +23,15 @@
 #define ORBITALS_RECORD_SOURCE_PROBE_PAGE_SLOT 0x108
 #define ORBITALS_RECORD_SOURCE_PROBE_LIMIT 32
 
+#define ORBITALS_READBACK_PROBE_PAGE_SLOT 0x110
+#define ORBITALS_READBACK_PROBE_LIMIT 24
+
+// vk_exec_bind.c, vk_mem_wback.c, vk_mem_capture.c (gfx/vk/device/vk.h)
+int vk_unsized_written_find(uint64_t addr, uint64_t size, uint64_t *baddr, uint64_t *bsize, uint64_t *submit);
+int vk_mem_gpu_may_write(uint64_t addr, uint64_t size);
+int vk_mem_shadow_state(uint64_t addr);
+extern uint64_t vk_replay_submit;
+
 // At main+0x1750524 the caller loads X25 = [X22+8]. It later adds 0x3810
 // and passes that pointer through main+0x17508e0 to f_7001759b20, where
 // LDUR W8,[X25,#0x34] faults in the 24/11 capture. The patch passes the
@@ -111,6 +120,37 @@ static void orbitals_record_source_probe(Cpu *c) {
                (unsigned long long)n, (unsigned long long)c->x[0]);
 }
 
+// The record walk f_7001759b20 reads a GPU readback buffer: main+0x1759cac calls main+0x1583dc0, which locks it
+// (a tail call through the RHI's vtable slot +0x100, size 0x7ffc), then reads u32 count (clamped to 0xfff) and
+// {u32 record index, u32 target count} pairs from it. In the 25/11 dump the buffer held unrelated data: count 0xfff,
+// an index that passed the checks with a target of 0xa063e4a0, and the record's inline array popped to -2, whose
+// garbage entries fed the 4 GB memcpy (ucrtbase+0xee451). The probe calls the lock, then logs, for that caller only,
+// what came back and what the runtime knows of the range: a shader store kept in VRAM over it (ORBITALS_WB_UNSIZED)
+// would mean the GPU's count never reaches the CPU.
+static void orbitals_readback_probe(Cpu *c) {
+    uint64_t target = c->x[16];   // the RHI lock, saved by the patch
+    uint64_t lr = c->x[30];       // a tail call: the helper's caller
+    rt_call(c, target, 0);
+    if (lr != 0x7001759cb0ull) return;
+    static uint64_t calls, odd;
+    uint64_t n = __atomic_add_fetch(&calls, 1, __ATOMIC_RELAXED);
+    uint64_t buf = c->x[0];
+    uint32_t w[9] = {0};
+    int ok = buf && plat_mem_read(buf, w, sizeof w);
+    int bad = ok && w[0] > 0xfff;
+    if (bad) __atomic_add_fetch(&odd, 1, __ATOMIC_RELAXED);
+    if (n > ORBITALS_READBACK_PROBE_LIMIT && !(bad && odd <= ORBITALS_READBACK_PROBE_LIMIT)) return;
+    uint64_t ba = 0, bs = 0, bsub = 0;
+    int unsized = buf ? vk_unsized_written_find(buf, 0x7ffc, &ba, &bs, &bsub) : 0;
+    rt_log("readback probe #%llu: buffer %#llx (%s) count %u%s pairs {%u,%u} {%u,%u} {%u,%u} {%u,%u}; shadow state %d, GPU "
+           "write pending %d; unsized VRAM-kept stores over it %d (newest %#llx+%#llx at submit %llu, now %llu)",
+           (unsigned long long)n, (unsigned long long)buf, ok ? "readable" : "unreadable", w[0],
+           bad ? " (over 0xfff: not what the GPU wrote)" : "", w[1], w[2], w[3], w[4], w[5], w[6], w[7], w[8],
+           buf ? vk_mem_shadow_state(buf) : -1, buf ? vk_mem_gpu_may_write(buf, 0x7ffc) : -1, unsized,
+           (unsigned long long)ba, (unsigned long long)bs, (unsigned long long)bsub,
+           (unsigned long long)__atomic_load_n(&vk_replay_submit, __ATOMIC_RELAXED));
+}
+
 static void orbitals_vcall_probe(Cpu *c) {
     static uint64_t calls;
     uint64_t n = __atomic_add_fetch(&calls, 1, __ATOMIC_RELAXED);
@@ -169,7 +209,7 @@ void rt_patches_init(void) {
 
 // The host entry points on the patch page, before the dispatch table is built (hostfn.c).
 // The vcall probe at main+0x1d761cc uses slot +0x100; the record-source probe at
-// main+0x17505b8/+0x17505e0 uses slot +0x108.
+// main+0x17505b8/+0x17505e0 uses slot +0x108; the readback probe at main+0x1583df0 slot +0x110.
 void rt_patch_hosts(void) {
     const RtGame *g = rt_game();
     if (!g->npatch_sets || !g->patch_page) return;
@@ -177,6 +217,8 @@ void rt_patch_hosts(void) {
     ST64(g->patch_page + ORBITALS_VCALL_PROBE_PAGE_SLOT, probe);
     uint64_t record_probe = hostfn_register("orbitals_record_source_probe", orbitals_record_source_probe);
     ST64(g->patch_page + ORBITALS_RECORD_SOURCE_PROBE_PAGE_SLOT, record_probe);
+    uint64_t readback_probe = hostfn_register("orbitals_readback_probe", orbitals_readback_probe);
+    ST64(g->patch_page + ORBITALS_READBACK_PROBE_PAGE_SLOT, readback_probe);
 }
 
 void rt_patch_switch(int set, int on) {

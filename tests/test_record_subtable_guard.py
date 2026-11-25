@@ -73,3 +73,11 @@ def test_vector_guard_words_and_behaviour():
     assert all(patches.branch_target(w, 0x7000000000 + 0x175DBEC) is None for w in repl if isinstance(w, int))
     emitted = t.for_module("main", 0x7000000000)[0x7000000000 + 0x175DBEC]
     assert emitted[1][5] == patches.adrp(0x7000000000 + 0x175DBEC, t.page, 15)
+
+
+def test_readback_probe_words():
+    t, repl, original = site("orbitals-readback-probe", 0x1583DF0)
+    assert original == 0xF9408106  # ldr x6, [x8, #0x100]
+    assert repl == [0xF9408110, ("page", 6), 0xF94088C6]  # ldr x16, [x8, #0x100]; adrp x6, page; ldr x6, [x6, #0x110]
+    emitted = t.for_module("main", 0x7000000000)[0x7000000000 + 0x1583DF0]
+    assert emitted[1][1] == patches.adrp(0x7000000000 + 0x1583DF0, t.page, 6)
