@@ -98,11 +98,11 @@ jobs:
           EOF
       - uses: actions/upload-artifact@v4
         with:
-          name: orbitals-recomp-exe
+          name: kiro-orbitals-recomp-exe
           path: build/exe/orbitals-recomp.exe
           retention-days: 14
       - uses: actions/upload-artifact@v4
         with:
-          name: orbitals-recomp-windows-x64
+          name: kiro-orbitals-recomp-windows-x64
           path: build/release/*.zip
           retention-days: 14

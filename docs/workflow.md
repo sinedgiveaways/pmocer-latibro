@@ -24,7 +24,7 @@ GitLab only holds the code, pushed by hand: after a push to GitHub, push the sam
 
 - A push to the branch starts the Windows build and the tests (`Build Windows`, `Tests`); `gh api -X POST
   repos/sinedgiveaways/pmocer-latibro/actions/workflows/build-windows.yml/dispatches -f ref=<branch>` starts one by
-  hand. The artifact is `orbitals-recomp-windows-x64`; the run's page
+  hand. The artifact is `kiro-orbitals-recomp-windows-x64`; the run's page
   (`https://github.com/sinedgiveaways/pmocer-latibro/actions/runs/<id>`) is the link to give the player.
 - The player copies it over their `orbitals-recomp` folder, keeping `spirv/`, `spirv-dump/` and `aoc/`.
 - The game code (`orbitalgame.dll`) is generated and compiled on the player's machine by the setup. Its key is

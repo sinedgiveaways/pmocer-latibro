@@ -21,7 +21,7 @@ shaders are translated to SPIR-V (`sm86/`). The game runs from boot to its first
 
 - Branch `diag/frame-history-trace` (PR #6 into `orbitals-port`). Commit there; never merge without the owner.
 - Push to GitHub (`origin`) and to the GitLab copy (`git push gitlab diag/frame-history-trace`).
-- A push builds Windows (`Build Windows`, artifact `orbitals-recomp-windows-x64`) and runs `Tests`.
+- A push builds Windows (`Build Windows`, artifact `kiro-orbitals-recomp-windows-x64`) and runs `Tests`.
 
 ## The task in progress (19/11/2026)
 
