@@ -205,7 +205,8 @@ the GPU and writes the new large mip with the CPU, which the runtime dropped for
 rule (any level with a changed page) also took stale storage over GPU-written single-level textures, and the
 ceiling turned to big saturated blocks, likely the volumetric lightmap's brick atlases. Narrowed: only mip chains, and
 only a level whose every page carries a CPU-origin stamp since the GPU write (`vk_mem_cpu_rewrote_all`).
-**Next:** a run into the colony: sofa, tree, props and ceiling without blocks.
+Confirmed in game (`880ffd3`, logs28): sofa, tree, props and ceiling without blocks; 16 merges logged (BC1 and other
+chains, 1 to 5 levels each). Left: one asteroid outside the window with green and purple speckles, not looked at yet.
 
 ### 1.2 A crash after the logos in about one run in three
 
