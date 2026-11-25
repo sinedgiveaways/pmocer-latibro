@@ -192,7 +192,9 @@ pass's samples showed). The translation of that compute program had two bugs, bo
   radiance cache mark pixel shaders, `FClearIndirectArgBufferCS`, `FDenoiserSpatialCS` and the
   `FOrbPostProcessMaterialPS` of `PP_A90_Stage_2`).
 Full retranslation: 23 176 of 23 432 valid as before; `flow_check.py` finds no difference on the changed programs.
-**Next:** a run into the colony with the new setup: lit walls if this was the cause.
+Confirmed in game (build `905745a`, 25/11/2026): the colony is lit in both split-screen halves, walls, floor and
+characters close to the console's. Left: blocky noise patches, bright white blocks on ceilings and light shafts, and
+multicoloured blocks on some surfaces (a sofa), the speckles of 1.1 above.
 
 ### 1.2 A crash after the logos in about one run in three
 
