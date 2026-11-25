@@ -207,6 +207,13 @@ ceiling turned to big saturated blocks, likely the volumetric lightmap's brick a
 only a level whose every page carries a CPU-origin stamp since the GPU write (`vk_mem_cpu_rewrote_all`).
 Confirmed in game (`880ffd3`, logs28): sofa, tree, props and ceiling without blocks; 16 merges logged (BC1 and other
 chains, 1 to 5 levels each). Left: one asteroid outside the window with green and purple speckles, not looked at yet.
+logs29 (`8a14c5c`, per-level page counts): no level of a mip chain is rewritten in part; the 189 `PARTIAL` lines are
+all one page at a level's edge, shared with the neighbouring level or texture. The asteroid was clean in that run.
+Against the reference video (`ORBITALS #01 - LE DÉPART`, 8:30-9:40, the same walk through the airlock, outside and
+into the burning deck): the red alarm light is the game's, but (a) the fires are big yellow masses with stair-step
+edges where the console draws small cel-shaded orange flames with smoke, and (b) the red rooms look washed out (pink
+haze, lifted shadows) where the console's stay dark. **Next:** a dump of a fire through `ORBITALS_CTL`
+(`dump DIR passes A-B`, new) to find its draws.
 
 ### 1.2 A crash after the logos in about one run in three
 

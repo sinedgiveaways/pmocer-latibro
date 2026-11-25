@@ -864,6 +864,17 @@ static void open_dir(const char *d) {
     if (!passes_f || !images_f) rt_fatal("vk_dump: cannot write to %s", dump_dir);
 }
 
+// ORBITALS_CTL "dump DIR passes A-B runs" (ctl.c): ORBITALS_DUMP_PASSES and ORBITALS_DUMP_SKIP_RUNS for a dump asked of a
+// running game, which reads neither (they are read only with ORBITALS_DUMP). A whole frame's copies fill INFLIGHT_CAP by
+// pass 257, so the colony's translucent passes (its fires, 25/11/2026) were logged without images; a first dump gives
+// their numbers, a second one, a few seconds later at the same place, the images. to < 0: every pass.
+void vk_dump_set_passes(int from, int to, int runs) {
+    plat_mutex_lock(&rec_lock);
+    if (from < 0 || to < from) from = 0, to = -1;
+    pass_from = from, pass_to = to, skip_runs = runs;
+    plat_mutex_unlock(&rec_lock);
+}
+
 // ORBITALS_CTL (ctl.c): dumps the next frame into d (ubo: ORBITALS_DUMP_UBO; luts: only the sampled 3D volumes and small
 // textures, a few MB instead of hundreds). 0 while an earlier dump is not written yet.
 int vk_dump_rearm(const char *d, int ubo, int luts, int log_n) {

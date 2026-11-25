@@ -4,8 +4,10 @@
 //   shot PATH            the next presented frame, full size, as PNG (save_shot)
 //   screen PATH          the next swapchain image as PNG: what the player sees, with the menu, notices and overlays
 //                        (sRGB at paper white on an HDR display; gfx_present.c save_capture)
-//   dump DIR [ubo|lut|log N]   the next frame as ORBITALS_DUMP writes it (vk_dump_rearm; ubo: ORBITALS_DUMP_UBO; lut: only 3D
-//                        volumes; log N: the N frames before it logged to passes.txt too, as ORBITALS_DUMP_LOG)
+//   dump DIR [ubo|lut|log N|passes A-B|runs]   the next frame as ORBITALS_DUMP writes it (vk_dump_rearm; ubo:
+//                        ORBITALS_DUMP_UBO; lut: only 3D volumes; log N: the N frames before it logged to passes.txt too,
+//                        as ORBITALS_DUMP_LOG; passes A-B: images of those passes only, as ORBITALS_DUMP_PASSES; runs: as
+//                        ORBITALS_DUMP_SKIP_RUNS)
 //   flight               a flight dump around now (ORBITALS_FLIGHT=1), as F8
 //   press <ticks> <button> [hold]  /  press <ticks> LSTICK|RSTICK x y [hold]   input, <ticks> 60 Hz ticks from now
 //   tex ADDR             textures whose storage or pool-bound Vulkan image covers ADDR (0: every image larger than its storage)
@@ -48,10 +50,25 @@ void ctl_run(char *line) {
         rt_log("ctl: screen %s queued at frame %llu", arg, (unsigned long long)frame);
     } else if (!strcmp(cmd, "dump") && *arg) {
         char d[400];
-        int ubo = 0, luts = 0, logn = 0;
+        int ubo = 0, luts = 0, logn = 0, from = 0, to = -1, runs = 0;
         char *sp = strchr(arg, ' ');
-        if (sp) *sp = 0, ubo = !strcmp(sp + 1, "ubo"), luts = !strcmp(sp + 1, "lut");
-        if (sp && !strncmp(sp + 1, "log ", 4)) logn = atoi(sp + 5);
+        if (sp) *sp = 0;
+        // options after DIR, in any order: ubo | lut | log N | passes A-B (one number: that pass) | runs
+        for (char *o = sp ? sp + 1 : NULL; o && *o;) {
+            while (*o == ' ') o++;
+            if (!strncmp(o, "ubo", 3)) ubo = 1;
+            else if (!strncmp(o, "lut", 3)) luts = 1;
+            else if (!strncmp(o, "runs", 4)) runs = 1;
+            else if (!strncmp(o, "log ", 4)) logn = atoi(o + 4), o += 4;
+            else if (!strncmp(o, "passes ", 7)) {
+                char *q;
+                from = (int)strtol(o + 7, &q, 10);
+                to = *q == '-' ? (int)strtol(q + 1, &q, 10) : from;
+                o = q;
+            }
+            o = strchr(o, ' ');
+        }
+        vk_dump_set_passes(from, to, runs);
         snprintf(d, sizeof d, "%s", arg);
         rt_log(vk_dump_rearm(d, ubo, luts, logn) ? "ctl: dump %s queued at frame %llu" : "ctl: dump %s refused: one is pending (frame %llu)",
                d, (unsigned long long)frame);
