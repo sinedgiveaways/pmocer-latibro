@@ -68,9 +68,8 @@ void ctl_run(char *line) {
             }
             o = strchr(o, ' ');
         }
-        vk_dump_set_passes(from, to, runs);
         snprintf(d, sizeof d, "%s", arg);
-        rt_log(vk_dump_rearm(d, ubo, luts, logn) ? "ctl: dump %s queued at frame %llu" : "ctl: dump %s refused: one is pending (frame %llu)",
+        rt_log(vk_dump_rearm(d, ubo, luts, logn, from, to, runs) ? "ctl: dump %s queued at frame %llu" : "ctl: dump %s refused: one is pending (frame %llu)",
                d, (unsigned long long)frame);
     } else if (!strcmp(cmd, "flight")) {
         if (!flight_on) rt_log("ctl: flight refused: ORBITALS_FLIGHT is off");

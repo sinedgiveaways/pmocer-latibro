@@ -183,9 +183,9 @@ extern int vk_cond_trace;            // ORBITALS_COND_TRACE lines left (vk_exec_
 extern int vk_dump_armed;
 void vk_dump_pass_begin(VkExec *ex);   // after vkCmdBeginRendering: the pass's pipeline statistics query
 void vk_dump_pass_close(VkExec *ex);   // before vkCmdEndRendering
-int vk_dump_rearm(const char *dir, int ubo, int luts, int log_n);   // ORBITALS_CTL: dump the frame log_n + 1 ahead into dir,
-                                                                   // logging the ones before; 0 while one is pending
-void vk_dump_set_passes(int from, int to, int skip_runs);   // ORBITALS_CTL "dump ... passes A-B runs": for the next rearm
+// ORBITALS_CTL: dump the frame log_n + 1 ahead into dir, logging the ones before, with images only for passes from..to
+// (to < 0: every pass) and skip_runs as ORBITALS_DUMP_SKIP_RUNS; 0 while one is pending, which keeps its own range
+int vk_dump_rearm(const char *dir, int ubo, int luts, int log_n, int from, int to, int skip_runs);
 void vk_dump_init(void);                 // reads the environment; vk_exec_record's first call
 void vk_dump_pass_end(VkExec *ex);       // after vkCmdEndRendering
 void vk_dump_draw(VkExec *ex, const VkPipeState *s, VkPipeline p, const VkPipeInfo *info);   // after a draw's binds;
