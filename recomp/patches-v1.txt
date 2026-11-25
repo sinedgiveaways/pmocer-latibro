@@ -32,6 +32,16 @@
 # (orbitals.4.log, reading 0xffc1effd8 at orbitalgame+0x1b5a90f1) or, on a mapped page, took garbage
 # (the stack-address Free and the 86 MB memcpy). Decoded with Capstone ARM64.
 #
+# rec-null-guard-vector: the second record helper f_700175dbd0 (main+0x175dbd0) computes
+# x11 = [x0] + (2 - w1) * 0x38 and, at main+0x175dc04, reads ldr d17, [x11, #0x28]. When [x0] is null
+# the host faults reading 0x98 (23/11 22:58 crash, and 25/11 on build b1bcbf4: orbitals.log, record on
+# the thread's stack with its first 0x40 bytes zero). Same fallback as rec-null-guard: a null base becomes
+# the runtime-owned zero page, a valid base passes untouched. x14/x15 are unused in the whole helper
+# (checked in the lifted function: no access to Cpu.x[14]/x[15]). First written in PR #19 (edcd7c0, not merged).
+#
+#   main+0x175dbec: 08 00 40 f9   ldr x8, [x0]
+#   main+0x175dc04: 71 15 40 fd   ldr d17, [x11, #0x28]
+#
 # orbitals-vcall-probe: replace the indirect call at main+0x1d761d0 with a host probe that records
 # the selected receiver, its vptr/slot+8 target, the object rooted at [x21+8], and the callback/
 # alternate fields at +0x30/+0x58. It then restores x8 and calls the original virtual target via
@@ -64,10 +74,12 @@
 
 
 set  rec-null-guard     ORBITALS_PATCH_REC_NULL_GUARD  1
+set  rec-null-guard-vector ORBITALS_PATCH_REC_NULL_GUARD_VECTOR 1
 set  orbitals-vcall-probe ORBITALS_TRACE_VCALL          1
 set  orbitals-record-source-probe ORBITALS_TRACE_RECORD_SOURCE 1
 
 site rec-null-guard main 0x175a030 b9405f29 cb0903ed aa0901ad d37ffdad d10005ad d101736e 8a2d0330 8a0d01d1 aa100239 b9405f29
+site rec-null-guard-vector main 0x175dbec f9400008 f9400008 cb0803ee aa0801ce d37ffdce d10005ce @page:x15 8a0e01ef aa0f0108
 site orbitals-vcall-probe main 0x1d761cc f9400508 f9400510 @page:x8 f9408108
 site orbitals-record-source-probe main 0x17505b8 f9400508 f9400510 @page:x8 f9408508
 site orbitals-record-source-probe main 0x17505e0 f9400508 f9400510 @page:x8 f9408508
