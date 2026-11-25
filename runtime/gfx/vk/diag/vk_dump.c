@@ -426,17 +426,30 @@ static void trace_ubo(VkExec *ex, const VkPipeState *s) {
     fflush(tu_f);
 }
 
-// A draw selected by ORBITALS_DUMP_DRAWS: its buffer textures (Niagara's particle and ribbon data are read through
-// them) are queued for a copy after the draw (draws_note_buf), to read the values its vertex shader saw. NVN formats
-// of those buffers: R16 family 2 bytes, RG32 and RGBA16 8, RGBA32 16, the rest 4. At most 64 KiB each.
-static void note_draw_buffers(const VkExec *ex, const VkPipeInfo *info) {
+// The buffers of a selected draw or dispatch: its buffer textures (Niagara's particle and ribbon data are read through
+// them) and storage buffers, handed to emit(addr, bytes, tag, arg) to be copied (a draw: draws_note_buf, after the
+// draw, to read the values its vertex shader saw; a dispatch of ORBITALS_DUMP_CS: after it, inputs and outputs).
+// NVN formats of the texel buffers: R16 family 2 bytes, RG32 and RGBA16 8, RGBA32 16, the rest 4. At most 64 KiB each.
+typedef void (*buf_emit)(uint64_t addr, uint64_t bytes, const char *tag, void *arg);
+static void each_buffer(const VkExec *ex, const VkPipeInfo *info, buf_emit emit, void *arg) {
     static const char *stn[8] = {"vs", "fs", "?", "?", "?", "cs", "task", "mesh"};
     for (uint32_t i = 0; i < info->n_bindings; i++) {
         const VkPipeBinding *bd = &info->bindings[i];
         const GfxShaderRes *r = bd->res;
-        if (!r || (bd->kind != GFX_RES_TEX && bd->kind != GFX_RES_IMG)) continue;
+        if (!r) continue;
+        int st = nvn_stage(bd->stage);
+        char tag[56];
+        if (bd->kind == GFX_RES_SSBO && r->cbuf_slot >= 3 && r->cbuf_slot - 3 < 18) {
+            uint64_t a = ubo_ptr(ex, st, r);
+            uint32_t size = ubo_word(ex, st, r->cbuf_slot, r->handle + 2u);
+            if (!a || !size) continue;
+            snprintf(tag, sizeof tag, "%s_ssbo_c%d_%02x_%u", stn[st & 7], r->cbuf_slot, r->handle * 4, size);
+            emit(a, size < 65536 ? size : 65536, tag, arg);
+            continue;
+        }
+        if (bd->kind != GFX_RES_TEX && bd->kind != GFX_RES_IMG) continue;
         if (bd->type != VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER && bd->type != VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER) continue;
-        int st = nvn_stage(bd->stage), img = bd->kind == GFX_RES_IMG;
+        int img = bd->kind == GFX_RES_IMG;
         for (uint32_t k = 0; k < (bd->count ? bd->count : 1u); k++) {
             uint64_t h = handle_of(ex, st, r, k, img), addr = 0;
             int fmt = 0;
@@ -445,11 +458,42 @@ static void note_draw_buffers(const VkExec *ex, const VkPipeInfo *info) {
             uint32_t tb = fmt >= 5 && fmt <= 9 ? 2 : (fmt >= 0x16 && fmt <= 0x18) || (fmt >= 0x29 && fmt <= 0x2d) ? 8
                           : (fmt >= 0x22 && fmt <= 0x24) || (fmt >= 0x2e && fmt <= 0x30) ? 16 : 4;
             uint64_t bytes = (uint64_t)texels * tb;
-            char tag[48];
-            snprintf(tag, sizeof tag, "%s_c%d_%02x_f%x_%u", stn[st & 7], r->cbuf_slot, r->handle * 4, fmt, texels);
-            draws_note_buf(addr, bytes < 65536 ? bytes : 65536, tag);
+            snprintf(tag, sizeof tag, "%s_%s_c%d_%02x_f%x_%u", stn[st & 7], img ? "img" : "tex", r->cbuf_slot, r->handle * 4,
+                     fmt, texels);
+            emit(addr, bytes < 65536 ? bytes : 65536, tag, arg);
         }
     }
+}
+
+static void emit_draw_buf(uint64_t addr, uint64_t bytes, const char *tag, void *arg) {
+    (void)arg;
+    draws_note_buf(addr, bytes, tag);
+}
+static void note_draw_buffers(const VkExec *ex, const VkPipeInfo *info) { each_buffer(ex, info, emit_draw_buf, NULL); }
+
+// ORBITALS_DUMP_CS / ctl "dump DIR cs H,H": the compute programs (SPIR-V hashes, as passes.txt names them) whose buffers
+// are copied after each dispatch of the dump frame, to csbuf_<pass>_<tag>.bin, their first dwords in drawbufs.txt. Colony fire, 25/11/2026:
+// the ribbon passes (sort, vertex reduction, aggregation) fill the buffers an arc's vertex shader reads.
+static uint64_t want_cs[16];
+static int nwant_cs;
+static void set_want_cs(const char *q) {
+    nwant_cs = 0;
+    while (q && *q && nwant_cs < 16) {
+        char *end;
+        uint64_t h = strtoull(q, &end, 16);
+        if (end == q) break;
+        want_cs[nwant_cs++] = h;
+        if (*end != ',') break;
+        q = end + 1;
+    }
+}
+typedef struct { VkExec *ex; int pass; } CsArg;
+static void emit_cs_buf(uint64_t addr, uint64_t bytes, const char *tag, void *arg) {
+    const CsArg *a = arg;
+    char name[140];
+    snprintf(name, sizeof name, "csbuf_%04d_%s", a->pass, tag);
+    const char *why = buf_copy_named(a->ex, addr, bytes, name);
+    if (why) fprintf(passes_f, "    dispatch buffer %s skipped: %s\n", name, why);
 }
 
 void vk_dump_draw(VkExec *ex, const VkPipeState *s, VkPipeline p, const VkPipeInfo *info) {
@@ -787,6 +831,11 @@ void vk_dump_dispatch(VkExec *ex, const GfxShader *cs, VkPipeline p, const VkPip
     int n = seq++;
     pass_decide(0, 0);
     last_targets = 0;
+    if (nwant_cs && frame_now() == dump_frame) {
+        uint64_t ch = shader_hash(cs);
+        for (int k = 0; k < nwant_cs; k++)
+            if (want_cs[k] == ch) each_buffer(ex, info, emit_cs_buf, &(CsArg){ex, n});
+    }
     Str b = {0};
     describe_bindings(&b, ex, info);
     fprintf(passes_f, "pass %04d: dispatch %dx%dx%d cs %016llx prog %llu caller %#llx, fence %llu\n%s", n, d->x, d->y,
@@ -914,7 +963,8 @@ static void set_want_fs(const char *q) {
 // Pass numbers move by dozens from one frame to the next as the shadowed lights in view change (logs32: the colony's
 // left-view post-process at 517-520 in one frame, 535-538 in the next, both outside the ranges asked), so fs and after
 // pick the passes by what they draw instead: the fire's and the smoke's shaders, and the post-process after them.
-int vk_dump_rearm(const char *d, int ubo, int luts, int log_n, int from, int to, int runs, const char *fs, int after) {
+int vk_dump_rearm(const char *d, int ubo, int luts, int log_n, int from, int to, int runs, const char *fs, int after,
+                  const char *cs) {
     plat_mutex_lock(&rec_lock);
     int busy = passes_f != NULL;
     if (!busy) {
@@ -922,6 +972,7 @@ int vk_dump_rearm(const char *d, int ubo, int luts, int log_n, int from, int to,
         pass_from = from, pass_to = to, skip_runs = runs;
         set_want_fs(fs);
         fs_after = after > 0 ? after : 0;
+        if (cs) set_want_cs(cs);   // none given: ORBITALS_DUMP_CS's list stays
         open_dir(d);
         seq = copied = nluts = nluts_done = stat_n = 0, stat_open = -1, png_bytes = 0;
         draws_reset();
@@ -951,6 +1002,7 @@ void vk_dump_init(void) {
         w[1] = *q == 'x' ? (uint32_t)strtoul(q + 1, &q, 10) : 0;
     }
     draws_init();
+    set_want_cs(cfg_get("ORBITALS_DUMP_CS"));   // read without ORBITALS_DUMP too, as ORBITALS_DUMP_DRAWS
     const char *e = cfg_get("ORBITALS_DUMP");
     if (!e || !*e || !(dump_frame = strtoull(e, NULL, 10))) return;
     const char *lf = cfg_get("ORBITALS_DUMP_LOG");

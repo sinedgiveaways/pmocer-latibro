@@ -185,8 +185,9 @@ void vk_dump_pass_begin(VkExec *ex);   // after vkCmdBeginRendering: the pass's 
 void vk_dump_pass_close(VkExec *ex);   // before vkCmdEndRendering
 // ORBITALS_CTL: dump the frame log_n + 1 ahead into dir, logging the ones before, with images only for passes from..to
 // (to < 0: every pass), skip_runs as ORBITALS_DUMP_SKIP_RUNS, fs ("H,H", NULL: none) and after as ORBITALS_DUMP_FS and
-// ORBITALS_DUMP_FS_AFTER; 0 while one is pending, which keeps its own options
-int vk_dump_rearm(const char *dir, int ubo, int luts, int log_n, int from, int to, int skip_runs, const char *fs, int after);
+// ORBITALS_DUMP_FS_AFTER, cs ("H,H", NULL: ORBITALS_DUMP_CS's) the compute programs whose buffers are copied; 0 while one is pending, which keeps its own options
+int vk_dump_rearm(const char *dir, int ubo, int luts, int log_n, int from, int to, int skip_runs, const char *fs, int after,
+                  const char *cs);
 void vk_dump_init(void);                 // reads the environment; vk_exec_record's first call
 void vk_dump_pass_end(VkExec *ex);       // after vkCmdEndRendering
 void vk_dump_draw(VkExec *ex, const VkPipeState *s, VkPipeline p, const VkPipeInfo *info);   // after a draw's binds;

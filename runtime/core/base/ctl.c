@@ -4,12 +4,13 @@
 //   shot PATH            the next presented frame, full size, as PNG (save_shot)
 //   screen PATH          the next swapchain image as PNG: what the player sees, with the menu, notices and overlays
 //                        (sRGB at paper white on an HDR display; gfx_present.c save_capture)
-//   dump DIR [ubo|lut|log N|passes A-B|runs|fs H[,H..]|after N]   the next frame as ORBITALS_DUMP writes it
+//   dump DIR [ubo|lut|log N|passes A-B|runs|fs H[,H..]|after N|cs H[,H..]]   the next frame as ORBITALS_DUMP writes it
 //                        (vk_dump_rearm; ubo: ORBITALS_DUMP_UBO; lut: only 3D volumes; log N: the N frames before it
 //                        logged to passes.txt too, as ORBITALS_DUMP_LOG; passes A-B: images of those passes only, as
 //                        ORBITALS_DUMP_PASSES; runs: as ORBITALS_DUMP_SKIP_RUNS; fs: images only of passes with a draw by
 //                        one of these fragment shaders (hex, as passes.txt names them) and of the N passes after each
-//                        (after N), as ORBITALS_DUMP_FS and ORBITALS_DUMP_FS_AFTER)
+//                        (after N), as ORBITALS_DUMP_FS and ORBITALS_DUMP_FS_AFTER; cs: the buffers of the dispatches by
+//                        those compute programs, as ORBITALS_DUMP_CS)
 //   flight               a flight dump around now (ORBITALS_FLIGHT=1), as F8
 //   press <ticks> <button> [hold]  /  press <ticks> LSTICK|RSTICK x y [hold]   input, <ticks> 60 Hz ticks from now
 //   tex ADDR             textures whose storage or pool-bound Vulkan image covers ADDR (0: every image larger than its storage)
@@ -53,13 +54,14 @@ void ctl_run(char *line) {
     } else if (!strcmp(cmd, "dump") && *arg) {
         char d[400];
         int ubo = 0, luts = 0, logn = 0, from = 0, to = -1, runs = 0, after = 0;
-        const char *fs = NULL;
+        const char *fs = NULL, *cs = NULL;
         char *sp = strchr(arg, ' ');
         if (sp) *sp = 0;
         // options after DIR, in any order: ubo | lut | log N | passes A-B (one number: that pass) | runs | fs H,H | after N
         for (char *o = sp ? sp + 1 : NULL; o && *o;) {
             while (*o == ' ') o++;
             if (!strncmp(o, "fs ", 3)) fs = o + 3;   // read up to the next space by vk_dump_rearm
+            else if (!strncmp(o, "cs ", 3)) cs = o + 3;
             else if (!strncmp(o, "after ", 6)) after = atoi(o + 6), o += 6;
             else if (!strncmp(o, "ubo", 3)) ubo = 1;
             else if (!strncmp(o, "lut", 3)) luts = 1;
@@ -74,7 +76,7 @@ void ctl_run(char *line) {
             o = strchr(o, ' ');
         }
         snprintf(d, sizeof d, "%s", arg);
-        rt_log(vk_dump_rearm(d, ubo, luts, logn, from, to, runs, fs, after) ? "ctl: dump %s queued at frame %llu" : "ctl: dump %s refused: one is pending (frame %llu)",
+        rt_log(vk_dump_rearm(d, ubo, luts, logn, from, to, runs, fs, after, cs) ? "ctl: dump %s queued at frame %llu" : "ctl: dump %s refused: one is pending (frame %llu)",
                d, (unsigned long long)frame);
     } else if (!strcmp(cmd, "flight")) {
         if (!flight_on) rt_log("ctl: flight refused: ORBITALS_FLIGHT is off");
