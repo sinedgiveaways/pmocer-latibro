@@ -214,6 +214,13 @@ into the burning deck): the red alarm light is the game's, but (a) the fires are
 edges where the console draws small cel-shaded orange flames with smoke, and (b) the red rooms look washed out (pink
 haze, lifted shadows) where the console's stay dark. **Next:** a dump of a fire through `ORBITALS_CTL`
 (`dump DIR passes A-B`, new) to find its draws.
+Checked against Liftoff v0.1.5 (`Dimi-Sama/OrbitalsPCRecomp`, AGPL-3.0: ideas only here, `GRAPHICS_ACCURACY.md`), whose
+fires and smoke came back through two fixes: (1) compute shared memory sized from control+0x64 (Unreal's GPU radix sort
+for Niagara particles uses 8 836 bytes, cut to 4 096 it sorted garbage); ours already reads it there (`compute_shape`:
+upsweep 2 209 words, spine 1 241, downsweep 2 361, all four sort programs translated); (2) Niagara buffers read through
+2D or 1D image declarations; ours gives 1D fetches a `samplerBuffer` twin, and the colony dump has no 2D declaration
+bound to a buffer texture (every unresolved binding is a 1D one with its twin). Their third, `Volatile` shared accesses
+for the sort's downsweep, concerns non-NVIDIA drivers only. logs29 logs no skipped draw, copy or layer.
 
 ### 1.2 A crash after the logos in about one run in three
 
