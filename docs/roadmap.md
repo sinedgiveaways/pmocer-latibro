@@ -251,16 +251,14 @@ Cette section fait foi sur les conclusions les plus récentes et corrige les hyp
 - La PR #19 (fix/record-subtable-175dc04) ajoute un second garde indépendant à main+0x175dbec, validé contre le mot d'instruction original f9400008. Le fallback redirige la base nulle vers la page zéro ; il doit encore être validé dans le jeu.
 - Ne pas modifier TPIDR, l'allocation TLS ou le scheduler sur la seule base de ce crash : les éléments recueillis ne démontrent pas une panne de TLS.
 
-### 6.2a Crash memcpy : source fautive confirmée au point de lecture (24/11/2026)
+### 6.2a Crash memcpy : frontière caller/helper identifiée (25/11/2026)
 
-- Le minidump original a été retraité sur GitHub Actions et le contexte d'exception réel est maintenant récupéré.
-- Exception : `0xC0000005` dans `ucrtbase.dll+0xAE44D`; instruction fautive `vmovdqu ymm0, [rdx]`.
-- Arguments natifs observés : destination `RCX=0x12E1A8000C`, source `RDX=0x01460149013D0140`, taille `R8=0x05240500` (86 246 656 octets).
-- `RSI=0x1C92EAB0540` pointe le descripteur : +0 = destination, +8 = source, +0x10 = taille, +0x40 = copie du pointeur source. Le champ +0x40 n'est donc pas la destination.
-- La lecture fautive est sur la source `0x01460149013D0140`; cette adresse n'a pas de plage mémoire capturée dans le rapport, tandis que la destination a une mémoire capturée. La longueur de ~82,25 MiB est également suspecte.
-- L'information d'exception Windows indique toutefois une adresse `0xFFFFFFFFFFFFFFFF`, incohérente avec `RDX` et l'instruction fautive : ce champ doit être revérifié avant d'être cité comme adresse AV.
-- **Prochaine étape :** remonter le producteur du descripteur +8 et +0x10, puis valider la capacité de destination. Aucun patch global de memcpy/memmove.
-- Détails : [registres natifs et contenu du descripteur](orbitals-startup-crash-analysis.md#24112026-crash-time-native-arguments-recovered-from-the-real-minidump).
+- Le descripteur au crash (`RSI=0x1C92EAB0540`) contient `+C8=0x01490140`, `+D0=0x11C51F8A8`, `+D8=0xCE01F2C00`, `+E0=0x11C51F8A8`.
+- Le call-site `+0x1B5A939A` n'est atteint que sur le chemin où `R13 & 4 != 0`; ce chemin écrit normalement la taille 4 dans `[RSI+0x10]`. Le chemin qui conserve la taille initiale saute ce call.
+- Pourtant, au crash, `[RSI+0x10]` et `R8` valent `0x05240500`. Les champs C8/D8 ne produisent pas non plus la source observée `0x01460149013D0140`.
+- **Conclusion :** contradiction concrète entre les stores du caller et le contexte observé à UCRT. Le prochain périmètre est le wrapper/dispatcher natif `orbitalgame.dll+0x1C11DF00` → `orbitals-recomp.exe+0x40CE0` → `+0x70C430`, pas le helper UCRT ni un patch global.
+- Une extraction GitHub Actions désassemble désormais directement les deux adresses natives depuis le dump. Ne pas modifier le code guest avant d'avoir compris la transformation du contexte.
+- Détails : [contradiction caller/helper et champs du descripteur](orbitals-startup-crash-analysis.md#25112026-exact-crash-descriptor-fields-and-the-callerhelper-contradiction).
 
 ### 6.2 Crash A : le Binned3 tente de libérer sa propre pile
 
