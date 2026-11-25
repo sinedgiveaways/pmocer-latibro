@@ -855,3 +855,30 @@ The caller disassembly around return address `orbitalgame.dll+0x1B5A939F` is use
 5. Patch only the proven descriptor producer or length calculation. Do not patch `memcpy`/`memmove` globally.
 
 The exception-context artifact is `orbitals-caller-1B5A8FF0` from workflow run `45476215717`. Its corrected upload succeeded.
+
+
+## 25/11/2026: exact crash descriptor fields and the caller/helper contradiction
+
+The latest successful extraction includes the 0x200-byte descriptor at `RSI=0x1C92EAB0540` and confirms the four fields needed to follow the caller's address construction:
+
+| Field | Crash-time value |
+|---|---:|
+| `RSI+0xC8` | `0x0000000001490140` |
+| `RSI+0xD0` | `0x000000011C51F8A8` |
+| `RSI+0xD8` | `0x0000000CE01F2C00` |
+| `RSI+0xE0` | `0x000000011C51F8A8` |
+
+The caller's call site at RVA `0x1B5A939A` is preceded by:
+
+- `mov [rsi+0x10], r13` at `+0x1B5A9343`
+- `and r13, 4` at `+0x1B5A935C`
+- conditional branch `je +0x1B5A93A7` at `+0x1B5A9360`
+- only on the nonzero-bit path, `mov [rsi+0x10], r13` at `+0x1B5A9377`, then the call at `+0x1B5A939A`.
+
+Thus the call at `+0x1B5A939A` is reached through the path where bit 2 is set and the caller should have overwritten the size field with 4. Yet the crash-time descriptor +0x10 and native `R8` both contain `0x05240500` (86,246,656). The crash-time `R13` also shows `0x05240500`, but that is a callee-time register and must not be treated as definitive caller state without ABI-preservation proof.
+
+Likewise, the crash-time `RSI+0xC8/D8` values do not arithmetically produce the descriptor source `RSI+0x08`. The runtime descriptor is internally inconsistent with the expected caller-side stores.
+
+**This contradiction moves the next investigation boundary downstream of the caller's source code:** inspect the native wrapper/dispatcher path between `orbitalgame.dll+0x1C11DF00`, `orbitals-recomp.exe+0x40CE0`, and `orbitals-recomp.exe+0x70C430`. Specifically determine whether the helper copies/mutates the context, misreads its field offsets, or passes a different descriptor to UCRT. A new dump extraction job now disassembles both native addresses directly. Do not patch the guest caller based solely on the static call-site sequence; do not patch UCRT memcpy/memmove globally.
+
+The pointer source `0x01460149013D0140` remains the actual invalid source operand at the AV instruction. The exception stream's access-violation parameter address remains inconsistent (`0xFFFFFFFFFFFFFFFF`) and is not used as evidence.
