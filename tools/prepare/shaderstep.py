@@ -8,6 +8,7 @@ Why apart: prepare.py holds the order of the steps and their keys; this step dri
 
 import hashlib
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -77,3 +78,8 @@ def shaders(exefs: Path, romfs: Path, game: Path, work: Path, glslc: str, jobs: 
             print(f"shaders: a worker ended abruptly, again with {jobs} workers", file=sys.stderr)
     for p in (game / "spirv").glob("*.glsl"):  # the runtime reads .spv and .res.json; the GLSL only made them
         p.unlink()
+    # the runtime's background translation (gfx_shader_auto.c) writes failed.tsv again for the programs it dumped:
+    # the setup's list over every program is kept apart (25/11/2026: the player's copy held only the dump's 4)
+    failed = game / "spirv" / "failed.tsv"
+    if failed.is_file():
+        shutil.copyfile(failed, game / "spirv" / "failed-setup.tsv")

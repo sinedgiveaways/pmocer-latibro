@@ -126,17 +126,23 @@ def own_children() -> None:
     k32.AssignProcessToJobObject(wintypes.HANDLE(job), wintypes.HANDLE(k32.GetCurrentProcess()))
 
 
+def win_memory() -> tuple[float, float] | None:
+    """(total, available) GiB of physical memory on Windows (GlobalMemoryStatusEx), None when it fails."""
+    import ctypes
+
+    class Status(ctypes.Structure):  # MEMORYSTATUSEX
+        _fields_ = [("length", ctypes.c_uint32), ("load", ctypes.c_uint32), ("total", ctypes.c_uint64),
+                    ("avail", ctypes.c_uint64), ("rest", ctypes.c_uint64 * 5)]  # fmt: skip
+
+    st = Status(length=ctypes.sizeof(Status))
+    return (st.total / 2**30, st.avail / 2**30) if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(st)) else None
+
+
 def mem_available_gb() -> float:
     """Memory free for new work now (MemAvailable on Linux, ullAvailPhys on Windows); 8 when unknown."""
     if os.name == "nt":
-        import ctypes
-
-        class Status(ctypes.Structure):  # MEMORYSTATUSEX
-            _fields_ = [("length", ctypes.c_uint32), ("load", ctypes.c_uint32), ("total", ctypes.c_uint64),
-                        ("avail", ctypes.c_uint64), ("rest", ctypes.c_uint64 * 5)]  # fmt: skip
-
-        st = Status(length=ctypes.sizeof(Status))
-        return st.avail / 2**30 if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(st)) else 8.0
+        m = win_memory()
+        return m[1] if m else 8.0
     try:
         with open("/proc/meminfo") as f:
             for line in f:
@@ -155,6 +161,11 @@ def shader_jobs() -> int:
 
 
 def mem_gb() -> float:
+    """Physical memory, GiB. Windows has no /proc/meminfo (build.mem_total_gb): before 25/11/2026 every Windows setup
+    took 8 GB and ran 9 compile jobs on a 24-thread PC (logs/setup.log "machine: 24 threads, 8.0 GB")."""
+    if os.name == "nt":
+        m = win_memory()
+        return m[0] if m else 8.0
     try:
         return build.mem_total_gb()
     except OSError:
