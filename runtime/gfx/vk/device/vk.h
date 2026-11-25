@@ -398,7 +398,8 @@ void vk_mem_shutdown(void);                        // before vk_shutdown: waits 
 
 // Textures. Images are keyed by storage GPU address plus descriptor and stay in VK_IMAGE_LAYOUT_GENERAL. A mirrored
 // texture (CPU-written pool storage, MNG tex_mirrored) is uploaded on first use and again when its storage pages were
-// written; once the GPU wrote it (vk_texture_gpu_written) the image is its content. A returned pointer stays valid
+// written; once the GPU wrote it (vk_texture_gpu_written) the image is its content, except for the levels the CPU
+// rewrites afterwards (vk_tex_upload.c merge_cpu_writes). A returned pointer stays valid
 // until the next call that may drop textures (release, pool fini); copy what outlives that.
 typedef struct {
     VkImage image;

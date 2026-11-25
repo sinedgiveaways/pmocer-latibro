@@ -195,6 +195,14 @@ Full retranslation: 23 176 of 23 432 valid as before; `flow_check.py` finds no d
 Confirmed in game (build `905745a`, 25/11/2026): the colony is lit in both split-screen halves, walls, floor and
 characters close to the console's. Left: blocky noise patches, bright white blocks on ceilings and light shafts, and
 multicoloured blocks on some surfaces (a sofa), the speckles of 1.1 above.
+The blocks are in the G-buffer already (base colour and normals), so a material texture is read wrong. Nearly every
+BC material texture of the base pass is GPU-owned, and `ORBITALS_TRACE_STALE=1` (logs26, `b978be8`) listed 262
+sampled textures whose storage the CPU rewrote after the GPU wrote them: BC mip chains (NVN formats 0x45 to 0x50, 8
+to 12 levels) written by one copy (`build/orbitals-recomp+0xd821f`), the storage rewritten from its start. Mask `0fff`
+of a 2048x2048 BC1 is exactly its level 0 (0x200000 of 0x2ab400 bytes): Unreal's mip streaming copies the old mips on
+the GPU and writes the new large mip with the CPU, which the runtime dropped for a GPU-owned texture. Fixed in
+`vk_tex_upload.c merge_cpu_writes`: each level and layer whose own pages the CPU wrote since the GPU write goes into
+the image from the storage. **Next:** a run into the colony: the sofa, the tree and the props without blocks.
 
 ### 1.2 A crash after the logos in about one run in three
 
