@@ -86,6 +86,7 @@ struct RtThread {
     uint64_t st_since, st_ns[S_N], nblk, npre, pre_since, cpu_last;
     uint64_t wobj;             // what the current wait is on: owner handle, key, address or first handle
     uint32_t waker;            // the thread whose signal ended the last wait (0: a host thread or a timeout)
+    uint64_t wait_ns;          // when the current (or last) wait began (kern_threads_dump: how long it has waited)
     uint64_t wake_at, grant_at;   // when a wait was signalled and a core granted, until the thread runs again
     uint64_t lw_ns, lw_n, lw_max, lg_ns, lg_n, lg_max, sl_n, sl_req, sl_act;   // those latencies; SleepThread asked/took
     uint64_t sp_n, sp_ho, sp_site;   // spin wait passes and core handoffs, the last loop head (the thread writes them)
@@ -108,6 +109,10 @@ struct RtThread {
 };
 
 extern PlatMutex G;   // the kernel lock
+// The latest SignalProcessWideKey on a condition variable key, by key in a small table (kern_cv_signal_note, holding
+// G): at a timeout abort, kern_threads_dump says for each thread on a condition variable whether a signal came after
+// its wait began and how many it woke, which tells a lost wakeup from a signal never sent.
+void kern_cv_signal_note(uint64_t key, uint32_t by, int woke);
 typedef struct { int type; void *obj; } HandleSlot;
 extern HandleSlot g_h[MAX_H];
 extern _Thread_local RtThread *tcur;

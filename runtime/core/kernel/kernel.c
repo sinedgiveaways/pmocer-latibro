@@ -104,6 +104,7 @@ static void wait_enqueue(RtThread **list, RtThread *t, int kind, uint64_t seq) {
     t->wkind = kind;
     t->woke = 0;
     t->wseq = seq;
+    t->wait_ns = kern_now_ns();
     t->next = *list;
     *list = t;
 }

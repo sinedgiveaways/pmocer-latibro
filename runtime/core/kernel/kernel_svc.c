@@ -308,6 +308,7 @@ int kern_svc(Cpu *c, uint32_t imm) {
         int left = 0;
         for (RtThread *w = g_wait; w && !left; w = w->next) left = w->wkind == W_CONDVAR && w->wkey == key;
         if (!left) st32(key, 0);
+        kern_cv_signal_note(key, tcur ? tcur->handle : 0, n);
         unlock();
         x[0] = R_OK;
         return 1;

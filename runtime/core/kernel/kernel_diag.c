@@ -443,6 +443,29 @@ void kern_sched_report(uint64_t frame) {
         }
 }
 
+// ---- condition variable signals, for the thread dump below
+// Two freezes after the transient texel view fix ended in "GameThread timed out waiting for RenderThread" with the
+// render thread in a timed condition variable wait and every worker idle on one (logs75, logs78 of 26/11/2026, the
+// same render thread stack). Either a signal was lost or none was sent: the latest signal per key tells them apart.
+#define CVS_N 4096
+static struct { uint64_t key, ns, n; uint32_t by; int woke; } g_cvs[CVS_N];
+
+void kern_cv_signal_note(uint64_t key, uint32_t by, int woke) {   // holding G
+    unsigned i = (unsigned)((key * 0x9E3779B97F4A7C15ull) >> 52) % CVS_N;
+    if (g_cvs[i].key != key) g_cvs[i].key = key, g_cvs[i].n = 0;   // a collision forgets the older key
+    g_cvs[i].ns = kern_now_ns(), g_cvs[i].by = by, g_cvs[i].woke = woke, g_cvs[i].n++;
+}
+
+static void cv_line(const RtThread *t, uint64_t now) {
+    char sig[160] = "never signalled (or forgotten)";
+    unsigned i = (unsigned)((t->wkey * 0x9E3779B97F4A7C15ull) >> 52) % CVS_N;
+    if (g_cvs[i].key == t->wkey && g_cvs[i].n)
+        snprintf(sig, sizeof sig, "last signalled %.3f s ago by %#x, waking %d (%s this wait began; %llu signals)",
+                 (now - g_cvs[i].ns) / 1e9, g_cvs[i].by, g_cvs[i].woke, g_cvs[i].ns >= t->wait_ns ? "AFTER" : "before",
+                 (unsigned long long)g_cvs[i].n);
+    rt_logf("    key %#llx, waiting %.3f s; %s\n", (unsigned long long)t->wkey, (now - t->wait_ns) / 1e9, sig);
+}
+
 // ---- every guest thread at a fatal abort
 // An abort that is a timeout names the thread waited for but not why it is late: Orbitals (Unreal), port-step2c,
 // "GameThread timed out waiting for RenderThread". Each thread's wait and its guest frame-pointer chain say where the
@@ -483,6 +506,9 @@ void kern_threads_dump(void) {
         rt_logf("  thread %#x \"%s\" prio %d core %d%s: %s %#llx%s\n", t->handle, name, t->prio, t->cur_core,
                 t == tcur ? " (this one)" : "", wk[k], (unsigned long long)(k ? t->waddr : 0),
                 dg_in_host(t) ? ", inside an SVC or host function" : "");
+        if (k == W_CONDVAR) cv_line(t, kern_now_ns());
+        else if (k) rt_logf("    waiting %.3f s\n", (kern_now_ns() - t->wait_ns) / 1e9);
+        if (t->waker) rt_logf("    the last wait was ended by %#x\n", t->waker);
         rt_logf("    lr %s\n", ldr_describe(c->x[30], d, sizeof d));
         uint64_t fp = c->x[29];
         for (int f = 0; f < 12 && fp && !(fp & 7) && plat_mem_readable(fp, 16); f++) {
