@@ -283,6 +283,8 @@ int vk_unsized_written_find(int kind, uint64_t addr, uint64_t size, uint64_t *ba
 void vk_mem_lost_watch(const void *pool, uint64_t addr, uint64_t size, uint32_t vs);
 void vk_mem_watch_add(uint64_t lo, uint64_t hi);    // ORBITALS_SHADOW_WATCH over [lo, hi) from now on (vk_mem_race.c)
 uint64_t vk_mem_gpu_last_fence(uint64_t addr);      // newest submission noted writing addr's page into a shadow
+uint64_t vk_mem_gpu_noted(uint64_t addr);           // submission of the last GPU write noted over addr (0: none known)
+extern int vk_mem_noted_on;                         // set by ORBITALS_IND_READ with a VS list: vk_mem_gpu_noted kept
 void vk_mem_lost_log(uint64_t frame);
 void vk_mem_gpu_pending(uint64_t addr, uint64_t size);
 void vk_gpu_written(uint64_t addr, uint64_t size);

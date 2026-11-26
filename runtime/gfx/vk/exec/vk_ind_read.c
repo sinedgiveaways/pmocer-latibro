@@ -44,6 +44,7 @@ typedef struct {
     int ssbo_state;
     uint8_t cpu_ok;
     uint64_t ga;                // guest address of its arguments (0: not host-backed)
+    uint64_t wrec, frec;        // last GPU write noted over ga when the draw was recorded, and the draw's submission
     uint32_t uh[2][18];         // ORBITALS_IND_CHECK_SETS: the VS's and FS's uniform blocks as the snapshot holds them
     uint8_t nres;               // ORBITALS_IND_HASH: its buffers, as indices into the pass's res[] and tags (stage << 7 |
     uint16_t res[HMAX];         // uniform << 6 | slot)
@@ -92,6 +93,7 @@ static int enabled(uint32_t vs) {
                 want[nwant++] = (uint32_t)(v << (32 - 4 * digits));
                 p = end;
             }
+        vk_mem_noted_on = nwant > 0;   // indbad: lines name the last GPU write over the arguments
         const char *h = cfg_get("ORBITALS_IND_HASH"), *ck = cfg_get("ORBITALS_IND_CHECK");
         if (ck && *ck && strcmp(ck, "0")) check_addr = strtoull(ck, NULL, 16), on = 1, h = "1";
         check_sets = check_addr && cfg_get("ORBITALS_IND_CHECK_SETS") && atoi(cfg_get("ORBITALS_IND_CHECK_SETS"));
@@ -151,6 +153,7 @@ void vk_ind_read_note(VkBuffer buf, VkDeviceSize off, uint32_t stride, uint32_t 
     bytes += span + (has_count ? 4 : 0);
     bytes = (bytes + 3) & ~3u;
     d->ga = guest;
+    if (nwant && guest) d->wrec = vk_mem_gpu_noted(guest + 4), d->frec = vk_exec_recording_fence();
     if (check_sets)   // the first KiB of each uniform block the draw reads, as bound: its snapshot (vk_usnap.c)
         for (int st = 0; st < 2; st++)
             for (int k = 0; k < 18; k++) {
@@ -275,9 +278,11 @@ static void pass_done(void *arg) {   // completion thread
             // guest memory and on the GPU alike; a spark draw's 0x7f000110 stalled the GPU 3 s): which submission
             // last wrote the page from the GPU, and from now on every shadow change there (swatch: lines)
             if (d->ga && ic > 1000000u) {
-                rt_log("indbad: f%llu vs %08x at %#llx ic %#x fi %#x: page last written by the GPU in submission %llu, "
-                       "recorded in %llu, done %llu", (unsigned long long)p->frame, d->vs, (unsigned long long)d->ga, ic,
-                       fi, (unsigned long long)vk_mem_gpu_last_fence(d->ga), (unsigned long long)p->fence,
+                rt_log("indbad: f%llu vs %08x at %#llx ic %#x fi %#x: draw in submission %llu; last GPU write noted over "
+                       "it %llu when the draw was recorded, %llu now; page last written into a shadow in %llu, done %llu",
+                       (unsigned long long)p->frame, d->vs, (unsigned long long)d->ga, ic, fi,
+                       (unsigned long long)d->frec, (unsigned long long)d->wrec,
+                       (unsigned long long)vk_mem_gpu_noted(d->ga + 4), (unsigned long long)vk_mem_gpu_last_fence(d->ga),
                        (unsigned long long)vk_sync_fence_done());
                 vk_mem_watch_add(d->ga & ~0xfull, (d->ga & ~0xfull) + 0x40);
             }

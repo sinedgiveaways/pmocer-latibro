@@ -138,6 +138,23 @@ static void wb_order_note(uint64_t addr, uint64_t size, uint64_t fence) {
         if (__atomic_compare_exchange_n(&wb_need, &cur, need, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED)) break;
 }
 
+// The last GPU write noted at each 64-byte line (lossy, direct-mapped by its start): which submission wrote a range
+// that starts there, any memory. Read for absurd indirect arguments (vk_ind_read.c indbad): had their writer been
+// recorded before the draw, or only after it?
+#define NOTED 8192
+int vk_mem_noted_on;
+static struct { uint64_t lo, hi, fence; } noted[NOTED];
+
+uint64_t vk_mem_gpu_noted(uint64_t addr) {
+    for (int k = 0; k < 4; k++) {   // ranges starting up to 3 lines before
+        uint64_t line = (addr >> 6) - (uint64_t)k;
+        uint64_t lo = __atomic_load_n(&noted[line % NOTED].lo, __ATOMIC_RELAXED);
+        uint64_t hi = __atomic_load_n(&noted[line % NOTED].hi, __ATOMIC_RELAXED);
+        if (lo <= addr && addr < hi) return __atomic_load_n(&noted[line % NOTED].fence, __ATOMIC_RELAXED);
+    }
+    return 0;
+}
+
 // The newest submission noted as writing addr's page into a shadow (0: none or ORBITALS_WB_ORDER off)
 uint64_t vk_mem_gpu_last_fence(uint64_t addr) {
     return wb_last && addr < RT_ADDRESS_LIMIT ? __atomic_load_n(&wb_last[addr >> 12], __ATOMIC_RELAXED) : 0;
@@ -146,6 +163,11 @@ uint64_t vk_mem_gpu_last_fence(uint64_t addr) {
 void vk_mem_gpu_pending(uint64_t addr, uint64_t size) {
     mem_early_gpu_wrote(addr, size, vk_exec_recording_fence());   // ORBITALS_EARLY_READ
     if (watch_hi) watch_event("GPU write noted", addr, addr + size, vk_exec_recording_fence(), size);
+    if (vk_mem_noted_on) {   // ORBITALS_IND_READ's indbad lines read it
+        uint64_t k = (addr >> 6) % NOTED;
+        __atomic_store_n(&noted[k].lo, addr, __ATOMIC_RELAXED), __atomic_store_n(&noted[k].hi, addr + size, __ATOMIC_RELAXED);
+        __atomic_store_n(&noted[k].fence, vk_exec_recording_fence(), __ATOMIC_RELAXED);
+    }
     if (!shadow_on || !size) return;
     uint8_t *base = lost_base(addr, size);
     if (merge_mode < 0) {
