@@ -162,7 +162,7 @@ def declarations(b, stage: str, shape: tuple[int, int, int, int] | None) -> list
         head.append(f"vec4 tld1d_{bank}_{idx}(int x, int l) {{ return textureSize({t}, 0) <= 1 ? "
                     f"texelFetch(tb{bank}_{idx}, x) : texelFetch({t}, x, l); }}")
     for (bank, idx), t in sorted(b.images.items()):
-        fmt = "r32ui, " if t.startswith("uimage") else ""
+        fmt = "r32ui, " if (bank, idx) in b.img_atomic else ""
         head.append(f"layout({fmt}binding = {nb}) uniform {t} i{bank}_{idx};")
         # SULD/SUST as the texels' bits (tex.py image): straight on an r32ui image, through the float views otherwise
         im, u = f"i{bank}_{idx}", t.startswith("uimage")
@@ -171,9 +171,11 @@ def declarations(b, stage: str, shape: tuple[int, int, int, int] | None) -> list
             head.append(f"uvec4 imld_{im}({pt} p) {{ return {'imageLoad(' + im + ', p)' if u else 'floatBitsToUint(imageLoad(' + im + ', p))'}; }}")
         if im in b.img_st:
             head.append(f"void imst_{im}({pt} p, uvec4 v) {{ imageStore({im}, p, {'v' if u else 'uintBitsToFloat(v)'}); }}")
+        # flags: 4 image store (Ryujinx TextureUsageFlags), 0x10 an integer image without a format (its view: the UINT
+        # format of the texture's layout, vk_exec_bind.c texel_view)
         refl["images"].append({"binding": nb, "type": sampler_type(t), "format": "R32Uint" if fmt else "Unknown", "cbuf_slot": bank,
                                "handle": idx & 0xFFFF, "handle2": b.tex_h2.get((bank, idx), -1), "array": 1, "separate": False,
-                               "flags": 4})  # fmt: skip
+                               "flags": 4 | (0x10 if u and not fmt else 0)})  # fmt: skip
         nb += 1
     for bank, idx in sorted(b.txq_tex):
         if (bank, idx) in img_txq:

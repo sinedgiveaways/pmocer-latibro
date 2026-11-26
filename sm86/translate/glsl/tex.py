@@ -124,8 +124,16 @@ class TexOps:
         cur = self.images.get(key)
         if cur is not None and cur.removeprefix("u") != f"image{name}":
             raise Unsupported(f"{i.op}: image {key} used as image{name} and as {cur}")
-        atomic = i.op in ("SURED", "SUATOM") or (cur or "").startswith("uimage")
-        self.images[key] = f"{'uimage' if atomic else 'image'}{name}"
+        atomic = i.op in ("SURED", "SUATOM")
+        if atomic:
+            self.img_atomic.add(key)
+        # A buffer image (1D_BUFFER) is an integer one, declared without a format: Orbitals binds only R32F, R32UI,
+        # R32I and R16UI buffer textures as images (dumps of 25-26/11/2026), whose texels a uint view holds bit for
+        # bit, and the runtime makes that view (flag 0x10, vk_exec_bind.c texel_view). Declared float over an R32UI
+        # view, as before, the access had no defined result: Niagara's DrawIndirectArgsGen read and wrote the GPU
+        # instance counts and indirect arguments so, and particle draws asked for ~10^9 instances (GPU stalls).
+        uint = atomic or name == "Buffer" or (cur or "").startswith("uimage")
+        self.images[key] = f"{'uimage' if uint else 'image'}{name}"
         return f"i{key[0]}_{key[1]}", vec, {"R": 1, "RG": 2, "RGBA": 4}.get(i.sym("rgba"), 0)
 
     def sust(self, i: Insn) -> str:

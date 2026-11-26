@@ -524,7 +524,21 @@ static int watch_cs_match(int st) {
 static _Thread_local int texel_stage;   // the stage of the binding texel_view makes a view for
 static _Thread_local int texel_first;   // that binding is the dispatch's first storage texel buffer
 
-static VkBufferView texel_view(VkExec *ex, uint64_t h, int storage) {
+// The UINT format with the texels of f (32-bit components; R16_UINT as itself), for a buffer image the translator declares
+// as an integer image (reflection flag 0x10, or "R32Uint" for atomics): a float or signed view under a uimageBuffer has
+// no defined result, a UINT one gives the texels' bits, which SULD/SUST move. VK_FORMAT_UNDEFINED: no such twin.
+static VkFormat uint_twin(VkFormat f) {
+    switch (f) {
+    case VK_FORMAT_R32_UINT: case VK_FORMAT_R32_SINT: case VK_FORMAT_R32_SFLOAT: return VK_FORMAT_R32_UINT;
+    case VK_FORMAT_R32G32_UINT: case VK_FORMAT_R32G32_SINT: case VK_FORMAT_R32G32_SFLOAT: return VK_FORMAT_R32G32_UINT;
+    case VK_FORMAT_R32G32B32A32_UINT: case VK_FORMAT_R32G32B32A32_SINT: case VK_FORMAT_R32G32B32A32_SFLOAT:
+        return VK_FORMAT_R32G32B32A32_UINT;
+    case VK_FORMAT_R16_UINT: return VK_FORMAT_R16_UINT;
+    default: return VK_FORMAT_UNDEFINED;
+    }
+}
+
+static VkBufferView texel_view(VkExec *ex, uint64_t h, int storage, int uint_img) {
     uint64_t addr;
     int fmt;
     uint32_t texels;
@@ -537,16 +551,31 @@ static VkBufferView texel_view(VkExec *ex, uint64_t h, int storage) {
         warn_once(W_TEXEL_FMT, "buffer texture format %#x has no texel buffer format: the zero view is bound", fmt);
         return Z.zview;
     }
+    VkFormat vf = f.ideal;
+    if (uint_img) {
+        VkFormat u = uint_twin(f.ideal);
+        if (u != VK_FORMAT_UNDEFINED) vf = u;
+        else warn_once(W_TEXEL_FMT, "buffer image format %#x has no UINT twin: its view keeps the format (integer image)", fmt);
+    }
+    // Format features by VkFormat (the core formats are below 0x100); the view's format, which an integer image changes
     static VkFormatFeatureFlags feat[0x100];
     static uint8_t feat_known[0x100];
-    if (!__atomic_load_n(&feat_known[fmt & 0xff], __ATOMIC_ACQUIRE)) {
+    VkFormatFeatureFlags have = 0;
+    if ((unsigned)vf < 0x100) {
+        if (!__atomic_load_n(&feat_known[vf], __ATOMIC_ACQUIRE)) {
+            VkFormatProperties fp;
+            vkGetPhysicalDeviceFormatProperties(vk_ctx()->phys, vf, &fp);
+            feat[vf] = fp.bufferFeatures;
+            __atomic_store_n(&feat_known[vf], 1, __ATOMIC_RELEASE);
+        }
+        have = feat[vf];
+    } else {
         VkFormatProperties fp;
-        vkGetPhysicalDeviceFormatProperties(vk_ctx()->phys, f.ideal, &fp);
-        feat[fmt & 0xff] = fp.bufferFeatures;
-        __atomic_store_n(&feat_known[fmt & 0xff], 1, __ATOMIC_RELEASE);
+        vkGetPhysicalDeviceFormatProperties(vk_ctx()->phys, vf, &fp);
+        have = fp.bufferFeatures;
     }
     VkFormatFeatureFlags need = storage ? VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT : VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT;
-    if (!(feat[fmt & 0xff] & need)) {
+    if (!(have & need)) {
         warn_once(W_TEXEL_FMT, "buffer texture format %#x is not a %s texel buffer format here: the zero view is bound", fmt,
                   storage ? "storage" : "uniform");
         return Z.zview;
@@ -572,7 +601,7 @@ static VkBufferView texel_view(VkExec *ex, uint64_t h, int storage) {
     }
     VkDeviceSize range = bi.range - bi.range % (VkDeviceSize)bpb;
     if (!range) return Z.zview;
-    VkBufferView v = texel_view_make(bi.buffer, bi.offset, range, f.ideal);
+    VkBufferView v = texel_view_make(bi.buffer, bi.offset, range, vf);
     return v ? v : Z.zview;
 }
 
@@ -1143,7 +1172,7 @@ void bind_resources(VkExec *ex, const VkPipeInfo *info) {
                     else h = slot >= 0 && slot < 128 ? ex->tex[st][slot] : 0;
                     o[k].w[0] = 0, o[k].w[1] = 0, o[k].w[2] = 0;
                     texel_stage = st;
-                    o[k].view = texel_view(ex, h, img);
+                    o[k].view = texel_view(ex, h, img, img && (r->format == 11 || (r->flags & 0x10)));
                     if (need_w) bv[nd + k] = o[k].view;
                 }
             } else if (xuse) {

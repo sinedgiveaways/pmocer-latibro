@@ -72,6 +72,7 @@ class Builder(AluOps, MemOps, TexOps, ThreadOps, GeomOps):
         self.images: dict[tuple[int, int], str] = {}
         self.img_ld: set[str] = set()   # images SULD reads and SUST writes: their imld_/imst_ helpers (head.py)
         self.img_st: set[str] = set()
+        self.img_atomic: set[tuple[int, int]] = set()   # images with atomics: declared r32ui (head.py)
         self.ssbos: set[int] = set()  # driver bank 0 offsets of the storage buffer addresses read
         self.ssbos_written: set[int] = set()  # those a STG, ATOMG or RED stores into (reflection flag 1)
         self.ur_ssbo: dict[int, int] = {}  # uniform register -> the c[0] offset its 64-bit value came from
