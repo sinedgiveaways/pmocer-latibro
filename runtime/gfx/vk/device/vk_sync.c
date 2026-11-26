@@ -215,6 +215,8 @@ static void cb_log(uint64_t values) {
 }
 
 #define HANG_NS 5000000000ull   // no frame's submission takes seconds; a load's uploads are many short ones
+#define SLOW_NS 1000000000ull   // a submission this long is a visible freeze: its breadcrumbs are logged
+#define SLOW_REPORTS 8
 static void completion_main(void *arg) {
     VkCtx *c = arg;
     plat_mutex_lock(&st_lock);
@@ -239,9 +241,19 @@ static void completion_main(void *arg) {
             // after HANG_NS without the timeline moving, the breadcrumbs say what the GPU had started and not finished.
             static uint64_t stuck_since;   // this thread only
             static int hang_logged;
-            if (reached >= want) stuck_since = 0;
+            // A stall of a second or more without a hang (26/11/2026, colony deck once indirect dispatches ran: frames of
+            // 1.1-2.9 s in "fence/present wait", the completion thread on the GPU) names its work the same way, for the
+            // first SLOW_REPORTS of them: the marker words are host memory, read here off the frame's critical path.
+            static int slow_logged, slow_this;
+            if (reached >= want) stuck_since = 0, slow_this = 0;
             else if (!stuck_since) stuck_since = kern_now_ns();
-            else if (!hang_logged && kern_now_ns() - stuck_since >= HANG_NS) {
+            else if (!slow_this && slow_logged < SLOW_REPORTS && kern_now_ns() - stuck_since >= SLOW_NS) {
+                slow_this = 1, slow_logged++;
+                rt_log("vk: the GPU has spent %.1f s on submission %llu (slow report %d of %d)",
+                       (double)(kern_now_ns() - stuck_since) / 1e9, (unsigned long long)want, slow_logged, SLOW_REPORTS);
+                vk_crumbs_report_hang();
+            }
+            if (reached < want && stuck_since && !hang_logged && kern_now_ns() - stuck_since >= HANG_NS) {
                 rt_log("vk: the GPU has not finished submission %llu in %d s and the driver reports no device loss",
                        (unsigned long long)want, (int)(HANG_NS / 1000000000ull));
                 vk_crumbs_report_hang();
