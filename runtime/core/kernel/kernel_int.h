@@ -87,6 +87,7 @@ struct RtThread {
     uint64_t wobj;             // what the current wait is on: owner handle, key, address or first handle
     uint32_t waker;            // the thread whose signal ended the last wait (0: a host thread or a timeout)
     uint64_t wait_ns;          // when the current (or last) wait began (kern_threads_dump: how long it has waited)
+    int64_t wait_req_ns;       // the timeout a condition variable wait asked for (svc 0x1C x3; < 0 none)
     uint64_t wake_at, grant_at;   // when a wait was signalled and a core granted, until the thread runs again
     uint64_t lw_ns, lw_n, lw_max, lg_ns, lg_n, lg_max, sl_n, sl_req, sl_act;   // those latencies; SleepThread asked/took
     uint64_t sp_n, sp_ho, sp_site;   // spin wait passes and core handoffs, the last loop head (the thread writes them)

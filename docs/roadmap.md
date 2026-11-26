@@ -434,10 +434,27 @@ streaming des mips).
   pendant que le GameThread attend une barrière de rendu ; le réveil de la file aurait été manqué.
 - Vérifié sans défaut : la traduction des barrières (`DMB` en fence seq_cst), LDAR/STLR (seq_cst), CAS/CASP et LSE,
   et l'émulation LDXR/STXR et LDXP/STXP par CAS sur la valeur lue (`runtime/cpu/cpu.h`).
-- **Prochaine étape :** nommer ces fonctions. La sandbox n'a pas l'ExeFS. `orbitals-frame-report.exe --stack`
-  (`ec65fcb`, run 45911481435) le fait chez le joueur : posé dans le dossier du jeu à côté de `exefs\` et de
-  `logs\orbitals.log` (le log d'un gel), double-cliqué, il écrit `frame_report.txt`. Ce fichier n'a pas encore été
-  reçu.
+- Les fonctions sont nommées par `orbitals-frame-report.exe --stack` (`ec65fcb`), lancé chez le joueur sur logs81
+  (frame_report du 27/11/2026) :
+  - `main+0x89ac8` est une attente libc++ avec échéance. La boucle relit l'octet `[x19+0x10]` (`ldaprb`) et continue
+    tant que son bit 0 est à 1. Elle compare `steady_clock::now()` à l'échéance, puis appelle
+    `pthread_cond_clockwait(x19+8, mutex, CLOCK_MONOTONIC, &abstime)`. Sa fonction utilise
+    `LowLevelTasks::FOversubscriptionTls`.
+  - `sdk+0x173970` est le `pthread_cond_clockwait` de musl. Il passe `cond+4` comme variable de condition SDK, donc
+    la clé du noyau est `objet+0xc` et l'octet testé est `clé+4`. Dans logs81 : clé `0x5a009f1e4`, objet
+    `0x5a009f1d8`.
+  - `main+0x24a0f0` (l'appelant, via `main+0x3bfec` qui passe un délai en double, `d8`) utilise
+    `Runtime/Core/Private/Tasks/TaskPrivate.cpp` : c'est l'attente d'une tâche Unreal (`UE::Tasks`).
+  - Les deux horloges de cette attente (`steady_clock::now` et l'horloge monotone de musl) sont les nôtres et
+    concordent (`ov_time2.c` ; les pointeurs de musl n'ont été remis qu'au démarrage, logs81).
+- Le RenderThread attend donc la fin d'une tâche que personne n'a terminée, ou dont la fin n'a pas été notifiée. Le
+  dernier signal sur la clé est arrivé 1 ms avant le début de l'attente.
+- **Diagnostic suivant (commit après `9450295`) :** au vidage des threads, chaque attente de variable de condition
+  donne le délai demandé à `svc 0x1C` (`timeout asked`) et les mots invités autour de la clé, avec l'octet `clé+4`.
+  - Délai borné dépassé : le défaut est chez nous.
+  - Pas de délai : le jeu attend sans limite.
+  - Octet à 0 : la tâche est finie et le réveil a été manqué (une notification juste avant l'attente).
+  - Octet à 1 : la tâche n'a jamais été terminée (file de tâches ou réveil des workers).
 
 **Constatés, pas encore étudiés**
 

@@ -295,6 +295,7 @@ int kern_svc(Cpu *c, uint32_t imm) {
             t->wtag = (uint32_t)x[2];
         }
         t->wobj = key;
+        t->wait_req_ns = (int64_t)x[3];   // the thread dump: a bounded wait past its time is ours, an unbounded one not
         uint32_t r = block(t, W_CONDVAR, (int64_t)x[3]);   // on timeout user mode takes the lock itself
         unlock();
         x[0] = r;

@@ -464,6 +464,22 @@ static void cv_line(const RtThread *t, uint64_t now) {
                  (now - g_cvs[i].ns) / 1e9, g_cvs[i].by, g_cvs[i].woke, g_cvs[i].ns >= t->wait_ns ? "AFTER" : "before",
                  (unsigned long long)g_cvs[i].n);
     rt_logf("    key %#llx, waiting %.3f s; %s\n", (unsigned long long)t->wkey, (now - t->wait_ns) / 1e9, sig);
+    // logs81: no signal since the wait began, and wait_woken ends a bounded wait at its deadline. What was asked tells
+    // a deadline of ours that never comes from a wait the game left unbounded.
+    if (t->wait_req_ns < 0) rt_logf("    timeout asked: none\n");
+    else rt_logf("    timeout asked: %.3f s\n", t->wait_req_ns / 1e9);
+    // The guest words around the key: Unreal's task wait (main+0x89ac4 in Orbitals) waits on a libc++
+    // condition_variable whose SDK key is at object+0xc, and loops while the byte at object+0x10 (key+4) has bit 0 set.
+    // Cleared at the abort: the waited task completed and its wakeup was missed; set: nobody completed it.
+    uint64_t a = (t->wkey - 0x20) & ~7ull;
+    if (plat_mem_readable(a, 0x40)) {
+        const uint64_t *w = (const uint64_t *)(uintptr_t)a;
+        rt_logf("    words at %#llx: %016llx %016llx %016llx %016llx | %016llx %016llx %016llx %016llx\n",
+                (unsigned long long)a, (unsigned long long)w[0], (unsigned long long)w[1], (unsigned long long)w[2],
+                (unsigned long long)w[3], (unsigned long long)w[4], (unsigned long long)w[5], (unsigned long long)w[6],
+                (unsigned long long)w[7]);
+        rt_logf("    byte at key+4: %#x\n", *(const uint8_t *)(uintptr_t)(t->wkey + 4));
+    }
 }
 
 // ---- every guest thread at a fatal abort
