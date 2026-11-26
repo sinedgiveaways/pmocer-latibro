@@ -55,6 +55,13 @@ void vk_texture_register(int id, const tex_t *t, const view_t *v) {
 static Tex *slot_resolve(TexSlot *s, view_t *view, int *has_view) {
     *view = s->v;
     *has_view = s->has_view;
+    // A buffer texture names no image: the shader reads it through its texel buffer twin (vk_exec_bind.c texel_view),
+    // which it takes when the image binding is the 1-texel stand-in (head.py twins: textureSize <= 1). Following the
+    // live texture at its address below gave it an image now and then: Niagara's particle buffers share addresses with
+    // transient textures, and on those frames the sprites read that image as particle data. The ship's smoke and
+    // flames vanished for 2-4 frames in every half second (logs67-69, 26/11/2026, with the replay synchronous and the
+    // pools imported alike); the console's footage of the scene shows them steady.
+    if (s->t.d.target == NVN_TEXTURE_TARGET_BUFFER) return NULL;
     TexKey k;
     make_key(&s->t, &k);
     Tex *e = nvn_hm_get(&by_key, &k);
@@ -210,7 +217,7 @@ const VkTexImage *vk_texture_by_id_locked(int id, view_t *view, int *has_view) {
     if (view) *view = has_view ? s->cview : s->v;
     if (has_view) *has_view = view ? s->chas_view : s->has_view;
     if (e) e->seen = submit_epoch;
-    if (!e) unresolved_note(id, s);
+    if (!e && s->t.d.target != NVN_TEXTURE_TARGET_BUFFER) unresolved_note(id, s);   // a buffer texture has no image
     else if (vk_guard_on()) {
         vk_guard_note(&e->use);
         if (vk_guard_test() == GUARD_TEST_FREE) vk_guard_test_free(e->use);
