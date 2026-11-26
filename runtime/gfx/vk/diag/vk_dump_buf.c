@@ -190,7 +190,7 @@ const char *buf_copy_named(VkExec *ex, uint64_t addr, uint64_t size, const char 
 // frame. Niagara's DrawIndirectArgsGen turns the instance counts and its task list into the particle draws' arguments;
 // a spark draw still asked for ~2*10^9 instances with the buffer images typed right (logs of 26/11/2026): which of its
 // inputs was wrong in that frame, the counts or the tasks, or its output alone?
-#define CSW_RING 96
+#define CSW_RING 1024
 #define CSW_BUFS 8
 typedef struct {
     VkBuffer buf;
@@ -198,6 +198,7 @@ typedef struct {
     const uint8_t *map;
     uint64_t addr, size, frame, disp;
     int after, done, used;
+    uint8_t key[8];   // the dispatch's program (key prefix)
 } CswCopy;
 static CswCopy csw[CSW_RING];
 static int csw_next;
@@ -205,8 +206,11 @@ static uint64_t csw_disp;
 static PlatMutex csw_lock = PLAT_MUTEX_INIT;
 static _Thread_local struct { uint64_t addr, size; } csw_note[CSW_BUFS];
 static _Thread_local int csw_n;
+static uint64_t csw_cnt_lo, csw_cnt_hi;      // the count buffer (vk_cswatch_counts)
+static _Thread_local int csw_cnt_bound;      // the dispatch being recorded writes the count buffer
+static _Thread_local uint8_t csw_cur_key[8];
 
-void vk_cswatch_reset(void) { csw_n = 0; }
+void vk_cswatch_reset(void) { csw_n = 0, csw_cnt_bound = 0; }
 
 void vk_cswatch_note(uint64_t addr, uint64_t size) {
     for (int i = 0; i < csw_n; i++)
@@ -217,7 +221,6 @@ void vk_cswatch_note(uint64_t addr, uint64_t size) {
 // The count buffer (the watched program's first storage texel buffer) and every binding over it since: a ring of the
 // dispatches and draws whose writable buffers overlap it, dumped when a count slot turns into float bits. In logs of
 // 26/11/2026 slot 0x38 held 0xbf800079 (-1.0f, plus 121 particles) for frames before an emitter took it over.
-static uint64_t csw_cnt_lo, csw_cnt_hi;
 #define CSW_WR 4096
 static struct { uint64_t frame, disp, addr, size; uint8_t key[8]; uint8_t kind; } csw_wr[CSW_WR];
 static uint64_t csw_wr_n;
@@ -229,6 +232,7 @@ void vk_cswatch_counts(uint64_t lo, uint64_t hi) { csw_cnt_lo = lo, csw_cnt_hi =
 
 void vk_cswatch_bindnote(uint64_t addr, uint64_t size, const uint8_t *key, int kind) {
     if (!csw_cnt_hi || addr >= csw_cnt_hi || addr + size <= csw_cnt_lo) return;
+    if (kind == 0 && key) csw_cnt_bound = 1, memcpy(csw_cur_key, key, 8);
     plat_mutex_lock(&csw_lock);
     uint64_t i = csw_wr_n++ % CSW_WR;
     csw_wr[i].frame = vk_exec_presented, csw_wr[i].disp = csw_disp, csw_wr[i].addr = addr, csw_wr[i].size = size;
@@ -255,9 +259,11 @@ static void csw_check(const CswCopy *c) {   // csw_lock held, completion thread,
             }
         if (bad) {
             csw_reports++;
-            rt_log("cswatch: %d count slots turned into float bits between dispatch %llu (frame %llu, after) and %llu "
-                   "(frame %llu, %s):%s", bad, (unsigned long long)csw_prev_disp, (unsigned long long)csw_prev_frame,
-                   (unsigned long long)c->disp, (unsigned long long)c->frame, c->after ? "after" : "before", slots);
+            rt_log("cswatch: %d count slots turned into float bits by the time of the copy %s program "
+                   "%02x%02x%02x%02x%02x%02x%02x%02x (frame %llu, after watched dispatch %llu; previous copy frame %llu):%s",
+                   bad, c->after ? "after" : "before", c->key[0], c->key[1], c->key[2], c->key[3], c->key[4], c->key[5],
+                   c->key[6], c->key[7], (unsigned long long)c->frame, (unsigned long long)c->disp,
+                   (unsigned long long)csw_prev_frame, slots);
             uint64_t from = csw_wr_n > CSW_WR ? csw_wr_n - CSW_WR : 0;
             for (uint64_t i = from; i < csw_wr_n; i++) {
                 const typeof(csw_wr[0]) *e = &csw_wr[i % CSW_WR];
@@ -283,6 +289,10 @@ static void csw_done(void *arg) {   // completion thread
 }
 
 void vk_cswatch_copy(VkExec *ex, int after) {
+    if (!csw_n && csw_cnt_bound && after && csw_cnt_hi) {   // another program writing the counts: them, after it
+        csw_note[0].addr = csw_cnt_lo, csw_note[0].size = csw_cnt_hi - csw_cnt_lo, csw_n = 1;
+        csw_cnt_bound = 2;   // a count-only copy: csw_n goes back to 0 below
+    }
     if (!csw_n) return;
     plat_mutex_lock(&csw_lock);
     if (!after) csw_disp++;
@@ -326,10 +336,13 @@ void vk_cswatch_copy(VkExec *ex, int after) {
         vkCmdPipelineBarrier2(ex->cb, &di);
         ex->recorded += 3;
         plat_mutex_lock(&csw_lock);
-        *c = (CswCopy){buf, alloc, info.pMappedData, csw_note[i].addr, csw_note[i].size, vk_exec_presented, disp, after, 0, 1};
+        *c = (CswCopy){buf, alloc, info.pMappedData, csw_note[i].addr, csw_note[i].size, vk_exec_presented, disp, after, 0, 1,
+                       {0}};
+        memcpy(c->key, csw_cur_key, 8);
         plat_mutex_unlock(&csw_lock);
         vk_completion_add(ex->fence, csw_done, c);
     }
+    if (csw_cnt_bound == 2) csw_n = 0, csw_cnt_bound = 0;
 }
 
 void vk_cswatch_flush(uint64_t frame) {
