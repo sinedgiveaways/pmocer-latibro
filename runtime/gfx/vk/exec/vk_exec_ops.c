@@ -212,6 +212,11 @@ static void op_draw_idx_ind(VkExec *ex, const p_draw_idx_ind *d) {
         vk_mem_lost_watch(ip.pool, d->ind, span, tag);
         if (d->count) vk_mem_lost_watch(cp.pool, d->count, 4, tag);
     }
+    // The arguments' VRAM mirror before ORBITALS_IND_READ notes the buffer: noted before it (until 26/11/2026), the
+    // read-back copied the imported pool, which gets the GPU's bytes only at the submission's end, and showed stale
+    // particle floats as the leaf ribbon's instance counts (indbad lines with the writer in the draw's own submission).
+    VK_MEM_USE(ip);
+    if (d->count) VK_MEM_USE(cp);
     {
         int has_vs;
         const GfxShader *vs = shader_for(ex, NVN_STAGE_VS, &has_vs);
@@ -220,12 +225,10 @@ static void op_draw_idx_ind(VkExec *ex, const p_draw_idx_ind *d) {
         vk_ind_read_note(ip.buffer, ip.offset, stride ? stride : one, max, cp.buffer, cp.offset, tag, d->count != 0, indexed,
                          !ip.alloc ? d->ind : 0, ex);
     }
-    VK_MEM_USE(ip);
     if (indexed) {
         VK_MEM_USE(ib);
         vkCmdBindIndexBuffer(ex->cb, ib.buffer, ib.offset, d->itype == NVN_INDEX_TYPE_UNSIGNED_SHORT ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
     }
-    if (d->count) VK_MEM_USE(cp);
     if (use_snap(d, indexed)) {
         if (indexed) vkCmdDrawIndexed(ex->cb, d->snap[0], d->snap[1], d->snap[2], (int32_t)d->snap[3], d->snap[4]);
         else vkCmdDraw(ex->cb, d->snap[0], d->snap[1], d->snap[2], d->snap[3]);
