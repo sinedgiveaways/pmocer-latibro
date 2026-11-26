@@ -347,7 +347,11 @@ static void op_dispatch(VkExec *ex, const p_dispatch *d) {
     op_dispatch_body(ex, d);
     ex->prog = g;
 }
-static void op_dispatch_ind_body(VkExec *ex, const p_dispatch_ind *d) {
+// The indirect one too. Until 26/11/2026 this wrapper was named op_dispatch_ind_body (calling itself, never called) and
+// the body below op_dispatch_ind, so indirect dispatches ran with the graphics program, found no compute shader and
+// returned: every DispatchComputeIndirect was dropped, Niagara's ribbon GenerateIndices among them, and the ribbons drew
+// from never-written index buffers (dump_feu14: image bytes as indices, the burn ribbon's yellow triangles).
+static void op_dispatch_ind(VkExec *ex, const p_dispatch_ind *d) {
     const prog_t *g = ex->prog;
     ex->prog = ex->cprog;
     op_dispatch_ind_body(ex, d);
@@ -458,7 +462,7 @@ static void op_dispatch_body(VkExec *ex, const p_dispatch *d) {
 
 // DispatchComputeIndirect: vkCmdDispatchIndirect from the pool buffer. The shader reads the group counts from c0 0x4,
 // so they are copied there on the GPU, into a c0 range no other dispatch uses, before the dispatch.
-static void op_dispatch_ind(VkExec *ex, const p_dispatch_ind *d) {
+static void op_dispatch_ind_body(VkExec *ex, const p_dispatch_ind *d) {
     if (!ex->prog) return warn_once(W_PROGRAM, "a dispatch without a bound program is skipped");
     VkMemSpan ip;
     if (!vk_mem_resolve(d->ind, sizeof(VkDispatchIndirectCommand), &ip) || ip.offset % 4)
