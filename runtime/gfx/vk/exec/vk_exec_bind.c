@@ -522,6 +522,7 @@ static int watch_cs_match(int st) {
     return 1;
 }
 static _Thread_local int texel_stage;   // the stage of the binding texel_view makes a view for
+static _Thread_local int texel_first;   // that binding is the dispatch's first storage texel buffer
 
 static VkBufferView texel_view(VkExec *ex, uint64_t h, int storage) {
     uint64_t addr;
@@ -563,7 +564,12 @@ static VkBufferView texel_view(VkExec *ex, uint64_t h, int storage) {
         return Z.zview;
     }
     if (storage) note_written(ex, addr, bi.range), unsized_note(addr, bi.range, 2, -1);   // the stage is not known here
-    if (storage && watch_cs_match(texel_stage)) vk_mem_watch_add(addr, addr + bi.range);
+    int first = storage && texel_first;
+    if (storage) texel_first = 0;
+    if (storage && watch_cs_match(texel_stage)) {
+        vk_mem_watch_add(addr, addr + bi.range);
+        if (first) nvn2_write_watch_set(addr, addr + bi.range);   // its first image: the instance counts
+    }
     VkDeviceSize range = bi.range - bi.range % (VkDeviceSize)bpb;
     if (!range) return Z.zview;
     VkBufferView v = texel_view_make(bi.buffer, bi.offset, range, f.ideal);
@@ -1048,6 +1054,7 @@ static int ubo_rebind(VkExec *ex, const VkPipeInfo *info) {
 }
 
 void bind_resources(VkExec *ex, const VkPipeInfo *info) {
+    texel_first = 1;
     br_on = (rt_trace & RT_TRACE_DRAW) != 0;
     if (br_on) br_t = plat_cycles();
     VkWriteDescriptorSet *w = BRA.w;

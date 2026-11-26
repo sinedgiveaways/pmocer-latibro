@@ -106,12 +106,24 @@ static int write_watch_fault(uint64_t addr, uint64_t rip) {
     if (addr < (ww_lo & ~0xfffull) || addr >= ww_hi) return gw_hi ? gen_watch_fault(addr, rip) : 0;
     if (plat_inc32(&ww_logged) <= 4000) {
         char line[160];
-        int k = snprintf(line, sizeof line, "[host] write watch: frame %llu write at %#llx (+%#llx) from host rip %#llx\n",
+        int k = snprintf(line, sizeof line, "[host] write watch: frame %llu write at %#llx (+%#llx) from host rip %#llx (exe+%#llx)\n",
                          (unsigned long long)gfx_counters.frames, (unsigned long long)addr,
-                         (unsigned long long)(addr - ww_lo), (unsigned long long)rip);
+                         (unsigned long long)(addr - ww_lo), (unsigned long long)rip,
+                         (unsigned long long)(rip - plat_exe_base()));
         if (k > 0) (void)!write(2, line, (size_t)k);
     }
     return plat_mem_protect(addr & ~0xfffull, 0x1000, PLAT_PROT_RW);
+}
+
+// The range set at run time instead (ORBITALS_SHADOW_WATCH_CS with ORBITALS_WRITE_WATCH=cs: the first storage texel buffer
+// the listed compute program writes, Niagara's GPU instance count buffer for DrawIndirectArgsGen): does the game's CPU
+// write into it? Its slots held float bits under the particle counts (0x3c000c72, 26/11/2026), in both memory modes.
+static volatile int ww_runtime;
+void nvn2_write_watch_set(uint64_t lo, uint64_t hi) {
+    if (!ww_runtime || (lo == ww_lo && hi == ww_hi)) return;
+    if (ww_hi) plat_mem_protect(ww_lo & ~0xfffull, ((ww_hi + 0xfff) & ~0xfffull) - (ww_lo & ~0xfffull), PLAT_PROT_RW);
+    ww_lo = lo, ww_hi = hi;
+    rt_log("nvn2: write watch over %#llx-%#llx (ORBITALS_WRITE_WATCH=cs)", (unsigned long long)lo, (unsigned long long)hi);
 }
 
 void nvn2_write_watch_arm(void) {
@@ -121,9 +133,10 @@ void nvn2_write_watch_arm(void) {
         unsigned long long a = 0, n = 0;
         state = e && sscanf(e, "%llx:%llx", &a, &n) == 2 && n;
         if (state) ww_lo = a, ww_hi = a + n, plat_mem_watch_hook(write_watch_fault);
+        if (!state && e && !strncmp(e, "cs", 2)) state = 1, ww_runtime = 1, plat_mem_watch_hook(write_watch_fault);
         if (state) rt_log("nvn2: write watch over %#llx-%#llx", a, a + n);
     }
-    if (state) plat_mem_protect(ww_lo & ~0xfffull, ((ww_hi + 0xfff) & ~0xfffull) - (ww_lo & ~0xfffull), PLAT_PROT_READ);
+    if (state && ww_hi) plat_mem_protect(ww_lo & ~0xfffull, ((ww_hi + 0xfff) & ~0xfffull) - (ww_lo & ~0xfffull), PLAT_PROT_READ);
 }
 
 void nvn2_note_generated(const Cpu *c, int n, const NVNshaderData *sd) {

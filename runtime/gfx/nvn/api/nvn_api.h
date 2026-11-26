@@ -142,6 +142,7 @@ void nvn_pool_flushed(const pool_t *p, uint64_t off, uint64_t size);
 // NVN2 (nvn2.c)
 int nvn_prog_set_shaders(prog_t *o, int n, const NVNshaderData *sd);   // nvnProgramSetShaders' body (nvn_api_obj.c)
 void nvn2_note_generated(const Cpu *c, int n, const NVNshaderData *sd);   // ORBITALS_SPIRV_DUMP: stack of generated programs
+void nvn2_write_watch_set(uint64_t lo, uint64_t hi);   // ORBITALS_WRITE_WATCH=cs: the range found at run time
 void nvn2_write_watch_arm(void);   // ORBITALS_WRITE_WATCH: re-arms the watched pages (every present)
 void nvn2_note_label(const prog_t *o, const char *label);                 // ORBITALS_SPIRV_DUMP: and their debug label
 uint64_t nvn2_sdk_proc(const char *name);    // the driver's own function for an NVN2 proc, or 0
