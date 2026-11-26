@@ -593,6 +593,7 @@ static VkBufferView texel_view(VkExec *ex, uint64_t h, int storage, int uint_img
         return Z.zview;
     }
     if (storage) note_written(ex, addr, bi.range), unsized_note(addr, bi.range, 2, -1);   // the stage is not known here
+    if (watch_cs_match(texel_stage)) vk_cswatch_note(addr, bi.range);   // read or written: copied around the dispatch
     int first = storage && texel_first;
     if (storage) texel_first = 0;
     if (storage && watch_cs_match(texel_stage)) {
@@ -1084,6 +1085,7 @@ static int ubo_rebind(VkExec *ex, const VkPipeInfo *info) {
 
 void bind_resources(VkExec *ex, const VkPipeInfo *info) {
     texel_first = 1;
+    vk_cswatch_reset();
     br_on = (rt_trace & RT_TRACE_DRAW) != 0;
     if (br_on) br_t = plat_cycles();
     VkWriteDescriptorSet *w = BRA.w;

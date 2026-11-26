@@ -198,7 +198,12 @@ void vk_dump_draw_after(VkExec *ex);     // after vkCmdDraw*: ORBITALS_DUMP_DRAW
 void vk_dump_draw_args(const char *kind, int64_t count, int64_t inst, int64_t base, uint64_t ibuf, uint32_t isize,
                        uint64_t ind, uint32_t indbytes);
 void vk_dump_dispatch(VkExec *ex, const GfxShader *cs, VkPipeline p, const VkPipeInfo *info, const p_dispatch *d);
-void vk_dump_dispatch_ind(uint64_t ind);   // before vk_dump_dispatch of an indirect dispatch: its arguments' address
+void vk_dump_dispatch_ind(uint64_t ind);
+// ORBITALS_SHADOW_WATCH_CS: the watched program's texel buffers copied around each dispatch (diag/vk_dump_buf.c)
+void vk_cswatch_reset(void);                        // bind_resources: a new binding set
+void vk_cswatch_note(uint64_t addr, uint64_t size); // texel_view: one of its texel buffers
+void vk_cswatch_copy(VkExec *ex, int after);        // around vkCmdDispatch: 0 before, 1 after
+void vk_cswatch_flush(uint64_t frame);              // indbad: those copies of frames frame-2..frame to logs/   // before vk_dump_dispatch of an indirect dispatch: its arguments' address
 void vk_trace_3d_writes(VkExec *ex, const GfxShader *cs, const VkPipeInfo *info, const p_dispatch *d);
 int vk_trace_3d_on(void);
 int vk_trace_3d_enabled(void);   // the same switch without counting a line   // ORBITALS_TRACE_3D: log uploads, clears and copies into 3D textures (vk_dump.c)

@@ -285,6 +285,7 @@ static void pass_done(void *arg) {   // completion thread
                        (unsigned long long)vk_mem_gpu_noted(d->ga + 4), (unsigned long long)vk_mem_gpu_last_fence(d->ga),
                        (unsigned long long)vk_sync_fence_done());
                 vk_mem_watch_add(d->ga & ~0xfull, (d->ga & ~0xfull) + 0x40);
+                vk_cswatch_flush(p->frame);
             }
         }
         int j = 0;

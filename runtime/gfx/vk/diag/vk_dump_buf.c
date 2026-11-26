@@ -182,3 +182,112 @@ const char *buf_copy_named(VkExec *ex, uint64_t addr, uint64_t size, const char 
     vk_completion_add(ex->fence, named_done, j);
     return NULL;
 }
+
+
+// ---- ORBITALS_SHADOW_WATCH_CS (vk_exec_bind.c): the texel buffers of the watched compute program's dispatches, as the
+// GPU had them right before and right after each one, kept in memory for the last CSW_RING copies and written to
+// <game>/logs/cswatch_f<frame>_d<dispatch>_<before|after>_<address>.bin when an indbad line (vk_ind_read.c) names a
+// frame. Niagara's DrawIndirectArgsGen turns the instance counts and its task list into the particle draws' arguments;
+// a spark draw still asked for ~2*10^9 instances with the buffer images typed right (logs of 26/11/2026): which of its
+// inputs was wrong in that frame, the counts or the tasks, or its output alone?
+#define CSW_RING 96
+#define CSW_BUFS 8
+typedef struct {
+    VkBuffer buf;
+    VmaAllocation alloc;
+    const uint8_t *map;
+    uint64_t addr, size, frame, disp;
+    int after, done, used;
+} CswCopy;
+static CswCopy csw[CSW_RING];
+static int csw_next;
+static uint64_t csw_disp;
+static PlatMutex csw_lock = PLAT_MUTEX_INIT;
+static _Thread_local struct { uint64_t addr, size; } csw_note[CSW_BUFS];
+static _Thread_local int csw_n;
+
+void vk_cswatch_reset(void) { csw_n = 0; }
+
+void vk_cswatch_note(uint64_t addr, uint64_t size) {
+    for (int i = 0; i < csw_n; i++)
+        if (csw_note[i].addr == addr) return;
+    if (csw_n < CSW_BUFS && size && size <= (1u << 20)) csw_note[csw_n].addr = addr, csw_note[csw_n++].size = size;
+}
+
+static void csw_done(void *arg) {   // completion thread
+    CswCopy *c = arg;
+    plat_mutex_lock(&csw_lock);
+    if (c->buf) vmaInvalidateAllocation(dvma(), c->alloc, 0, VK_WHOLE_SIZE), c->done = 1;
+    plat_mutex_unlock(&csw_lock);
+}
+
+void vk_cswatch_copy(VkExec *ex, int after) {
+    if (!csw_n) return;
+    plat_mutex_lock(&csw_lock);
+    if (!after) csw_disp++;
+    uint64_t disp = csw_disp;
+    plat_mutex_unlock(&csw_lock);
+    for (int i = 0; i < csw_n; i++) {
+        VkMemSpan s;
+        if (!vk_mem_resolve(csw_note[i].addr, csw_note[i].size, &s) || s.avail < csw_note[i].size) continue;
+        VK_MEM_PICK(s);   // the GPU's view (the VRAM mirror when there is one)
+        plat_mutex_lock(&csw_lock);
+        CswCopy *c = &csw[csw_next];
+        if (c->used && !c->done) {   // its copy not back yet: the ring is too short for this rate, skip
+            plat_mutex_unlock(&csw_lock);
+            continue;
+        }
+        csw_next = (csw_next + 1) % CSW_RING;
+        if (c->buf) vmaDestroyBuffer(dvma(), c->buf, c->alloc);
+        memset(c, 0, sizeof *c);
+        plat_mutex_unlock(&csw_lock);
+        VkBufferCreateInfo bi = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, .size = csw_note[i].size,
+                                 .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT};
+        VmaAllocationCreateInfo ai = {.usage = VMA_MEMORY_USAGE_AUTO,
+                                      .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT};
+        VmaAllocationInfo info;
+        VkBuffer buf;
+        VmaAllocation alloc;
+        if (vmaCreateBuffer(dvma(), &bi, &ai, &buf, &alloc, &info) != VK_SUCCESS || !info.pMappedData) continue;
+        VkMemoryBarrier2 mb[2] = {
+            {.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2, .srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+             .srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT, .dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT,
+             .dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT},
+            {.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2, .srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT,
+             .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT | VK_ACCESS_2_TRANSFER_READ_BIT,
+             .dstStageMask = VK_PIPELINE_STAGE_2_HOST_BIT | VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+             .dstAccessMask = VK_ACCESS_2_HOST_READ_BIT | VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT}};
+        VkDependencyInfo di = {.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO, .memoryBarrierCount = 1, .pMemoryBarriers = &mb[0]};
+        vkCmdPipelineBarrier2(ex->cb, &di);
+        VkBufferCopy cp = {s.offset, 0, csw_note[i].size};
+        vkCmdCopyBuffer(ex->cb, s.buffer, buf, 1, &cp);
+        di.pMemoryBarriers = &mb[1];
+        vkCmdPipelineBarrier2(ex->cb, &di);
+        ex->recorded += 3;
+        plat_mutex_lock(&csw_lock);
+        *c = (CswCopy){buf, alloc, info.pMappedData, csw_note[i].addr, csw_note[i].size, vk_exec_presented, disp, after, 0, 1};
+        plat_mutex_unlock(&csw_lock);
+        vk_completion_add(ex->fence, csw_done, c);
+    }
+}
+
+void vk_cswatch_flush(uint64_t frame) {
+    const char *dir = cfg_get("ORBITALS_GAME_DIR");
+    int n = 0;
+    plat_mutex_lock(&csw_lock);
+    for (int i = 0; i < CSW_RING; i++) {
+        CswCopy *c = &csw[i];
+        if (!c->used || !c->done || c->frame + 2 < frame || c->frame > frame) continue;
+        char path[700];
+        snprintf(path, sizeof path, "%s/logs/cswatch_f%llu_d%llu_%s_%llx.bin", dir ? dir : ".",
+                 (unsigned long long)c->frame, (unsigned long long)c->disp, c->after ? "after" : "before",
+                 (unsigned long long)c->addr);
+        FILE *f = fopen(path, "wb");
+        if (f) fwrite(c->map, 1, c->size, f), fclose(f), n++;
+        c->done = 2;   // written once
+        c->used = 1;
+    }
+    plat_mutex_unlock(&csw_lock);
+    rt_log("vk: cswatch: %d copies of the watched dispatches' buffers (frames %llu-%llu) written to logs/cswatch_*.bin", n,
+           (unsigned long long)(frame > 2 ? frame - 2 : 0), (unsigned long long)frame);
+}

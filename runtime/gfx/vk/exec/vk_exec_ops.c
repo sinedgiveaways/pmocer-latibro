@@ -452,7 +452,9 @@ static void op_dispatch_body(VkExec *ex, const p_dispatch *d) {
     vk_cs_hash(ex, d->caller, 0, 0);   // ORBITALS_CS_HASH (diag/vk_cs_hash.c)
     uint32_t crumb = vk_crumb_begin(ex->cb, VK_CRUMB_DISPATCH, (uint32_t)d->x, (uint32_t)d->y, (uint32_t)d->z, 0, NULL, 0);
     vk_crumb_cs(crumb, gfx_shader_key(cs));
+    vk_cswatch_copy(ex, 0);   // ORBITALS_SHADOW_WATCH_CS: its buffers before
     vkCmdDispatch(ex->cb, (uint32_t)d->x, (uint32_t)d->y, (uint32_t)d->z);
+    vk_cswatch_copy(ex, 1);   // and after
     vk_crumb_end(ex->cb, VK_CRUMB_DISPATCH, crumb);
     vk_cs_hash(ex, d->caller, 0, 1);
     if (pt) vk_pt_mark(ex->cb, 0);
