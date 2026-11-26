@@ -449,7 +449,7 @@ streaming des mips).
     concordent (`ov_time2.c` ; les pointeurs de musl n'ont été remis qu'au démarrage, logs81).
 - Le RenderThread attend donc la fin d'une tâche que personne n'a terminée, ou dont la fin n'a pas été notifiée. Le
   dernier signal sur la clé est arrivé 1 ms avant le début de l'attente.
-- **Diagnostic suivant (commit après `9450295`) :** au vidage des threads, chaque attente de variable de condition
+- **Diagnostic suivant (`81c27bf`) :** au vidage des threads, chaque attente de variable de condition
   donne le délai demandé à `svc 0x1C` (`timeout asked`) et les mots invités autour de la clé, avec l'octet `clé+4`.
   - Délai borné dépassé : le défaut est chez nous.
   - Pas de délai : le jeu attend sans limite.
