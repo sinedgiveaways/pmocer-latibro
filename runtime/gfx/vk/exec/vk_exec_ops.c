@@ -57,7 +57,7 @@ static void op_draw(VkExec *ex, const p_draw *d) {
         vkCmdDraw(ex->cb, n, inst, first, (uint32_t)d->base_instance);
     }
     ex->recorded++;
-    if (vk_dump_armed) vk_dump_draw_after(ex);
+    if (vk_dump_armed) vk_dump_draw_args("draw", n, inst, first, 0, 0, 0, 0), vk_dump_draw_after(ex);
 }
 
 // DrawMeshTasks(first, count): count task (or mesh) workgroups. NVN's first has no Vulkan counterpart; the game's
@@ -128,7 +128,8 @@ static void op_draw_idx(VkExec *ex, const p_draw_idx *d) {
     vkCmdDrawIndexed(ex->cb, (uint32_t)d->count, d->instances > 0 ? (uint32_t)d->instances : 1, 0, d->base_vertex,
                      (uint32_t)d->base_instance);
     ex->recorded++;
-    if (vk_dump_armed) vk_dump_draw_after(ex);
+    if (vk_dump_armed)
+        vk_dump_draw_args("idx", d->count, d->instances, d->base_vertex, d->ibuf, isize[d->itype], 0, 0), vk_dump_draw_after(ex);
 }
 
 static int lost_on_draw(void) {   // ORBITALS_SHADOW_LOST read once
@@ -233,7 +234,10 @@ static void op_draw_idx_ind(VkExec *ex, const p_draw_idx_ind *d) {
     else if (d->count) vkCmdDrawIndirectCount(ex->cb, ip.buffer, ip.offset, cp.buffer, cp.offset, max, stride);
     else vkCmdDrawIndirect(ex->cb, ip.buffer, ip.offset, 1, one);
     ex->recorded += 2;
-    if (vk_dump_armed) vk_dump_draw_after(ex);
+    if (vk_dump_armed)
+        vk_dump_draw_args(indexed ? "idx-ind" : "ind", 0, max, 0, indexed ? d->ibuf : 0,
+                          indexed ? (d->itype == NVN_INDEX_TYPE_UNSIGNED_SHORT ? 2 : 4) : 0, d->ind, (uint32_t)span),
+            vk_dump_draw_after(ex);
     vk_mem_count(ip.cls, VK_MUSE_IND, span);
     VK_MEM_BOUND(ip);
     if (d->count) VK_MEM_BOUND(cp);

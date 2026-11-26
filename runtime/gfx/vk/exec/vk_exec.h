@@ -193,6 +193,10 @@ void vk_dump_pass_end(VkExec *ex);       // after vkCmdEndRendering
 void vk_dump_draw(VkExec *ex, const VkPipeState *s, VkPipeline p, const VkPipeInfo *info);   // after a draw's binds;
                                                                                            // marks the draws ORBITALS_DUMP_DRAWS selects
 void vk_dump_draw_after(VkExec *ex);     // after vkCmdDraw*: ORBITALS_DUMP_DRAWS copies after the actual draw
+// before vk_dump_draw_after: the draw's arguments (kind "draw", "idx", "ind", "idx-ind"), its guest index buffer (0: none;
+// isize bytes per index, count indices or, indirect, as much as is backed up to 256 KiB) and indirect arguments (0: none)
+void vk_dump_draw_args(const char *kind, int64_t count, int64_t inst, int64_t base, uint64_t ibuf, uint32_t isize,
+                       uint64_t ind, uint32_t indbytes);
 void vk_dump_dispatch(VkExec *ex, const GfxShader *cs, VkPipeline p, const VkPipeInfo *info, const p_dispatch *d);
 void vk_trace_3d_writes(VkExec *ex, const GfxShader *cs, const VkPipeInfo *info, const p_dispatch *d);
 int vk_trace_3d_on(void);
