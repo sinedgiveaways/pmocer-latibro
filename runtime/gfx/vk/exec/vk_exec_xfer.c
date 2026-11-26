@@ -241,6 +241,20 @@ void vk_exec_xfer_shutdown(void) {
     memset((void *)oq_busy, 0, sizeof oq_busy);
 }
 
+// ORBITALS_OCCLUSION=visible (diagnosis, default off): every samples-passed report adds 1024 samples to the running count,
+// so whatever a query tested counts as visible, by a reset (the count) or by two reports (their difference) alike. The
+// ship's smoke and flames vanished for 2-4 frames twice a second with their instance counts steady (logs72, IND_READ=1,
+// 26/11/2026): whether the game's occlusion culling hides them on those frames.
+static uint64_t oq_bias(void) {
+    static int on = -1;
+    if (on < 0) {
+        const char *e = cfg_get("ORBITALS_OCCLUSION");
+        on = e && !strcmp(e, "visible");
+        if (on) rt_log("vk: samples-passed reports count 1024 samples more: every occlusion query passes (ORBITALS_OCCLUSION=visible)");
+    }
+    return on ? 1024 : 0;
+}
+
 static void oq_cb(void *arg) {
     OqSegment *s = arg;
     VkDevice dev = vk_ctx()->device;
@@ -266,7 +280,7 @@ static void oq_cb(void *arg) {
     }
     if (s->reset) oq_count = 0;
     else {
-        oq_count += sum;
+        oq_count += sum + oq_bias();
         if (s->lost && !oq_count) oq_count = 1;
         if (s->addr) write_counter(s->addr, oq_count);
     }
