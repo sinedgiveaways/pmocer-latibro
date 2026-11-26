@@ -37,9 +37,13 @@ static uint32_t h(uint64_t a) { return (uint32_t)((a >> 2) * 0x9E3779B1u) & (HSI
 
 void impcensus_init(void) {
     const char *p = cfg_get("ORBITALS_IMPORT_CENSUS");
-    // Another game (port mode): on without a file, and each SDK function's first call from main is logged when it
-    // happens, so a run that stops (Orbitals' Unreal PreInit failed with no file opened) shows what it called last
-    live = rt_game_present() && rt_game()->port;
+    // ORBITALS_IMPORT_CENSUS=live (port mode): each SDK function's first call from main logged when it happens, so a
+    // run that stops (Orbitals' Unreal PreInit failed with no file opened) shows what it called last. On by default in
+    // port mode until 26/11/2026: the entry hook on every guest call and the host-call trace were about 15 % of the CPU
+    // time the game's threads spent working in a slow-frame profile (prof f1445: impcensus_hit 78, fnprof_hit 15 of
+    // 598 busy samples), all game long. The boot no longer stops there; the census is for when it does.
+    live = rt_game_present() && rt_game()->port && p && !strcmp(p, "live");
+    if (live) p = NULL;
     // and the host replacements' first calls (ORBITALS_TRACE=host's "host call" lines), which the census does not see:
     // the two in one order say what the game did up to where it stops
     if (live) rt_trace |= RT_TRACE_HOSTCALL;
