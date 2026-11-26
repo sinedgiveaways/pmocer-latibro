@@ -831,8 +831,14 @@ void vk_trace_3d_writes(VkExec *ex, const GfxShader *cs, const VkPipeInfo *info,
     }
 }
 
+// The indirect dispatch being logged: its arguments' guest address (0: a direct one), set by vk_dump_dispatch_ind
+static _Thread_local uint64_t disp_ind;
+void vk_dump_dispatch_ind(uint64_t ind) { disp_ind = ind; }
+
 void vk_dump_dispatch(VkExec *ex, const GfxShader *cs, VkPipeline p, const VkPipeInfo *info, const p_dispatch *d) {
     (void)p;
+    uint64_t ind = disp_ind;
+    disp_ind = 0;
     plat_mutex_lock(&rec_lock);
     if (!active()) goto out;
     int n = seq++;
@@ -849,6 +855,13 @@ void vk_dump_dispatch(VkExec *ex, const GfxShader *cs, VkPipeline p, const VkPip
             d->z, (unsigned long long)shader_hash(cs), (unsigned long long)(ex->prog ? ex->prog->serial : 0),
             (unsigned long long)d->caller, (unsigned long long)ex->fence, b.s ? b.s : "");
     free(b.s);
+    if (ind) {   // an indirect dispatch: its group counts as the GPU reads them (dispind_<pass>.bin, drawbufs.txt)
+        char name[40];
+        snprintf(name, sizeof name, "dispind_%04d", n);
+        const char *why = buf_copy_named(ex, ind, 12, name);
+        fprintf(passes_f, "  indirect arguments at %#llx -> %s.bin%s%s\n", (unsigned long long)ind, name,
+                why ? " skipped: " : "", why ? why : "");
+    }
     for (uint32_t i = 0; i < info->n_bindings && !pass_skip; i++) {   // storage images the dispatch writes
         const VkPipeBinding *bd = &info->bindings[i];
         if (!bd->res || bd->kind != GFX_RES_IMG || !(bd->res->flags & 4) || bd->type != VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
