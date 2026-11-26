@@ -214,10 +214,71 @@ void vk_cswatch_note(uint64_t addr, uint64_t size) {
     if (csw_n < CSW_BUFS && size && size <= (1u << 20)) csw_note[csw_n].addr = addr, csw_note[csw_n++].size = size;
 }
 
+// The count buffer (the watched program's first storage texel buffer) and every binding over it since: a ring of the
+// dispatches and draws whose writable buffers overlap it, dumped when a count slot turns into float bits. In logs of
+// 26/11/2026 slot 0x38 held 0xbf800079 (-1.0f, plus 121 particles) for frames before an emitter took it over.
+static uint64_t csw_cnt_lo, csw_cnt_hi;
+#define CSW_WR 4096
+static struct { uint64_t frame, disp, addr, size; uint8_t key[8]; uint8_t kind; } csw_wr[CSW_WR];
+static uint64_t csw_wr_n;
+static uint32_t *csw_prev;   // the counts after the watched program's last dispatch
+static uint64_t csw_prev_frame, csw_prev_disp;
+static int csw_reports;
+
+void vk_cswatch_counts(uint64_t lo, uint64_t hi) { csw_cnt_lo = lo, csw_cnt_hi = hi; }
+
+void vk_cswatch_bindnote(uint64_t addr, uint64_t size, const uint8_t *key, int kind) {
+    if (!csw_cnt_hi || addr >= csw_cnt_hi || addr + size <= csw_cnt_lo) return;
+    plat_mutex_lock(&csw_lock);
+    uint64_t i = csw_wr_n++ % CSW_WR;
+    csw_wr[i].frame = vk_exec_presented, csw_wr[i].disp = csw_disp, csw_wr[i].addr = addr, csw_wr[i].size = size;
+    csw_wr[i].kind = (uint8_t)kind;
+    if (key) memcpy(csw_wr[i].key, key, 8);
+    else memset(csw_wr[i].key, 0, 8);
+    plat_mutex_unlock(&csw_lock);
+}
+
+static int floaty(uint32_t v) { return v >= 0x10000000u && v < 0xfff00000u; }   // no count this big; -1..-1M excluded
+
+static void csw_check(const CswCopy *c) {   // csw_lock held, completion thread, fence order
+    if (c->addr != csw_cnt_lo || c->size != csw_cnt_hi - csw_cnt_lo) return;
+    const uint32_t *w = (const uint32_t *)c->map;
+    uint32_t n = (uint32_t)(c->size / 4);
+    if (csw_prev && csw_reports < 8) {
+        char slots[300];
+        int o = 0, bad = 0;
+        for (uint32_t k = 0; k < n; k++)
+            if (floaty(w[k]) && !floaty(csw_prev[k])) {
+                bad++;
+                if (o < (int)sizeof slots - 40)
+                    o += snprintf(slots + o, sizeof slots - (size_t)o, " %#x: %#x -> %#x", k, csw_prev[k], w[k]);
+            }
+        if (bad) {
+            csw_reports++;
+            rt_log("cswatch: %d count slots turned into float bits between dispatch %llu (frame %llu, after) and %llu "
+                   "(frame %llu, %s):%s", bad, (unsigned long long)csw_prev_disp, (unsigned long long)csw_prev_frame,
+                   (unsigned long long)c->disp, (unsigned long long)c->frame, c->after ? "after" : "before", slots);
+            uint64_t from = csw_wr_n > CSW_WR ? csw_wr_n - CSW_WR : 0;
+            for (uint64_t i = from; i < csw_wr_n; i++) {
+                const typeof(csw_wr[0]) *e = &csw_wr[i % CSW_WR];
+                if (e->frame + 1 < csw_prev_frame || e->frame > c->frame) continue;
+                if (e->disp < csw_prev_disp || e->disp > c->disp) continue;
+                rt_log("cswatch:   frame %llu after watched dispatch %llu: %s %02x%02x%02x%02x%02x%02x%02x%02x writes "
+                       "[%#llx, %#llx)", (unsigned long long)e->frame, (unsigned long long)e->disp,
+                       e->kind == 0 ? "cs texel" : e->kind == 1 ? "cs ssbo" : e->kind == 2 ? "gfx texel" : "gfx ssbo",
+                       e->key[0], e->key[1], e->key[2], e->key[3], e->key[4], e->key[5], e->key[6], e->key[7],
+                       (unsigned long long)e->addr, (unsigned long long)(e->addr + e->size));
+            }
+        }
+    }
+    if (!csw_prev) csw_prev = malloc(c->size);
+    if (csw_prev) memcpy(csw_prev, w, c->size), csw_prev_frame = c->frame, csw_prev_disp = c->disp;
+}
+
 static void csw_done(void *arg) {   // completion thread
     CswCopy *c = arg;
     plat_mutex_lock(&csw_lock);
-    if (c->buf) vmaInvalidateAllocation(dvma(), c->alloc, 0, VK_WHOLE_SIZE), c->done = 1;
+    if (c->buf) vmaInvalidateAllocation(dvma(), c->alloc, 0, VK_WHOLE_SIZE), c->done = 1, csw_check(c);
     plat_mutex_unlock(&csw_lock);
 }
 

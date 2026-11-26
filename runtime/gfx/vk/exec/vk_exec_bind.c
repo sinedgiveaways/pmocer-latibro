@@ -358,6 +358,9 @@ static VkDescriptorBufferInfo ssbo_info(VkExec *ex, int st, const GfxShaderRes *
         if (bind_range(ex, b->addr - lead, size, align, max, ubo ? VK_MUSE_UBO : VK_MUSE_SSBO,
                        wmode, &bi)) {
             if (written && bi.buffer != VK_NULL_HANDLE) note_written(ex, b->addr - lead, bi.range);
+            if (written && bi.buffer != VK_NULL_HANDLE)
+                vk_cswatch_bindnote(b->addr - lead, bi.range, st == NVN_STAGE_CS && c0_cs ? gfx_shader_key(c0_cs) : NULL,
+                                    st == NVN_STAGE_CS ? 1 : 3);
             if (written && bi.buffer != VK_NULL_HANDLE) unsized_note(b->addr - lead, bi.range, wmode == 3, st);
             return bi;
         }
@@ -594,11 +597,13 @@ static VkBufferView texel_view(VkExec *ex, uint64_t h, int storage, int uint_img
     }
     if (storage) note_written(ex, addr, bi.range), unsized_note(addr, bi.range, 2, -1);   // the stage is not known here
     if (watch_cs_match(texel_stage)) vk_cswatch_note(addr, bi.range);   // read or written: copied around the dispatch
+    if (storage) vk_cswatch_bindnote(addr, bi.range, texel_stage == NVN_STAGE_CS && c0_cs ? gfx_shader_key(c0_cs) : NULL,
+                                     texel_stage == NVN_STAGE_CS ? 0 : 2);
     int first = storage && texel_first;
     if (storage) texel_first = 0;
     if (storage && watch_cs_match(texel_stage)) {
         vk_mem_watch_add(addr, addr + bi.range);
-        if (first) nvn2_write_watch_set(addr, addr + bi.range);   // its first image: the instance counts
+        if (first) nvn2_write_watch_set(addr, addr + bi.range), vk_cswatch_counts(addr, addr + bi.range);   // the counts
     }
     VkDeviceSize range = bi.range - bi.range % (VkDeviceSize)bpb;
     if (!range) return Z.zview;

@@ -203,7 +203,10 @@ void vk_dump_dispatch_ind(uint64_t ind);
 void vk_cswatch_reset(void);                        // bind_resources: a new binding set
 void vk_cswatch_note(uint64_t addr, uint64_t size); // texel_view: one of its texel buffers
 void vk_cswatch_copy(VkExec *ex, int after);        // around vkCmdDispatch: 0 before, 1 after
-void vk_cswatch_flush(uint64_t frame);              // indbad: those copies of frames frame-2..frame to logs/   // before vk_dump_dispatch of an indirect dispatch: its arguments' address
+void vk_cswatch_flush(uint64_t frame);              // indbad: those copies of frames frame-2..frame to logs/
+void vk_cswatch_counts(uint64_t lo, uint64_t hi);   // the count buffer (the watched program's first storage texel buffer)
+// a writable binding of the dispatch or draw being recorded (kind 0 cs texel, 1 cs ssbo, 2 gfx texel, 3 gfx ssbo)
+void vk_cswatch_bindnote(uint64_t addr, uint64_t size, const uint8_t *key, int kind);   // before vk_dump_dispatch of an indirect dispatch: its arguments' address
 void vk_trace_3d_writes(VkExec *ex, const GfxShader *cs, const VkPipeInfo *info, const p_dispatch *d);
 int vk_trace_3d_on(void);
 int vk_trace_3d_enabled(void);   // the same switch without counting a line   // ORBITALS_TRACE_3D: log uploads, clears and copies into 3D textures (vk_dump.c)
