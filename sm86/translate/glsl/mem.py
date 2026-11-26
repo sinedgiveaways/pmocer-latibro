@@ -351,8 +351,17 @@ class MemOps:
         addr = f"({reg(ra)} + {off:#x}u)" if ra != RZ else f"{off:#x}u"
         if ra != RZ:
             self.regs.add(ra)
-        b = self.src_u(i, "b")
         word = f"SMEM(({addr}) >> 2)"
+        if op == "POPC.INC":
+            # The warp-aggregated increment ptxas makes of atomicAdd(&shared, 1) at one address (no Rb): the word grows
+            # by the number of active lanes, each lane's Rd the old value plus its rank among them. Each lane adding 1
+            # gives the same total and distinct old values in another order (Rd is RZ in Orbitals' only user,
+            # GlobalDistanceField's CullObjectsToGridCS, 26/11/2026).
+            n = i.v("Rd", RZ)
+            if n != RZ:
+                self.regs.add(n)
+            return f"r{n} = atomicAdd({word}, 1u);" if n != RZ else f"atomicAdd({word}, 1u);"
+        b = self.src_u(i, "b")
         signed = sz == "S32"
         new = {"MIN": "uint(min(int(w), int(bv)))", "MAX": "uint(max(int(w), int(bv)))"} if signed else {}
         new |= {"INC": "(w >= bv ? 0u : w + 1u)", "DEC": "((w == 0u || w > bv) ? bv : w - 1u)"}
