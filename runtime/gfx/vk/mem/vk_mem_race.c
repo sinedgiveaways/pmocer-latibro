@@ -134,6 +134,22 @@ void watch_init(void) {
     }
 }
 
+// A range found at run time (vk_ind_read.c: indirect arguments of absurd size): watched from now on, as if listed in
+// ORBITALS_SHADOW_WATCH. Readers take wr/nwr without the lock: the entry is filled before nwr counts it.
+void vk_mem_watch_add(uint64_t lo, uint64_t hi) {
+    plat_mutex_lock(&race_lock);
+    int known = 0;
+    for (int i = 0; i < nwr; i++) known |= wr[i][0] <= lo && hi <= wr[i][1];
+    if (!known && nwr < 4) {
+        wr[nwr][0] = lo, wr[nwr][1] = hi;
+        if (hi > watch_hi) watch_hi = hi;
+        __atomic_store_n(&nwr, nwr + 1, __ATOMIC_RELEASE);
+        rt_log("mem: shadow changes over [%#llx, %#llx) logged from now on (absurd indirect arguments there)",
+               (unsigned long long)lo, (unsigned long long)hi);
+    }
+    plat_mutex_unlock(&race_lock);
+}
+
 static int watched_range(uint64_t a, uint64_t b) {
     for (int i = 0; i < nwr; i++)
         if (a < wr[i][1] && b > wr[i][0]) return 1;

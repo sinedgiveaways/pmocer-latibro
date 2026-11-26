@@ -281,6 +281,8 @@ int vk_unsized_written_find(int kind, uint64_t addr, uint64_t size, uint64_t *ba
 // ORBITALS_SHADOW_LOST (vk_mem_lost.c): an indirect draw of `vs` reads its arguments at [addr, addr+size) of span.pool; one
 // line per present of what the shadow lost of the CPU's writes.
 void vk_mem_lost_watch(const void *pool, uint64_t addr, uint64_t size, uint32_t vs);
+void vk_mem_watch_add(uint64_t lo, uint64_t hi);    // ORBITALS_SHADOW_WATCH over [lo, hi) from now on (vk_mem_race.c)
+uint64_t vk_mem_gpu_last_fence(uint64_t addr);      // newest submission noted writing addr's page into a shadow
 void vk_mem_lost_log(uint64_t frame);
 void vk_mem_gpu_pending(uint64_t addr, uint64_t size);
 void vk_gpu_written(uint64_t addr, uint64_t size);

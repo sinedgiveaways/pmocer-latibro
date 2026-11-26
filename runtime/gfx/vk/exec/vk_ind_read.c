@@ -268,9 +268,19 @@ static void pass_done(void *arg) {   // completion thread
             uint32_t ic, fi;
             memcpy(&ic, p->map + d->at + 4, 4);
             memcpy(&fi, p->map + d->at + d->fi_at, 4);
-            rt_log("indd: f%llu vs %08x cpu ic %u fi %u gpu ic %u fi %u ahead %llu ssbo %#llx state %d",
+            rt_log("indd: f%llu vs %08x cpu ic %u fi %u gpu ic %u fi %u ahead %llu ssbo %#llx state %d at %#llx",
                    (unsigned long long)p->frame, d->vs, d->cpu_ic, d->cpu_fi, ic, fi, (unsigned long long)d->ahead,
-                   (unsigned long long)d->ssbo, d->ssbo_state);
+                   (unsigned long long)d->ssbo, d->ssbo_state, (unsigned long long)d->ga);
+            // Absurd instance counts (26/11/2026: the leaf ribbon's arguments held particle floats, 0x3ea80000, in
+            // guest memory and on the GPU alike; a spark draw's 0x7f000110 stalled the GPU 3 s): which submission
+            // last wrote the page from the GPU, and from now on every shadow change there (swatch: lines)
+            if (d->ga && ic > 1000000u) {
+                rt_log("indbad: f%llu vs %08x at %#llx ic %#x fi %#x: page last written by the GPU in submission %llu, "
+                       "recorded in %llu, done %llu", (unsigned long long)p->frame, d->vs, (unsigned long long)d->ga, ic,
+                       fi, (unsigned long long)vk_mem_gpu_last_fence(d->ga), (unsigned long long)p->fence,
+                       (unsigned long long)vk_sync_fence_done());
+                vk_mem_watch_add(d->ga & ~0xfull, (d->ga & ~0xfull) + 0x40);
+            }
         }
         int j = 0;
         while (j < nv && v[j].vs != d->vs) j++;

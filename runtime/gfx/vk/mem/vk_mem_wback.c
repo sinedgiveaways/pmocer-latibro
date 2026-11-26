@@ -138,8 +138,14 @@ static void wb_order_note(uint64_t addr, uint64_t size, uint64_t fence) {
         if (__atomic_compare_exchange_n(&wb_need, &cur, need, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED)) break;
 }
 
+// The newest submission noted as writing addr's page into a shadow (0: none or ORBITALS_WB_ORDER off)
+uint64_t vk_mem_gpu_last_fence(uint64_t addr) {
+    return wb_last && addr < RT_ADDRESS_LIMIT ? __atomic_load_n(&wb_last[addr >> 12], __ATOMIC_RELAXED) : 0;
+}
+
 void vk_mem_gpu_pending(uint64_t addr, uint64_t size) {
     mem_early_gpu_wrote(addr, size, vk_exec_recording_fence());   // ORBITALS_EARLY_READ
+    if (watch_hi) watch_event("GPU write noted", addr, addr + size, vk_exec_recording_fence(), size);
     if (!shadow_on || !size) return;
     uint8_t *base = lost_base(addr, size);
     if (merge_mode < 0) {
