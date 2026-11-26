@@ -130,6 +130,16 @@ static int bind_range(VkExec *ex, uint64_t addr, uint64_t size, uint64_t align, 
     VkBuffer b;
     VkDeviceSize o;
     RS.volatile_ = 1;
+    // A shader storing into the copy below stores into nothing the game sees: say so for the first few (since 6906362 a
+    // buffer texture viewed there works, so such stores reach a real view; a freeze followed it once, logs75).
+    if (written) {
+        static volatile int32_t n_said;
+        int32_t k = __atomic_add_fetch(&n_said, 1, __ATOMIC_RELAXED);
+        if (k <= 8 || !(k & (k - 1)))
+            rt_log("vk: stores into %#llx+%#llx go to a transient copy (offset %% %llu = %llu): the game will not see them "
+                   "(%d so far)", (unsigned long long)addr, (unsigned long long)n, (unsigned long long)align,
+                   (unsigned long long)(sp.offset % align), (int)k);
+    }
     if (ru_cap) ru_note_bad(RUB_VOLATILE);   // bytes copied at record time
     memcpy(scratch(ex, n, &b, &o), (const void *)(uintptr_t)addr, n);
     // ORBITALS_TRACE_SCRATCH=1 (diagnosis): each copy at record time, with its replay position and a hash of the bytes: two
