@@ -478,10 +478,16 @@ static VkBufferView texel_view_make(VkBuffer buf, VkDeviceSize off, VkDeviceSize
     if (!v && tvw_n < TEXEL_VIEWS) {
         VkBufferViewCreateInfo ci = {.sType = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO, .buffer = buf, .format = fmt,
                                      .offset = off, .range = range};
-        if (vkCreateBufferView(vk_ctx()->device, &ci, NULL, &v) == VK_SUCCESS)
+        VkResult res = vkCreateBufferView(vk_ctx()->device, &ci, NULL, &v);
+        if (res == VK_SUCCESS) {
             TVW[tvw_n++] = (TexelView){buf, off, range, fmt, v, tvw_clock};
-        else
+        } else {
             v = VK_NULL_HANDLE;
+            static volatile int32_t said;   // the zero view is bound instead: say so once
+            if (!__atomic_exchange_n(&said, 1, __ATOMIC_RELAXED))
+                rt_log("vk: texel buffer view creation failed (%d, format %d, offset %#llx, range %#llx): the zero view is bound",
+                       (int)res, (int)fmt, (unsigned long long)off, (unsigned long long)range);
+        }
     }
     int full = !v && tvw_n >= TEXEL_VIEWS;
     plat_mutex_unlock(&tvw_lock);
