@@ -8,8 +8,11 @@ it: BSSY/BSYNC are scheduling hints the translator drops, and EXIT is a GLSL ret
 
 A forward conditional BRA over [n, t) becomes `if (!cond) { [n, t) }`, or if / else when the code before t ends with
 an unconditional jump further on; a backward BRA at `back` to `i` becomes `do { [i, back) } while (cond);`; an
-unconditional forward jump skips dead code. Anything else (a jump into or out of a range other than its own end,
-CALL, RET, BRX) raises Fail and the caller keeps the switch.
+unconditional forward jump skips dead code. A jump out of its innermost loop to past the latch is a flag and a break;
+the code an unconditional jump then skips runs under `if (flag)` when only flagged jumps land in it (26/11/2026: the
+Niagara simulations that summed their group's particles in the switch form and added garbage to the counts).
+Anything else (a jump into or out of a range other than its own end, CALL, RET, BRX) raises Fail and the caller
+keeps the switch.
 """
 
 import flow_sim
@@ -19,14 +22,20 @@ class Fail(Exception):
     """The program's branches do not nest."""
 
 
+# Branch outcome sets flow_sim compares on. 4 until 26/11/2026: 127 programs of the census were accepted on 4 and ran
+# other instructions on one of 64 (a flagged jump into an else-part, now refused by _structure's nesting check);
+# with that check none differs on 64, and 16 is flow_check's count.
+SEEDS = 16
+
+
 def structure(stmts: list[str], branches: dict[int, tuple[int, str | None]]) -> list[str]:
     """_structure, refused (Fail: the caller keeps the switch) unless flow_sim finds that it runs the same instructions
-    as the branch graph on 4 sets of branch outcomes. When that fails, once more with the short tails copied to the
+    as the branch graph on SEEDS sets of branch outcomes. When that fails, once more with the short tails copied to the
     jumps into them (_dup_tails), checked against the original graph."""
     mk, nb = flow_sim.markers(stmts), flow_sim.named(branches)
     try:
         lines = _structure(stmts, branches)
-        if not flow_sim.diff(mk, nb, _structure(mk, nb), 4):
+        if not flow_sim.diff(mk, nb, _structure(mk, nb), SEEDS):
             return lines
     except Fail:
         pass
@@ -35,7 +44,7 @@ def structure(stmts: list[str], branches: dict[int, tuple[int, str | None]]) -> 
         try:
             d_stmts, d_branches, d_mk, d_nb = _dup_tails(stmts, branches, mk, nb, joins_only, falls)
             lines = _structure(d_stmts, d_branches)
-            if not flow_sim.diff(mk, nb, _structure(d_mk, d_nb), 4):
+            if not flow_sim.diff(mk, nb, _structure(d_mk, d_nb), SEEDS):
                 return lines
         except Fail:
             pass
@@ -128,9 +137,27 @@ def _structure(stmts: list[str], branches: dict[int, tuple[int, str | None]]) ->
     opened: set[int] = set()
     gotos: list[tuple[int, int, str]] = []  # (jump, target, flag): forward jumps out of their range
     sets: dict[int, str] = {}  # jump -> the statement that sets its flag
+    breaks: dict[int, str] = {}  # jump out of its innermost loop -> its flag: `if (flag) break;` after the set
+    landings: set[int] = set()  # instructions that open an `if (flag)` stretch only flagged jumps enter
 
     def no_loop_between(a: int, b: int) -> bool:
         return not any(a < h < b or a < e < b for h, e in loop_end.items())
+
+    def innermost(k: int) -> tuple[int, int] | None:
+        """(head, latch) of the innermost loop whose body holds instruction k."""
+        inner = [(h, e) for h, e in loop_end.items() if h <= k < e]
+        return max(inner) if inner else None
+
+    def break_ok(k: int, t: int) -> bool:
+        """A jump at k out of its innermost loop to t past the latch, with no loop boundary between the latch and t, and t
+        inside the enclosing loop if there is one (one level out): a flag, a break, and the flag guarding the stretch
+        from the loop's end to t. ptxas leaves `for (...) { if (c) { x; goto out; } } y; out:` so (the Niagara
+        simulations whose group count sums ran in the switch form: NS_ElectricArcs_Ground_01/Arcs, 26/11/2026)."""
+        lp = innermost(k)
+        if lp is None or not (lp[1] < t <= n) or not no_loop_between(lp[1], t):
+            return False
+        outer = [(h, e) for h, e in loop_end.items() if h < lp[0] and lp[1] < e]
+        return all(t <= e for _, e in outer)
 
     def put(at: int, line: str) -> None:
         before.setdefault(at, []).append(line)
@@ -160,6 +187,14 @@ def _structure(stmts: list[str], branches: dict[int, tuple[int, str | None]]) ->
                 i += 1
                 continue
             t, cond = branches[i]
+            if t > hi and t not in outs and t != latch and break_ok(i, t):
+                flag = f"g{len(gotos)}"
+                gotos.append((i, t, flag))
+                consumed.add(i)
+                sets[i] = f"{flag} = {cond or 'true'};"
+                breaks[i] = flag
+                i += 1
+                continue
             if t in outs:
                 t = hi
             if t == hi + 1 and latch == hi:
@@ -179,8 +214,23 @@ def _structure(stmts: list[str], branches: dict[int, tuple[int, str | None]]) ->
                 raise Fail
             consumed.add(i)
             if cond is None:  # what lies between is dead, unless something else jumps into it
-                if any(i < x < t for x in targets):
-                    raise Fail
+                inside = sorted(x for x in targets if i < x < t)
+                if inside:
+                    # Only flagged jumps (gotos, breaks) land right after this jump: what lies between runs when one of
+                    # them was taken (the code after a loop that a break skips to)
+                    # (Jumps from inside the stretch to inside it are its own ifs and loops.)
+                    land = [f for j, x, f in gotos if x == i + 1]
+                    flagged = {j for j, x, _ in gotos if x == i + 1}
+                    into = {j for j, (x, _) in branches.items() if i < x < t and not i < j < t}
+                    if inside[0] != i + 1 or not land or into - flagged:
+                        raise Fail
+                    consumed.add(i)
+                    landings.add(i + 1)
+                    put(i + 1, f"    if (!(!({' || '.join(land)}))) {{")
+                    run(i + 1, t, None, depth + 1)
+                    put(t, "    }")
+                    i = t
+                    continue
                 dead.update(range(i + 1, t))
                 i = t
                 continue
@@ -213,6 +263,29 @@ def _structure(stmts: list[str], branches: dict[int, tuple[int, str | None]]) ->
     run(0, n, None, 0)
     if set(branches) - consumed:
         raise Fail
+    # A flagged jump resumes at its target by skipping what lies between in program order: right only when every
+    # block open at the target was open at the jump (in the same part), or is the target's own landing `if (flag)`.
+    # A target in the else-part of an if / else the jump sits in the then-part of, or inside an if opened after the
+    # jump, is not reached so: the 57 programs flow_check found (31/10/2026) and the ones the loop breaks exposed
+    # (PS c1d3a145…, wrong only on the fifth seed of flow_sim, 26/11/2026). Fail: the switch.
+    nest: list[tuple] = []
+    open_at: dict[int, tuple] = {}
+    for k in range(n + 1):
+        for x, line in enumerate(before.get(k, [])):
+            if line.startswith("    if (") or line == "    do {":
+                nest.append((k, x, 0))
+            elif line == "    } else {":
+                nest[-1] = (*nest[-1][:2], 1)
+            elif line == "    }" or line.startswith("    } while"):
+                nest.pop()
+        open_at[k] = tuple(nest)
+    for j, t, _ in gotos:
+        at_j, at_t = open_at[j], open_at.get(t, ())
+        if len(at_t) <= len(at_j) and at_j[: len(at_t)] == at_t:
+            continue
+        if at_t[:-1] == at_j[: len(at_t) - 1] and at_t and at_t[-1][0] == t and t in landings:
+            continue
+        raise Fail
     flags = [f for _, _, f in gotos]
     # Where each if's block (both parts) closes: an if that opens and closes inside a guarded stretch tests the guard
     # first, as every statement there does, so its condition is not read on the way to the join (harmless on the GPU,
@@ -239,4 +312,6 @@ def _structure(stmts: list[str], branches: dict[int, tuple[int, str | None]]) ->
         stmt = sets.get(k) or (stmts[k] if k not in dead and k not in consumed else "")
         if stmt:
             out.append(f"        if (!({' || '.join(guard)})) {{ {stmt} }}" if guard else f"        {stmt}")
+        if k in breaks:
+            out.append(f"        if ({breaks[k]}) break;")
     return out + before.get(n, [])

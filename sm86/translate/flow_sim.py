@@ -126,6 +126,8 @@ def parse(lines: list[str]):
                     other = block(("}",))
                 pos += 1
                 out.append(("if", cond, then, other))
+            elif re.fullmatch(r"if \((g\d+)\) break;", s):
+                out.append(("break", re.fullmatch(r"if \((g\d+)\) break;", s).group(1)))
             elif re.fullmatch(r"(g\d+ = false; ?)+", s):
                 out.append(("reset", re.findall(r"(g\d+) = false", s)))
             else:
@@ -143,6 +145,10 @@ def parse(lines: list[str]):
     return block(("\0",))
 
 
+class _Break(Exception):
+    """`if (g) break;` with g set: out of the innermost do."""
+
+
 def run_structured(tree, seed: int) -> list[int]:
     r, flags, steps = Run(seed), {}, [0]
 
@@ -158,6 +164,9 @@ def run_structured(tree, seed: int) -> list[int]:
                 r.stmt(node[1])
             elif kind == "set":
                 flags[node[1]] = r.cond(node[2], flags)
+            elif kind == "break":
+                if flags.get(node[1], False):
+                    raise _Break
             elif kind == "reset":
                 for g in node[1]:
                     flags[g] = False
@@ -165,7 +174,10 @@ def run_structured(tree, seed: int) -> list[int]:
                 ex(node[3] if r.cond(node[1], flags) else node[2])
             elif kind == "do":
                 while True:
-                    ex(node[1])
+                    try:
+                        ex(node[1])
+                    except _Break:
+                        break
                     if r.done or steps[0] >= STEPS or not r.cond(node[2], flags):
                         break
 
