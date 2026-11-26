@@ -7,7 +7,7 @@ name: frame_report.exe
 on:
   workflow_dispatch:
   push:
-    branches: [diag/frame-history-trace]
+    branches: [diag/frame-history-trace, orbitals-port]
     paths: [tools/analisis/frame_report.py, .github/workflows/frame_report.yml]
 
 permissions:

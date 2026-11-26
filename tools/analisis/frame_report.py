@@ -12,12 +12,17 @@ Usage: orbitals-frame-report.exe [EXEFS_DIR] [--out frame_report.txt] [--sym TEX
 no disassembly. Used to find the exact name of an SDK function to replace.
 --func TEXT disassembles every function whose symbol name contains TEXT (the first FUNCTION_CAP instructions of each),
 with calls named: how an SDK function reads and writes the objects it is given, before a host override replaces it.
+--stack LOG names the game frames of the abort's thread dump in an orbitals.log (q.py fn for each: callers, named
+callees, strings, and the code before the call, where its arguments are set), for the threads named like --thread
+(default STACK_THREADS): Unreal's "GameThread timed out waiting for RenderThread" stops in game code the sandbox cannot
+name without the ExeFS (logs81, 27/11/2026). Double-clicked next to exefs/ with a logs/orbitals.log, it does that.
 EXEFS_DIR holds main, sdk and subsdk0 (default: ORBITALS_GAME/exefs, ./exefs, or exefs next to the executable).
 Builds the binary database in a temporary folder (about a minute), then writes the report. Nothing of the game is kept.
 """
 
 import argparse
 import os
+import re
 import sqlite3
 import subprocess
 import sys
@@ -39,6 +44,8 @@ CALLER_SITES = ("main+0x1540460", "main+0x15404c0")
 CODE_WINDOW = ("main", 0x1540400, 0x1540700)  # module, start, end: around the Viewport thread's wait and both calls
 FUNCTION_CAP = 160  # instructions printed for a whole function
 NAMES = ("ListFrameHistory", "GetLatestFrameNumber")
+# --stack: the threads of Unreal's "GameThread timed out waiting for RenderThread" (logs75, logs78, logs81)
+STACK_THREADS = ("RenderThread", "GameThread", "RHIThread", "RHIInterruptThread", "Foreground Worker")
 
 
 def demangle_or_same(names: list[str]) -> dict[str, str]:
@@ -152,6 +159,82 @@ class Report:
                 self.disasm(f[0], f[1], FUNCTION_CAP)
                 self.out()
 
+    def name_of(self, addr: int) -> str:
+        n = self.names.get(addr)
+        if n:
+            return n
+        row = self.db.execute("SELECT name FROM sym WHERE addr=? AND kind='func' LIMIT 1", (addr,)).fetchone()
+        return row[0] if row and row[0] else ""
+
+    def summary(self, addr: int, limit: int = 10) -> None:
+        """q.py fn for the function containing addr: callers, named callees first, strings."""
+        f = self.function_at(addr)
+        if not f:
+            self.out(f"    {self.rel(addr)}: no function found")
+            return
+        start, end, _ = f
+        ncallers = self.db.execute(
+            "SELECT count(DISTINCT caller) FROM call WHERE target=? OR target IN (SELECT addr FROM plt WHERE target=?)",
+            (start, start),
+        ).fetchone()[0]
+        out = self.db.execute(
+            "SELECT target, count(*) FROM call WHERE site>=? AND site<? AND NOT (target>=? AND target<?) "
+            "GROUP BY target ORDER BY count(*) DESC",
+            (start, end, start, end),
+        ).fetchall()
+        self.out(
+            f"    in {self.rel(start)} {self.name_of(start)} ({(end - start) // 4} instructions, {ncallers} callers, "
+            f"{len(out)} callees)"
+        )
+        named = sorted(out, key=lambda t: not self.name_of(t[0]))
+        for t, n in named[:limit]:
+            self.out(f"      -> {self.rel(t)} {self.name_of(t)}" + (f" x{n}" if n > 1 else ""))
+        strs = self.db.execute(
+            "SELECT DISTINCT s.text FROM ref r JOIN str s ON s.addr=r.target WHERE r.site>=? AND r.site<?", (start, end)
+        ).fetchall()
+        for (s,) in strs[:limit]:
+            self.out(f'      "{s[:120]}"')
+
+    def stack(self, log: Path, threads: list[str]) -> None:
+        """The game frames of the abort's thread dump: what each one is, and the code before each call."""
+        head = re.compile(r'^\s*thread (0x[0-9a-f]+) "([^"]*)"')
+        frame = re.compile(r"^\s*(?:guest )?frame\s+\d+:\s*(main|sdk|subsdk0)\+(0x[0-9a-f]+)")
+        stacks: list[tuple[str, list[tuple[str, int]]]] = []
+        cur = None
+        for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
+            m = head.match(line)
+            if m:
+                cur = None
+                if any(t.lower() in m[2].lower() for t in threads):
+                    cur = (f"{m[1]} {m[2]}", [])
+                    stacks.append(cur)
+                continue
+            m = frame.match(line)
+            if m and cur is not None:
+                cur[1].append((m[1], int(m[2], 16)))
+        if not stacks:
+            self.out(f"== No thread named like {threads} in {log}")
+            return
+        seen: set[int] = set()
+        for title, frames in stacks:
+            self.out(f"== {title}: {len(frames)} frames")
+            for mod, off in frames:
+                if mod not in self.base:
+                    continue
+                addr = self.base[mod] + off
+                self.out(f"  {mod}+{off:#x}")
+                if addr in seen:
+                    self.out("    (above)")
+                    continue
+                seen.add(addr)
+                self.summary(addr)
+                # the frame is a return address: the call is the instruction before it, its arguments just above
+                self.out("    code before the call:")
+                self.disasm(
+                    max(addr - 4 * 16, self.function_at(addr)[0] if self.function_at(addr) else addr - 64), addr + 4
+                )
+            self.out()
+
     def run(self) -> None:
         self.out("== Symbols (module, address, kind, name)")
         wanted = []
@@ -195,8 +278,27 @@ def main() -> None:
     ap.add_argument("exefs", nargs="?")
     ap.add_argument("--out", type=Path, default=Path("frame_report.txt"))
     ap.add_argument("--sym", action="append", default=[], help="list the symbols whose name contains this text")
-    ap.add_argument("--func", action="append", default=[], help="disassemble the functions whose name contains this text")
+    ap.add_argument(
+        "--func", action="append", default=[], help="disassemble the functions whose name contains this text"
+    )
+    ap.add_argument("--stack", type=Path, help="an orbitals.log with an abort's thread dump: name its game frames")
+    ap.add_argument(
+        "--thread",
+        action="append",
+        default=[],
+        help="with --stack, the threads whose name contains this text (default: " + ", ".join(STACK_THREADS) + ")",
+    )
     args = ap.parse_args()
+    if len(sys.argv) == 1 and getattr(sys, "frozen", False):
+        # double-clicked: an orbitals.log next to the executable or in logs\ is named, else the old report
+        for c in (
+            Path("orbitals.log"),
+            Path("logs/orbitals.log"),
+            Path(sys.argv[0]).resolve().parent / "logs/orbitals.log",
+        ):
+            if c.exists():
+                args.stack = c
+                break
     exefs = find_exefs(args.exefs)
     print(f"ExeFS: {exefs.resolve()}\nBuilding the binary database (about a minute)...")
     # The database file stays open under Windows until the process ends, so the temporary folder cannot always be removed.
@@ -210,7 +312,9 @@ def main() -> None:
             rep.symbols(args.sym)
         if args.func:
             rep.functions(args.func)
-        if not args.sym and not args.func:
+        if args.stack:
+            rep.stack(args.stack, args.thread or list(STACK_THREADS))
+        if not args.sym and not args.func and not args.stack:
             rep.run()
         args.out.write_text("\n".join(rep.lines) + "\n", encoding="utf-8")
         db.close()
