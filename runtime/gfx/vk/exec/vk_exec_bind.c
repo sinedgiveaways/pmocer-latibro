@@ -502,6 +502,27 @@ static int texel_mode(void) {
     return m;
 }
 
+// ORBITALS_SHADOW_WATCH_CS=<hex prefix of a compute program key> (diagnosis): the storage texel buffers dispatches of that
+// program write go under ORBITALS_SHADOW_WATCH (up to 4 ranges): every GPU write noted, shadow copy and write-back over
+// them is a swatch: line. For Niagara's DrawIndirectArgsGen (d0af38b7): a spark draw stalled the GPU 1 s with 0x4175cc42
+// (a float) as its instance count, read from the instance count buffer that shader clears (26/11/2026).
+static int watch_cs_match(int st) {
+    static int n = -1;
+    static uint8_t want[32];
+    if (n < 0) {
+        const char *e = cfg_get("ORBITALS_SHADOW_WATCH_CS");
+        n = 0;
+        for (; e && n < 64 && ((*e >= '0' && *e <= '9') || (*e >= 'a' && *e <= 'f')); e++, n++)
+            want[n / 2] |= (uint8_t)((*e <= '9' ? *e - '0' : *e - 'a' + 10) << (n % 2 ? 0 : 4));
+    }
+    if (!n || st != NVN_STAGE_CS || !c0_cs) return 0;
+    const uint8_t *k = gfx_shader_key(c0_cs);
+    for (int i = 0; i < n; i++)
+        if (((k[i / 2] >> (i % 2 ? 0 : 4)) & 15) != ((want[i / 2] >> (i % 2 ? 0 : 4)) & 15)) return 0;
+    return 1;
+}
+static _Thread_local int texel_stage;   // the stage of the binding texel_view makes a view for
+
 static VkBufferView texel_view(VkExec *ex, uint64_t h, int storage) {
     uint64_t addr;
     int fmt;
@@ -542,6 +563,7 @@ static VkBufferView texel_view(VkExec *ex, uint64_t h, int storage) {
         return Z.zview;
     }
     if (storage) note_written(ex, addr, bi.range), unsized_note(addr, bi.range, 2, -1);   // the stage is not known here
+    if (storage && watch_cs_match(texel_stage)) vk_mem_watch_add(addr, addr + bi.range);
     VkDeviceSize range = bi.range - bi.range % (VkDeviceSize)bpb;
     if (!range) return Z.zview;
     VkBufferView v = texel_view_make(bi.buffer, bi.offset, range, f.ideal);
@@ -1113,6 +1135,7 @@ void bind_resources(VkExec *ex, const VkPipeInfo *info) {
                     else if (img) h = slot >= 0 && slot < 32 ? ex->img[st][slot] : 0;
                     else h = slot >= 0 && slot < 128 ? ex->tex[st][slot] : 0;
                     o[k].w[0] = 0, o[k].w[1] = 0, o[k].w[2] = 0;
+                    texel_stage = st;
                     o[k].view = texel_view(ex, h, img);
                     if (need_w) bv[nd + k] = o[k].view;
                 }

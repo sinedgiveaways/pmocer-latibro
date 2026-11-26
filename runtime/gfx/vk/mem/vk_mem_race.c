@@ -144,7 +144,7 @@ void vk_mem_watch_add(uint64_t lo, uint64_t hi) {
         wr[nwr][0] = lo, wr[nwr][1] = hi;
         if (hi > watch_hi) watch_hi = hi;
         __atomic_store_n(&nwr, nwr + 1, __ATOMIC_RELEASE);
-        rt_log("mem: shadow changes over [%#llx, %#llx) logged from now on (absurd indirect arguments there)",
+        rt_log("mem: shadow changes over [%#llx, %#llx) logged from now on (absurd indirect arguments or ORBITALS_SHADOW_WATCH_CS)",
                (unsigned long long)lo, (unsigned long long)hi);
     }
     plat_mutex_unlock(&race_lock);
