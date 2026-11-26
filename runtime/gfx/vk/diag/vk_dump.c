@@ -447,6 +447,13 @@ static void each_buffer(const VkExec *ex, const VkPipeInfo *info, buf_emit emit,
             emit(a, size < 65536 ? size : 65536, tag, arg);
             continue;
         }
+        if (bd->kind == GFX_RES_UBO && r->slot >= 3 && r->slot - 3 < 18) {   // the uniform blocks, whole: a shader run offline needs them
+            const p_bind_buf *u = &ex->ubo[st][r->slot - 3];
+            if (!u->addr || !u->size) continue;
+            snprintf(tag, sizeof tag, "%s_ubo_c%d_%llx", stn[st & 7], r->slot, (unsigned long long)u->size);
+            emit(u->addr, u->size < 65536 ? u->size : 65536, tag, arg);
+            continue;
+        }
         if (bd->kind != GFX_RES_TEX && bd->kind != GFX_RES_IMG) continue;
         if (bd->type != VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER && bd->type != VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER) continue;
         int img = bd->kind == GFX_RES_IMG;
