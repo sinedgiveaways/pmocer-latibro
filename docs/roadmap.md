@@ -1,8 +1,9 @@
 # Roadmap
 
 What is being worked on, in order of priority: Orbitals playable from boot (no crash, a picture as on the console),
-then nothing hanging the GPU, then the frame rate. Updated 19/11/2026 (branch `diag/frame-history-trace`; how the
-work is done with a player's machine: [workflow.md](workflow.md); the shaders: [shaders.md](shaders.md)).
+then nothing hanging the GPU, then the frame rate. Updated 27/11/2026 (branch `orbitals-port`; the latest state is
+[6.8](#68-état-au-27112026-branche-orbitals-port-build-courant-ec65fcb); how the work is done with a player's machine:
+[workflow.md](workflow.md); the shaders: [shaders.md](shaders.md)).
 
 All measurements below are from one machine: Windows 11, RTX 4080, NVIDIA 616.92, Orbitals Deluxe Edition 1.0.5
 (program `040032B023CA4000`, main build `d6efcc0a51c1c792`) with its add-on, from a `.nup` package. The reference is
@@ -384,3 +385,67 @@ Cette section fait foi sur les conclusions les plus récentes et corrige les hyp
 - **Confirmé en jeu (25/11/2026, build `3d49420`):** 4 parties jusqu'au niveau, fermées normalement, aucun crash. Les 96
   lectures du tampon de relecture donnent un compte de 2 et les paires `{0,3} {1,3}` (avant: compte aléatoire à chaque
   lecture). Aucun programme sans SPIR-V dans ces parties.
+
+### 6.8 État au 27/11/2026 (branche `orbitals-port`, build courant `ec65fcb`)
+
+Cette section fait foi pour la reprise. Les détails techniques de l'astéroïde sont en 1.1b (fin du paragraphe sur le
+streaming des mips).
+
+**Confirmé en jeu**
+
+- Scintillement corrigé (`6906362`, logs76) : les tampons transitoires n'avaient pas les bits d'usage texel buffer.
+  `0a474bf` est conservé : une buffer texture ne se résout jamais en image.
+- Flammes et nuage de fumée noire corrects depuis logs76 (dit par le joueur).
+
+**Astéroïde à rayures : correction `e30dd58`, à confirmer**
+
+- Le défaut : des taches ou rayures (vert, violet, jaune, orange et noir) sur la partie droite du gros astéroïde, vu
+  par le hublot, côté gauche de l'écran partagé, vers 50 s après la sortie du sas. Le motif change d'une partie à
+  l'autre.
+- logs80 a donné la condition : propre au premier passage, cassé après un retour au menu principal suivi de
+  « Continuer ». Le dump (avec `DUMP_TEX=1920x1080`) montre les rayures dans la couleur de base du G-buffer : une
+  texture de la passe de base contient les texels d'une autre texture.
+- La cause : une texture finalisée puis recréée à la même adresse avec le même descripteur reprend l'entrée libérée
+  (`entry_of`, vk_tex_alias.c), avec le `gpu_lv` de l'ancienne texture. Les mips écrits par le CPU tombaient alors sous
+  la règle « niveau entier » de `merge_cpu_writes`, que la course du streaming fait échouer (le cas de `6c1523e`).
+  `e30dd58` efface les niveaux nommés par des copies à la reprise (`revived`). Les rendus, clears, images de stockage
+  et alias (`gpu_lv` = ~0u) ne sont pas touchés.
+- logs81 (build `e30dd58`) : la correction se déclenche (lignes `taken back at its address; the levels its last
+  life's copies wrote (...) are the storage's again`, dont une texture 512x512 à 10 niveaux). Le joueur n'a pas encore
+  dit si les rayures ont disparu.
+- **Test à faire :** astéroïde, menu principal, Continuer, de nouveau l'astéroïde. Si les rayures restent : capture
+  et log sans dump. Puis décider de garder ou non `6c1523e` (gardé : la course qu'il traite existe dans le code).
+
+**Gel « GameThread timed out waiting for RenderThread » (2 parties sur 5 ; logs75, logs78, logs81)**
+
+- Abandon du jeu après 120 s (`svc 0x26 Break`). La pile du RenderThread est identique à chaque fois, adresse pour
+  adresse : `sdk+0x1670c8` (`SdkConditionVariableType::TimedWait`), `sdk+0x173a28`, `main+0x89ac8`, `main+0x3bfec`,
+  `main+0x24c68c`, `main+0x1d96aac`, `main+0x1d9b64c`, `main+0x1719050`, `main+0x1d77d64`, `main+0x1d761e0`,
+  `main+0x1641f84`, `main+0x32a0c`.
+- Le diagnostic `c03f2a0` (logs81) établit que la variable de condition (clé `0x5a009f1e4`) a reçu son dernier signal
+  120,061 s plus tôt, de Foreground Worker #1, **avant** le début de l'attente (40 770 signaux au total), et aucun
+  depuis. Notre noyau n'a donc perdu aucun réveil : personne n'a signalé.
+- `wait_woken` (kernel.c) termine une attente à durée finie à son échéance. Une attente de 120 s dans `TimedWait`
+  signifie donc un délai demandé par le jeu supérieur à 120 s, en pratique infini.
+- RHIThread, RHIInterruptThread et les workers attendent du travail. Dans logs81, Foreground Worker #0 était sur un
+  cœur (travail audio Wwise, réveillé par `AK::AudioMgr`), mais il était au repos dans logs75 et logs78 : sans
+  rapport.
+- Hypothèse, non vérifiée : le RenderThread attend sa prochaine commande sur l'événement de sa file de tâches Unreal,
+  pendant que le GameThread attend une barrière de rendu ; le réveil de la file aurait été manqué.
+- Vérifié sans défaut : la traduction des barrières (`DMB` en fence seq_cst), LDAR/STLR (seq_cst), CAS/CASP et LSE,
+  et l'émulation LDXR/STXR et LDXP/STXP par CAS sur la valeur lue (`runtime/cpu/cpu.h`).
+- **Prochaine étape :** nommer ces fonctions. La sandbox n'a pas l'ExeFS. `orbitals-frame-report.exe --stack`
+  (`ec65fcb`, run 45911481435) le fait chez le joueur : posé dans le dossier du jeu à côté de `exefs\` et de
+  `logs\orbitals.log` (le log d'un gel), double-cliqué, il écrit `frame_report.txt`. Ce fichier n'a pas encore été
+  reçu.
+
+**Constatés, pas encore étudiés**
+
+- Un rond bleu vif au-dessus du personnage de droite, dans le couloir de la colonie (capture de logs79). Il n'est pas
+  dans l'image du dump de la même partie : intermittent. Peut-être le même mécanisme de texture reprise ; à revoir avec
+  `e30dd58`.
+- De longues lignes grises dans le couloir de la colonie (capture de logs78), probablement des particules mal placées.
+
+**Diagnostics à retirer quand ils ne servent plus :** `ORBITALS_OCCLUSION=visible` (`68d2a22`), le log des écritures
+dans une copie transitoire (`97bc308`), les notes de signal des variables de condition (`c03f2a0`, utile tant que le
+gel n'est pas résolu).

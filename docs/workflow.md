@@ -92,6 +92,26 @@ seconds; `astats` RMS per second to tell a silent logo from a quiet one).
   do not), `DUMP_FS_AFTER=<n>` the n passes after each of them too, `DUMP_PASSES=<from>-<to>` a range of one run's
   numbering, `DUMP_SKIP_RUNS=1` drops passes with the same targets as the one before. `DUMP_UBO=1` prints each
   pipeline's uniform blocks (rows with NaN or infinity listed: often integers seen as floats).
+- **A dump of the frame on screen, while playing** (the moment a defect is visible), through the control pipe
+  (`runtime/core/base/ctl.c`, options `ubo | lut | log N | passes A-B | runs | fs H,H | after N | cs H,H`). In
+  PowerShell, the folder is written next to the exe:
+
+  ```powershell
+  $p = New-Object System.IO.Pipes.NamedPipeClientStream('.', 'orbitals', 'Out'); $p.Connect(3000); $w = New-Object System.IO.StreamWriter($p); $w.WriteLine('dump dump_ast runs'); $w.Flush(); $p.Dispose()
+  ```
+
+  `runs` keeps only the **first** pass of each run with the same targets: the G-buffer images then show the state after
+  the first base pass (logs79: only a character; the asteroid's passes 0222-0240 were not copied). Add
+  `DUMP_TEX=1920x1080` to `orbitals.ini`: every full-screen texture is then copied where it is first sampled, i.e. the
+  final G-buffer when the lighting reads it and the separate translucency when the composite reads it
+  (`pass_NNNN_tex<id>_1920x1080x1_*.png`; logs80 found the asteroid's wrong texture that way). A whole frame with
+  `runs` and `DUMP_TEX` was about 1.1 GB of PNG; the 500 ms fence waits right after `vk_dump: frame N goes to` are the
+  dump itself, not a stall.
+- **Naming the game's functions of an abort** (the sandbox has no ExeFS): `orbitals-frame-report.exe` (artifact of the
+  `frame_report.exe` workflow) next to the game's `exefs\` and `logs\orbitals.log`, double-clicked, writes
+  `frame_report.txt`: for each game frame of the RenderThread, GameThread, RHI threads and foreground workers, the
+  function (callers, named callees, strings) and the code before the call. The report holds the game's disassembly:
+  through the `analysis-data` release and the chat, never into git.
 - **Program keys and SPIR-V hashes:** the runtime and the translator name a program by its key (sha256 of control and
   code, `spirv/<key>.*`); a dump names shaders by an FNV-1a hash of the SPIR-V (`sh_<hash>.spv`). Without the player's
   `spirv/`, match them by shape: `class_diff.py` gives a program's inputs, outputs and textures, `spirv-dis` on the
