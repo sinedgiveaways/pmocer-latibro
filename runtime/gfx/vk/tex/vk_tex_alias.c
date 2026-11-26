@@ -166,6 +166,24 @@ void alias_sync(Tex *e) {
 // The entries at a storage address, chained by next_at (ui/glyphs/glyphs.c re-uploads all of them). Texture lock held.
 Tex *entries_at(uint64_t addr) { return nvn_hm_get(&by_addr, &addr); }
 
+// A released entry taken back by a texture of the same key at the same address: the game finalized the texture and
+// initialized a new one over that memory, often with other texels (Unreal reuses a streamed texture's allocation for
+// the next one of its size and format). The levels the GPU's copies named (gpu_lv) are the old texture's: kept, the
+// new texture's CPU-written mips met the whole-level rule of merge_cpu_writes, which the streaming race defeats, and
+// kept the old texels (an asteroid's right part in orange and black stripes, only after going back to the main menu
+// and loading the save again, logs80 of 26/11/2026: clean on the first visit). Cleared, every level is the storage's
+// until the new texture's copies name theirs again, as on a first life (merge_cpu_writes: any page the CPU wrote since
+// the last read of the storage brings its level over), and an image nobody rewrites keeps its texels. Renders, clears,
+// storage images and alias copies (all ones) are left alone: what the GPU drew stays, as the console's memory keeps it.
+static void revived(Tex *e) {
+    static volatile int32_t n_log;
+    if (!e->pub.mirrored || !e->pub.gpu_owned || !e->gpu_lv || e->gpu_lv == ~0u) return;
+    log_limited(&n_log, "texture %#llx %ux%u fmt %#x levels %u: taken back at its address; the levels its last life's "
+                "copies wrote (%#x) are the storage's again", (unsigned long long)e->pub.addr, e->t.d.width,
+                e->t.d.height, e->t.d.format, e->pub.levels, e->gpu_lv);
+    e->gpu_lv = 0;
+}
+
 Tex *entry_of(const tex_t *t) {
     TexKey k;
     make_key(t, &k);
@@ -214,7 +232,10 @@ Tex *entry_of(const tex_t *t) {
         nvn_hm_put(&by_key, &k, e);
         tex_gen_bump(k.addr);
     }
-    if (e->released) e->released = 0, nreleased--, rel_unlink(e), tex_gen_bump(k.addr);
+    if (e->released) {
+        e->released = 0, nreleased--, rel_unlink(e), tex_gen_bump(k.addr);
+        revived(e);
+    }
     e->t = *t;
     return e;
 }

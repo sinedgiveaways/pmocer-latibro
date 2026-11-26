@@ -214,7 +214,13 @@ game. The replay runs behind the game, so when it reaches the GPU copy of the ol
 already written part of the new level 0; those pages get the copy's `gpu_gen`, the rest a newer stamp, and the level
 is never "whole" for the merge. Now the copies name the level they write (`vk_texture_gpu_written_level`, `gpu_lv`),
 and a level the GPU never wrote is the storage's: any CPU page since the last read (`wgen`) brings it over, and a
-write-back leaves it alone. Renders, clears and storage images still mark every level. CI build, not run in game yet.
+write-back leaves it alone. Renders, clears and storage images still mark every level (`6c1523e`). The speckles stayed
+(logs77). logs80 (27/11/2026) found when: clean on the first visit, orange and black stripes on the asteroid's right
+part after going back to the main menu and loading the save. The G-buffer's base colour holds them, so a texture of
+the base pass samples another texture's texels. A texture finalized and initialized again at the same address with the
+same descriptor takes back the released entry (`entry_of`), and its `gpu_lv` was the old texture's: the new
+texture's CPU mips met the whole-level rule again. Now a revived entry's copy-named levels are cleared (`revived` in
+vk_tex_alias.c; renders and alias copies kept). CI build, not run in game yet.
 Against the reference video (`ORBITALS #01 - LE DÉPART`, 8:30-9:40, the same walk through the airlock, outside and
 into the burning deck): the red alarm light is the game's, but (a) the fires are big yellow masses with stair-step
 edges where the console draws small cel-shaded orange flames with smoke, and (b) the red rooms look washed out (pink
