@@ -155,6 +155,7 @@ void alias_sync(Tex *e) {
         e->wgen = now;
         e->uploaded = 1;
         e->pub.gpu_owned = 1;
+        e->gpu_lv = ~0u;   // every level is the alias's
     }
     static int logged;
     if (!logged++)
@@ -197,6 +198,7 @@ Tex *entry_of(const tex_t *t) {
                     vk_mem_changed(e->pub.addr, e->t.L.size, 0, &e->wgen);
                     e->uploaded = 1;
                     e->pub.gpu_owned = 1;
+                    e->gpu_lv = ~0u;
                 }
             } else {
                 init_image(e, vk_upload_begin());
@@ -282,21 +284,23 @@ int vk_texture_capture_state(const tex_t *t, uint32_t recent) {
     return r;
 }
 
-void vk_texture_gpu_written(const tex_t *t) {
+// levels: the NVN levels written, a bit each (all ones: any, as a render, clear or storage image may write).
+static void gpu_wrote(const tex_t *t, uint32_t levels, uintptr_t caller) {
     if (!t || !t->mem) return;
     if (tracing((uintptr_t)t->mem)) {   // with the replay function that wrote it (copies, clears, render targets)
         // the caller as an offset in the executable (addr2line -f -e build/orbitals-recomp)
-        uintptr_t off = (uintptr_t)__builtin_return_address(0) - plat_exe_base();
-        rt_log("vk: texture %#llx %ux%ux%u fmt %#x written on the GPU, caller build/orbitals-recomp+%#llx", (unsigned long long)trace_addr,
-               t->d.width, t->d.height, t->d.depth, t->d.format, (unsigned long long)off);
+        rt_log("vk: texture %#llx %ux%ux%u fmt %#x written on the GPU (levels %#x), caller build/orbitals-recomp+%#llx",
+               (unsigned long long)trace_addr, t->d.width, t->d.height, t->d.depth, t->d.format, levels,
+               (unsigned long long)(caller - plat_exe_base()));
     }
     vk_exec_frame_written(t);
     lock();
     Tex *e = entry_of(t);
     if (e) {
         make_fresh(e);   // a partial render keeps what the storage held before
+        e->gpu_lv = e->pub.gpu_owned ? e->gpu_lv | levels : levels;
         e->pub.gpu_owned = 1;
-        e->gpu_caller = (uintptr_t)__builtin_return_address(0) - plat_exe_base();
+        e->gpu_caller = caller - plat_exe_base();
         alias_wrote(e);
         uint64_t f = vk_exec_recording_fence();
         if (f > e->wr_fence) e->wr_fence = f;
@@ -310,6 +314,12 @@ void vk_texture_gpu_written(const tex_t *t) {
         }
     }
     unlock();
+}
+
+void vk_texture_gpu_written(const tex_t *t) { gpu_wrote(t, ~0u, (uintptr_t)__builtin_return_address(0)); }
+
+void vk_texture_gpu_written_level(const tex_t *t, uint32_t level) {
+    gpu_wrote(t, level < 32 ? 1u << level : ~0u, (uintptr_t)__builtin_return_address(0));
 }
 
 void vk_texture_release(const tex_t *t) {

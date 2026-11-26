@@ -209,6 +209,12 @@ Confirmed in game (`880ffd3`, logs28): sofa, tree, props and ceiling without blo
 chains, 1 to 5 levels each). Left: one asteroid outside the window with green and purple speckles, not looked at yet.
 logs29 (`8a14c5c`, per-level page counts): no level of a mip chain is rewritten in part; the 189 `PARTIAL` lines are
 all one page at a level's edge, shared with the neighbouring level or texture. The asteroid was clean in that run.
+The speckles came back on part of the asteroid in logs76 (`97bc308`, 26/11/2026): a race, not a partial rewrite by the
+game. The replay runs behind the game, so when it reaches the GPU copy of the old mips the streaming thread has
+already written part of the new level 0; those pages get the copy's `gpu_gen`, the rest a newer stamp, and the level
+is never "whole" for the merge. Now the copies name the level they write (`vk_texture_gpu_written_level`, `gpu_lv`),
+and a level the GPU never wrote is the storage's: any CPU page since the last read (`wgen`) brings it over, and a
+write-back leaves it alone. Renders, clears and storage images still mark every level. CI build, not run in game yet.
 Against the reference video (`ORBITALS #01 - LE DÉPART`, 8:30-9:40, the same walk through the airlock, outside and
 into the burning deck): the red alarm light is the game's, but (a) the fires are big yellow masses with stair-step
 edges where the console draws small cel-shaded orange flames with smoke, and (b) the red rooms look washed out (pink

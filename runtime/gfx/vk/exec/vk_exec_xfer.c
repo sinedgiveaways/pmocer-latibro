@@ -617,7 +617,8 @@ static void copy_buffer_image(VkExec *ex, const p_copy_b2t *p, int to_image) {
     else vkCmdCopyImageToBuffer(ex->cb, s.img->image, VK_IMAGE_LAYOUT_GENERAL, m.buffer, 1, &c);
     vk_crumb_end(ex->cb, VK_CRUMB_OP, crumb);
     ex->recorded++;
-    if (to_image) vk_texture_gpu_written(p->tex), vk_sparse_written(s.img->image, s.level, s.layer0 + (uint32_t)s.z, s.nz, s.x, s.y, s.w, s.h);
+    // one level: Unreal's mip streaming copies the old mips on the GPU while the CPU writes the new one (merge_cpu_writes)
+    if (to_image) vk_texture_gpu_written_level(p->tex, s.level + s.img->drop), vk_sparse_written(s.img->image, s.level, s.layer0 + (uint32_t)s.z, s.nz, s.x, s.y, s.w, s.h);
     else vk_mem_gpu_wrote(&m, size), note_gpu_write(ex, p->src, size);
 }
 
@@ -644,7 +645,7 @@ static int astc_into_sparse(const p_copy_t2t *p) {
     if (level >= p->src->d.levels || x + w > lw || y + h > lh || w != d.w || h != d.h) return 0;
     if (!vk_texture_astc_copy(p->src, level, layer, n, x, y, w, h, d.img, d.aspect, d.level, dl0, d.x, d.y, 1))
         return 0;
-    vk_texture_gpu_written(p->dst);
+    vk_texture_gpu_written_level(p->dst, d.level + d.img->drop);
     vk_sparse_written(d.img->image, d.level, dl0, n, d.x, d.y, w, h);
     return 1;
 }
@@ -679,7 +680,7 @@ static void copy_t2t(VkExec *ex, const p_copy_t2t *p) {
         uint32_t dl0 = d.layer0 + (uint32_t)d.z;
         if (vk_texture_astc_copy(p->src, s.level, s.layer0 + (uint32_t)s.z, s.nz, (uint32_t)s.x, (uint32_t)s.y, s.w, s.h,
                                  d.img, d.aspect, d.level, dl0, d.x, d.y, 1)) {
-            vk_texture_gpu_written(p->dst);
+            vk_texture_gpu_written_level(p->dst, d.level + d.img->drop);
             vk_sparse_written(d.img->image, d.level, dl0, s.nz, d.x, d.y, s.w, s.h);
             return;
         }
@@ -738,7 +739,7 @@ static void copy_t2t(VkExec *ex, const p_copy_t2t *p) {
     }
     vk_crumb_end(ex->cb, VK_CRUMB_OP, crumb);
     ex->recorded++;
-    vk_texture_gpu_written(p->dst);
+    vk_texture_gpu_written_level(p->dst, d.level + d.img->drop);
     vk_sparse_written(d.img->image, d.level, d.layer0 + (d3d ? 0 : (uint32_t)d.z), d3d ? 1 : d.nz, d.x, d.y, d.w, d.h);
 }
 

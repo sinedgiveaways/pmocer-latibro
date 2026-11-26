@@ -487,6 +487,7 @@ int vk_texture_checked(int id, uint32_t ep);   // unlocked: slot id's check in s
 uint64_t vk_texture_slot_token(int id);
 uint32_t vk_sampler_gen(void);                      // changes whenever a sampler slot is registered
 void vk_texture_gpu_written(const tex_t *t);        // rendered or copied into by the GPU: no re-upload from storage
+void vk_texture_gpu_written_level(const tex_t *t, uint32_t level);   // a copy into one NVN level: the others stay the storage's
 // runtime/gfx/cap: of the live image of t, if any (none is made): VK_TEXCAP_GPU its content is what the GPU wrote,
 // VK_TEXCAP_RECENT a draw sampled it within the last `recent` submissions, VK_TEXCAP_SPARSE it is a Vulkan sparse image
 // (a sparse NVN texture may be a whole image: depth formats in RADV).

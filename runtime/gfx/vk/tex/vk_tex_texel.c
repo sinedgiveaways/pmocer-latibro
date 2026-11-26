@@ -252,6 +252,8 @@ static void write_back(Tex *e) {
     for (uint32_t lv = 0; lv < levels; lv++)
         for (uint32_t ly = 0; ly < layers; ly++) {
             uint32_t nl = lv + e->pub.drop;   // the NVN level of image level lv
+            // a level the GPU never wrote is the storage's (merge_cpu_writes): the image may not have its newest bytes
+            if (!linear && levels > 1 && nl < 32 && !(e->gpu_lv >> nl & 1)) continue;
             view_t v = {.set_levels = 1, .set_layers = 1, .base_level = (uint8_t)nl, .min_layer = (uint16_t)ly};
             NVNcopyRegion r = {.width = (int)mip(d->width, nl),
                                .height = d->target == 0 || d->target == 3 ? 1 : (int)mip(d->height, nl),

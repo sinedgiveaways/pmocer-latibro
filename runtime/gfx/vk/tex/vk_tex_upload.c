@@ -484,12 +484,30 @@ void stale_note(Tex *e) {
 // ceiling turned to big saturated blocks (logs27). A write-back of GPU bytes stamps pages too, a streamed mip is
 // written whole, and the 262 were all chains. gpu_gen then moves past those writes. Without a write watch nothing is
 // merged, as before.
+// A level the GPU never wrote (gpu_lv: the copies name their level) is the storage's whatever the order: any of its
+// pages the CPU wrote since the last read of the storage (wgen) brings it over whole. The whole-level rule alone lost
+// streamed mips to a race: the replay runs behind the game, so the game's streaming thread is still writing the new
+// mip when the replay reaches the GPU copy of the old ones, and the pages it wrote by then were stamped with that
+// copy's gpu_gen, the rest after: the level was never whole, its new pages never reached the image (green and purple
+// speckles on part of an asteroid, logs28 and logs76 of 26/11/2026; clean in logs29).
+static int storage_levels(const Tex *e, unsigned nl) {   // some level in [drop, nl) the GPU never wrote
+    for (unsigned lv = e->pub.drop; lv < nl; lv++)
+        if (lv < 32 && !(e->gpu_lv >> lv & 1)) return 1;
+    return 0;
+}
+
+static uint32_t merge_since(const Tex *e) {
+    unsigned nl = e->pub.levels + e->pub.drop;
+    if (e->pub.levels < 2 || nvn_tex_is_linear(&e->t.d) || !storage_levels(e, nl > 16 ? 16 : nl)) return e->gpu_gen;
+    return e->wgen < e->gpu_gen ? e->wgen : e->gpu_gen;
+}
+
 static void merge_cpu_writes(Tex *e) {
     static volatile int32_t n_log;
     const nvn_texdesc *d = &e->t.d;
     if (!e->uploaded || !e->t.mem || !e->t.L.size || e->pub.levels < 2 || nvn_tex_is_linear(d)) return;
-    uint32_t now;
-    if (storage_rewritten(e, e->gpu_gen, &now) != 1) return;
+    uint32_t now, since = merge_since(e);
+    if (storage_rewritten(e, since, &now) != 1) return;
     int is3d = d->target == NVN_TEXTURE_TARGET_3D;
     unsigned nl = e->pub.levels + e->pub.drop, layers = is3d ? 1 : e->pub.layers;
     uint64_t lsz = layers > 1 && e->t.L.layer_size ? e->t.L.layer_size : e->t.L.size;
@@ -502,9 +520,15 @@ static void merge_cpu_writes(Tex *e) {
         for (unsigned lv = e->pub.drop; lv < nl; lv++) {
             uint64_t a = e->pub.addr + ly * lsz + off[lv], b = e->pub.addr + ly * lsz + off[lv + 1];
             total++;
-            // whole pages only: a level within one page shares it with other data (the chain's small mips)
-            uint64_t pa = (a + 0xfff) & ~0xfffull, pb = b & ~0xfffull;
-            if (pb <= pa || !vk_mem_cpu_rewrote_all(a, b - a, e->gpu_gen)) continue;
+            if (b <= a) continue;
+            if (lv < 32 && !(e->gpu_lv >> lv & 1)) {   // the storage's level: any CPU page since its last read
+                uint64_t pages;
+                if (!vk_mem_cpu_pages(a, b - a, e->wgen, &pages)) continue;
+            } else {
+                // whole pages only: a level within one page shares it with other data (the chain's small mips)
+                uint64_t pa = (a + 0xfff) & ~0xfffull, pb = b & ~0xfffull;
+                if (pb <= pa || !vk_mem_cpu_rewrote_all(a, b - a, e->gpu_gen)) continue;
+            }
             view_t v = {.set_levels = 1, .set_layers = 1, .base_level = (uint8_t)lv, .min_layer = (uint16_t)ly};
             NVNcopyRegion r = {.width = (int)(d->width >> lv ? d->width >> lv : 1),
                                .height = d->target == 0 || d->target == 3 ? 1 : (int)(d->height >> lv ? d->height >> lv : 1),
@@ -517,6 +541,7 @@ static void merge_cpu_writes(Tex *e) {
             free(buf);
         }
     storage_rewritten(e, 0, &e->gpu_gen);
+    e->wgen = now;   // read before the storage: a page the CPU writes during the merge is newer and comes next time
     if (merged)
         log_limited(&n_log, "texture %#llx %ux%u fmt %#x levels %u: the CPU rewrote %u of its %u levels x layers after "
                     "the GPU wrote it: those taken from the storage", (unsigned long long)e->pub.addr, d->width,
@@ -550,7 +575,7 @@ void make_fresh_snap(Tex *e) {
         stale_note(e);
         // the page snapshot first: no system call for the many GPU-owned textures whose storage nobody wrote
         uint32_t now;
-        if (vk_mem_changed_snap(e->pub.addr, e->t.L.size, e->gpu_gen, submit_epoch, &now)) merge_cpu_writes(e);
+        if (vk_mem_changed_snap(e->pub.addr, e->t.L.size, merge_since(e), submit_epoch, &now)) merge_cpu_writes(e);
         return;
     }
     if (!e->pub.mirrored || e->pub.gpu_owned) return;

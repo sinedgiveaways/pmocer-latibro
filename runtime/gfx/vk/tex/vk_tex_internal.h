@@ -33,6 +33,9 @@ typedef struct Tex {
     struct Tex *next_at;          // other entries at the same storage address
     uint8_t gpu_dirty;            // mirrored, and the GPU wrote the image after the last write-back to the storage
     uint32_t gpu_gen;             // page generation when the GPU write that set gpu_dirty was recorded
+    uint32_t gpu_lv;              // NVN levels the GPU wrote since it owns the image (bit per level; all ones for a
+                                  // render, clear, storage binding or alias copy); the storage holds the others
+                                  // (vk_tex_upload.c merge_cpu_writes)
     uint64_t gpu_seq;             // order of that GPU write among all of them (gpu_writes)
     uint64_t gpu_fence;           // fence of the submission that made that write (0: not recorded in one)
     uint64_t wr_fence;            // any entry: newest submission recorded to write its image (render, copy, clear,
