@@ -63,7 +63,19 @@ static int translate_once(const char *python, const char *script) {
     const char *game = cfg_game_dir();
     const char *args[] = {python, "-I", script, "--dumped", g_dump_dir, "--game", game, "--jobs", jobs, NULL};
     uint64_t t0 = plat_now_ms();
-    SDL_Process *p = SDL_CreateProcess(args, true);
+    // As SDL_CreateProcess(args, true) (output piped to us, stderr into it), and in the background: on Windows that is
+    // CREATE_NO_WINDOW. Python is a console program and the game has no console, so each translation opened a console
+    // window in front of the game at the first loading screen (video of 26/11/2026, at 0:49).
+    SDL_PropertiesID props = SDL_CreateProperties();
+    SDL_SetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, (void *)args);
+    SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_NULL);
+    SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_APP);
+    SDL_SetBooleanProperty(props, SDL_PROP_PROCESS_CREATE_STDERR_TO_STDOUT_BOOLEAN, true);
+#ifdef _WIN32   // elsewhere background detaches the child (no exit code to wait for) and there is no window anyway
+    SDL_SetBooleanProperty(props, SDL_PROP_PROCESS_CREATE_BACKGROUND_BOOLEAN, true);
+#endif
+    SDL_Process *p = SDL_CreateProcessWithProperties(props);
+    SDL_DestroyProperties(props);
     if (!p) {
         rt_log("gfx_shader: automatic translation could not start %s: %s", python, SDL_GetError());
         return 0;
