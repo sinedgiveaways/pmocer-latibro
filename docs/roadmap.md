@@ -469,6 +469,11 @@ streaming des mips).
   `e30dd58`.
 - De longues lignes grises dans le couloir de la colonie (capture de logs78), probablement des particules mal placées.
 
+**Online Play (27/11/2026) :** le premier test était fait avec l'ancien exécutable (`g81c27bf` dans l'en-tête du log), donc
+sans les lignes `online:`; à refaire avec `5ba7f29` ou plus récent. Détails dans
+[steam-remote-play-status.md](steam-remote-play-status.md). Le mode « Partie locale » avec une seule manette ouvre déjà
+le choix « Joueurs locaux / Steam Remote Play Together ».
+
 **Diagnostics à retirer quand ils ne servent plus :** `ORBITALS_OCCLUSION=visible` (`68d2a22`), le log des écritures
 dans une copie transitoire (`97bc308`), les notes de signal des variables de condition (`c03f2a0`, utile tant que le
 gel n'est pas résolu).

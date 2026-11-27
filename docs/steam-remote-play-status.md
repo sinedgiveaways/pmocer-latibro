@@ -92,6 +92,16 @@ layer, both players owning the port).
   and 43 `nn::async` functions the runtime does not override (logs83's imports line). The test log of Online Play
   shows which calls come: if neither trigger comes, the hook moves to the one that does.
 
+### Test of 27/11/2026 (log header `0.2.0-g81c27bf`): invalid, old executable
+
+- The owner chose "Partie en ligne" and saw no invite message. The log's first lines say `Orbitals Recomp 0.2.0-g81c27bf`
+  and `steam: running as App ID 1118310; Remote Play Together ready`: the executable was the one before `5ba7f29`, which
+  has no `steam_rpt_online` and no `online:` lines. The log has none, so it answers nothing about Online Play.
+- The video (20 s) does show that "Partie locale" with one controller already opens the automatic choice ("Joueurs
+  locaux" or "Steam Remote Play Together (inviter des amis)"): `ShowControllerSupport` is called by Orbitals' local mode.
+  The log has `friends: TryPopFriendInvitationNotificationInfo: no invitation (offline)` at the menu, from an existing override.
+- Next: the same test with an executable whose log header says `g5ba7f29` (or `gd116ac3`).
+
 ## What is missing or unknown
 
 1. **No run with Orbitals.** It does not reach a scene yet ([roadmap.md](roadmap.md)), so none of the above is
