@@ -3,6 +3,12 @@
 `orbitals-together`: a static recompilation of Orbitals (Nintendo Switch 2) built around a custom runtime and shader
 translation pipeline.
 
+> **To play:** the final builds, with a step-by-step guide (English and French) for the setup and Steam Remote Play
+> Together, are on **[sinedgiveaways/Orbitals-Together](https://github.com/sinedgiveaways/Orbitals-Together)**
+> ([latest release](https://github.com/sinedgiveaways/Orbitals-Together/releases/latest)). This repository is where
+> the development, the test builds and the fixes happen: report problems in its
+> [issues](https://github.com/sinedgiveaways/pmocer-latibro/issues).
+
 This repository aims to recreate the game's behavior on x86-64 by recompiling the Switch 2 AArch64 code into C, replacing the console runtime with a native implementation, and translating SM86 shaders into SPIR-V for Vulkan-backed execution.
 
 ## What this project contains
@@ -14,18 +20,11 @@ This repository aims to recreate the game's behavior on x86-64 by recompiling th
 - `tests/` — validation and regression tests
 - `docs/` — project documentation, roadmap, research notes, and release information
 - `i18n/` — the menu and start screen's text catalogs
-- `.github/` — CI workflows (Windows build, tests, migration test, `romfs_check.exe`), issue and PR templates, and `copilot-instructions.md` (the handover for coding agents)
-- `.kiro/` — rules for the Kiro coding agent (`steering/`: how the builds given to the owner are named)
+- `.github/` — CI workflows (Windows build, tests, the public release's `publish.yml`, `romfs_check.exe` and the other report tools), issue and PR templates, and `copilot-instructions.md` (the handover for coding agents)
+- `.kiro/` — rules for the Kiro coding agent (`steering/`: how a session starts, how the builds given to the owner are named)
 - `CHANGELOG.md` — each release's notes; `LICENSE` — GNU GPL version 3 or later; `LICENSE-MIT` — the MIT notice of
   the code written before 17/11/2026, which stays available under it
 - `pyproject.toml`, `uv.lock` — the Python tools' dependencies (`uv sync`); `.gitignore` — what never goes in git
-
-## Coming from the earlier project
-
-Settings are `ORBITALS_*` variables and `orbitals.ini`; the former names are not read. Run
-`python tools/migrate_config.py` once (a dry run that changes nothing), then with `--apply`. The names and their former
-ones are in [docs/environment-variables.md](docs/environment-variables.md); what changed is in
-[docs/mkw-removal.md](docs/mkw-removal.md).
 
 ## Project goals
 

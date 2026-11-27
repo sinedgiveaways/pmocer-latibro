@@ -4,8 +4,7 @@ Why: about 200 variables, read through cfg_get (runtime/core/base/cfg.h) or rt_k
 used (ORBITALS_FLIGHT_AT, ORBITALS_FLIGHT_SPIKE_MS) are in no README. Generated from the code each time, so it cannot go stale.
 
 Usage: uv run tools/run/envs.py [REGEX]   e.g. envs.py FLIGHT, envs.py 'SEQ|CTL'
-       uv run tools/run/envs.py --markdown > docs/environment-variables.md   the reference page, with each name's
-       former name (tools/migrate/mkw-to-orbitals.tsv: the prefix rule and its exceptions)
+       uv run tools/run/envs.py --markdown > docs/environment-variables.md   the reference page
 """
 
 import re
@@ -64,32 +63,9 @@ Every `ORBITALS_*` name the runtime reads, where, and the comment next to it. Ge
 `uv run tools/run/envs.py --markdown > docs/environment-variables.md`; do not edit by hand. Each one is also a key of
 `orbitals.ini` without the prefix (`runtime/core/base/cfg.c`), except where its row says otherwise.
 
-The runtime reads only `ORBITALS_*`: there is no alias and no fallback for the former names. The "Former name" column
-is a historical reference for scripts and profiles written before the rename. `tools/migrate_config.py` rewrites them
-once (`--apply`; a dry run by default). Its rule is `MKW_X` to `ORBITALS_X`; the exceptions are listed in
-`tools/migrate/mkw-to-orbitals.tsv` (none at present).
-
-| Name | Former name | Read at | What it does |
-|---|---|---|---|
+| Name | Read at | What it does |
+|---|---|---|
 """
-
-
-def former(name: str, exceptions: dict[str, str]) -> str:
-    """The name before the rename: the exception whose new name this is, else the prefix rule backwards."""
-    for old, new in exceptions.items():
-        if new == name:
-            return old
-    return "MKW" + name[len("ORBITALS"):]
-
-
-def exceptions_table() -> dict[str, str]:
-    path = ROOT / "tools/migrate/mkw-to-orbitals.tsv"
-    out = {}
-    for line in path.read_text(encoding="utf-8").splitlines() if path.is_file() else []:
-        if line.strip() and not line.startswith("#") and "\t" in line:
-            old, new = (x.strip() for x in line.split("\t", 1))
-            out[old] = new
-    return out
 
 
 def cell(text: str) -> str:
@@ -99,8 +75,7 @@ def cell(text: str) -> str:
 def main() -> None:
     args = sys.argv[1:]
     if args == ["--markdown"]:
-        exc = exceptions_table()
-        rows = [f"| `{n}` | `{former(n, exc)}` | `{w}` | {cell(t[:220])} |" for n, (w, t) in sorted(catalogue().items())]
+        rows = [f"| `{n}` | `{w}` | {cell(t[:220])} |" for n, (w, t) in sorted(catalogue().items())]
         sys.stdout.write(MARKDOWN_HEAD + "\n".join(rows) + "\n")
         return
     pat = re.compile(args[0]) if args else None

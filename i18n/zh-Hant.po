@@ -40,62 +40,6 @@ msgctxt "UI_MENU_TAB_GRAPHICS"
 msgid "Graphics"
 msgstr "圖形"
 
-msgctxt "UI_MENU_TAB_HACKS"
-msgid "Hacks"
-msgstr "實驗"
-
-msgctxt "UI_MENU_HACKS_WARNING"
-msgid ""
-"Experimental: shortcuts the console does not have, for playing and testing faster. They can "
-"change how the game behaves."
-msgstr "實驗功能：主機上沒有的捷徑，用於更快地遊玩和測試。可能會改變遊戲的運作方式。"
-
-msgctxt "UI_MENU_TURBO"
-msgid "Turbo"
-msgstr "加速"
-
-msgctxt "UI_MENU_TURBO_DESC"
-msgid ""
-"The whole game runs faster: menus, movies, loads and races. Hold or press F2. The screen shows at "
-"most 60 frames a second."
-msgstr "整個遊戲都會加快：選單、影片、讀取和比賽。按住或按下 F2。畫面最多每秒顯示 60 幀。"
-
-msgctxt "UI_MENU_TURBO_HOLD"
-msgid "Hold F2"
-msgstr "按住 F2"
-
-msgctxt "UI_MENU_TURBO_TOGGLE"
-msgid "F2 on/off"
-msgstr "F2 開/關"
-
-msgctxt "UI_MENU_TURBO_SPEED"
-msgid "Turbo speed"
-msgstr "加速倍率"
-
-msgctxt "UI_MENU_TURBO_SPEED_DESC"
-msgid "How many times faster. A slow PC may not reach it."
-msgstr "加快的倍數。效能較低的電腦可能達不到。"
-
-msgctxt "UI_MENU_SEED"
-msgid "Same randomness every time"
-msgstr "每次相同的隨機"
-
-msgctxt "UI_MENU_SEED_DESC"
-msgid ""
-"The game draws the same random numbers in every session: the same title course, the same items. "
-"For testing."
-msgstr "遊戲每次都使用相同的隨機數：標題畫面的賽道和道具都相同。用於測試。"
-
-msgctxt "UI_MENU_FREEZE_KEYS"
-msgid "Freeze keys"
-msgstr "暫停鍵"
-
-msgctxt "UI_MENU_FREEZE_KEYS_DESC"
-msgid ""
-"F3 stops the game on the frame on screen and starts it again; F4 moves it on by one frame. To "
-"look at a moment closely."
-msgstr "F3 在目前幀暫停遊戲並可再次繼續；F4 前進一幀。用於仔細查看某一瞬間。"
-
 msgctxt "UI_MENU_ANISO"
 msgid "Texture filtering"
 msgstr "紋理過濾"

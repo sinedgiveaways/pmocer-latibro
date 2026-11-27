@@ -40,64 +40,6 @@ msgctxt "UI_MENU_TAB_GRAPHICS"
 msgid "Graphics"
 msgstr "กราฟิก"
 
-msgctxt "UI_MENU_TAB_HACKS"
-msgid "Hacks"
-msgstr "แฮ็ก"
-
-msgctxt "UI_MENU_HACKS_WARNING"
-msgid ""
-"Experimental: shortcuts the console does not have, for playing and testing faster. They can "
-"change how the game behaves."
-msgstr "ทดลอง: ทางลัดที่เครื่องคอนโซลไม่มี ไว้เล่นและทดสอบให้เร็วขึ้น อาจเปลี่ยนการทำงานของเกม"
-
-msgctxt "UI_MENU_TURBO"
-msgid "Turbo"
-msgstr "เทอร์โบ"
-
-msgctxt "UI_MENU_TURBO_DESC"
-msgid ""
-"The whole game runs faster: menus, movies, loads and races. Hold or press F2. The screen shows at "
-"most 60 frames a second."
-msgstr ""
-"ทั้งเกมทำงานเร็วขึ้น: เมนู ภาพยนตร์ การโหลด และการแข่ง กดค้างหรือกด F2 หน้าจอแสดงสูงสุด 60 "
-"เฟรมต่อวินาที"
-
-msgctxt "UI_MENU_TURBO_HOLD"
-msgid "Hold F2"
-msgstr "กดค้าง F2"
-
-msgctxt "UI_MENU_TURBO_TOGGLE"
-msgid "F2 on/off"
-msgstr "F2 เปิด/ปิด"
-
-msgctxt "UI_MENU_TURBO_SPEED"
-msgid "Turbo speed"
-msgstr "ความเร็วเทอร์โบ"
-
-msgctxt "UI_MENU_TURBO_SPEED_DESC"
-msgid "How many times faster. A slow PC may not reach it."
-msgstr "เร็วขึ้นกี่เท่า พีซีที่ช้าอาจไปไม่ถึง"
-
-msgctxt "UI_MENU_SEED"
-msgid "Same randomness every time"
-msgstr "สุ่มเหมือนเดิมทุกครั้ง"
-
-msgctxt "UI_MENU_SEED_DESC"
-msgid ""
-"The game draws the same random numbers in every session: the same title course, the same items. "
-"For testing."
-msgstr "เกมสุ่มตัวเลขชุดเดิมในทุกเซสชัน: สนามหน้าไตเติลเดิม ไอเทมเดิม สำหรับการทดสอบ"
-
-msgctxt "UI_MENU_FREEZE_KEYS"
-msgid "Freeze keys"
-msgstr "ปุ่มหยุดภาพ"
-
-msgctxt "UI_MENU_FREEZE_KEYS_DESC"
-msgid ""
-"F3 stops the game on the frame on screen and starts it again; F4 moves it on by one frame. To "
-"look at a moment closely."
-msgstr "F3 หยุดเกมที่เฟรมบนหน้าจอและเล่นต่อ F4 เดินหน้าทีละหนึ่งเฟรม ไว้ดูช่วงเวลาใกล้ ๆ"
-
 msgctxt "UI_MENU_ANISO"
 msgid "Texture filtering"
 msgstr "การกรองพื้นผิว"

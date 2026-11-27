@@ -2,8 +2,8 @@
 
 What of the first game (Mario Kart World) and of the project this one is forked from (mkw-recomp) was removed from
 the product, what was kept and why, and the proof from the built executable. Filled commit by commit on the branch
-`cleanup/mkw-removal` (pull request #2 into `orbitals-port`); the plan is [mkw-removal-plan.md](mkw-removal-plan.md)
-and the starting inventory [mkw-inventory.tsv](mkw-inventory.tsv).
+`cleanup/mkw-removal` (pull request #2 into `orbitals-port`). Its plan, starting inventory and audit, and the settings
+migration script were removed on 27/11/2026 once the removal was done (in git history before `605a352`).
 
 ## Removed from the product
 
@@ -12,7 +12,7 @@ and the starting inventory [mkw-inventory.tsv](mkw-inventory.tsv).
 | The game's own text tables `i18n/game/*.tsv` | `a970f7d` | Text of the first game; game content does not go in the repository |
 | MKW's rows in `recomp/versions.py` and `runtime/core/boot/version.c`, `recomp/patches-mkw*.txt` | `9952d83` | Addresses and patch sites of MKW builds; Orbitals has its own row |
 | Patch sets shadow, seed, aspect, output, camera, frame rate; `ov_zstd.c` | `9952d83` | Hooks on MKW functions and classes |
-| `MKW_*` names: every setting is `ORBITALS_*`, no alias | `3c30c42` | Product name; `tools/migrate_config.py` moves old settings once |
+| `MKW_*` names: every setting is `ORBITALS_*`, no alias | `3c30c42` | Product name (the one-shot migration script was removed on 27/11/2026) |
 | The settings FPS, aspect, shadow size | `3c30c42` | No effect without the MKW patch sets |
 | Artifact names: `mkw.exe`, `libmkw.dll.a`, `mkw.def`, `mkw.rc`, linker sections, `orbital.ini`, logs, Linux data folder | `285e3cf` | Product name `orbitals-recomp` |
 | `romfs_res.c`, the settings Resolution and Detail distance, `tools/romfs/resolution.py` | `b2ed262` | Reads a RomFS file Orbitals does not have ([romfs-res-audit.md](romfs-res-audit.md)) |
@@ -38,13 +38,11 @@ and the starting inventory [mkw-inventory.tsv](mkw-inventory.tsv).
 | `LICENSE` (MIT, the original author's copyright) and the copyright lines in file headers | The MIT licence requires the notice to stay in copies |
 | `recomp/LICENSE.totk-pc-recomp`, `runtime/LICENSE.totk-pc-recomp` | Same, for totk-pc-recomp |
 | Third-party sources named in comments: `seedds/mkw-neo`, MacNativeGames' `mkw_vpool.c`, `mkw_xlate` and `mkw_nvn_ext.c`, MKW-THWOMP | Attribution of where code or ideas came from; comments, not in the executable |
-| `tools/migrate_config.py`, `tools/migrate/mkw-to-orbitals.tsv`, `docs/environment-variables.md`'s former names | One-shot migration and its reference; never loaded by the runtime |
 | `docs/performance.md`'s table of the first game's reports | Historical measurements, under their own heading, with links to the reports where they were filed |
 | `docs/research.md`'s sources | Third-party projects keep their names and links (MKW-THWOMP, Eglantine-MKW, mkw-neo, a news article's address) |
 | `CHANGELOG.md` 0.2.0 | It contains "MKW-specific" and "MKW_*" as migration instructions for existing users. It is a user-facing document, not part of the executable |
 | `tools/i18n/game_texts.py` (shipped in the package) | It rebuilds the first game's message archives for languages it lacks; with `i18n/game/` gone it does nothing. To remove or rewrite once Orbitals' text format is known |
 | About 290 comments in the repository's other sources (`runtime/` 175, `tools/` 62, `tests/` 16, `.github/` 21, removal documents) | Notes of how a part was measured or found in the first game. They are not in the executable nor in the package; rewording them is left for when each part is next changed |
-| The names of the removal documents (`mkw-removal.md`, `mkw-removal-plan.md`, `mkw-inventory.tsv`) | Deliverable names; linked from the README, the docs index and the roadmap |
 
 ## unlock.c audit
 

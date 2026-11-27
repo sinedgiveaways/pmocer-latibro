@@ -1,6 +1,6 @@
 # tests
 
-Tests that need neither the game nor a GPU, run by the CI on Linux and Windows (`.github/workflows/ci.yml`). The back
+Tests that need neither the game nor a GPU, run by the CI on Linux (`.github/workflows/tests.yml`). The back
 end's regression test runs over captures instead (`tools/test/`).
 
 | File | What it checks |
@@ -17,5 +17,6 @@ end's regression test runs over captures instead (`tools/test/`).
 | `test_iostore.py` | `tools/shaders/iostore.py` on a made-up Unreal shader library: its arrays, a shader's record in its group (code before the control section) and the program key as the runtime computes it |
 | `test_cfg.py` | Every setting the in-game menu writes to `orbitals.ini` is a key `runtime/core/base/cfg.c` reads back (#168: `HDR` was dropped as unknown) |
 | `test_defaults.py` | The memory caps a player gets with nothing set (`runtime/gfx/vk/device/vk_defaults.c`), built alone and checked on the GPUs players reported: the Radeon 660M keeps its measured caps, a large discrete GPU is not held to them (issue #31) |
+| `test_shared_fence.py` | `sm86/translate/glsl/shared_fence.py`: where the implicit shared-memory fences go along the control flow |
 
 Usage: `uv run pytest tests`

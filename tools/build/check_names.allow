@@ -4,8 +4,6 @@ LICENSE
 LICENSE.*
 THIRD_PARTY_NOTICES*
 docs/mkw-removal.md
-docs/mkw-removal-plan.md
-docs/mkw-inventory.tsv
 # The former names, as a historical reference (tools/run/envs.py --markdown).
 docs/environment-variables.md
 # Documents of the removal itself, and the sources page: third-party projects named with their own names and links.
@@ -15,9 +13,6 @@ docs/research.md
 docs/performance.md
 # The 0.2.0 release notes name the former variable prefix, to tell players what to migrate.
 CHANGELOG.md
-docs/audit-current-state.md
-tools/migrate/*
-tools/migrate_config.py
 # The scanner itself names what it looks for.
 tools/build/check_names.py
 tools/build/check_names.allow

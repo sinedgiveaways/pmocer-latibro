@@ -15,6 +15,7 @@ The SM86 → GLSL 4.6 translator, split by responsibility. Used as `import glsl`
 | `head.py` | Declarations before `main()` (extensions, helper functions, inputs and outputs, bindings and their reflection) and the task/mesh wrappers |
 | `subroutines.py` | Subroutines called from several places (CALL/RET): a copy of the body in each call for the structured form, once the return address is proven to be the instruction after the CALL |
 | `common.py` | Shared pieces: `Unsupported`, GLSL helper functions, comparison and `LOP3` tables, register and predicate names |
+| `shared_fence.py` | Memory-only workgroup fences at each shared-memory load reachable from a store without a fence between them: Ampere's warp-synchronous scans (STS/LDS with no BAR or MEMBAR) keep their order in SPIR-V |
 
 The groups in `alu`, `mem`, `tex`, `thread` and `geom` are mixins of `Builder`: they use its operand helpers (`src_u`, `dst`…)
 and its state.

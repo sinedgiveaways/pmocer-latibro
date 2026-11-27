@@ -32,8 +32,7 @@ checks its SHA-256 and runs `make_ico.py` before building.
 ## Replacing the icon
 
 Put any PNG at `assets/icon/orbitals_logo.png` (a square one needs no `--crop`) and run `make_ico.py`. No code changes.
-To change the version information, edit `runtime/platform/orbitals-together.rc` (renamed with the other artifacts later in the plan,
-`docs/mkw-removal-plan.md`).
+To change the version information, edit `runtime/platform/orbitals-together.rc`.
 
 ## Why the picture and the `.ico` are not committed
 

@@ -40,62 +40,6 @@ msgctxt "UI_MENU_TAB_GRAPHICS"
 msgid "Graphics"
 msgstr "グラフィック"
 
-msgctxt "UI_MENU_TAB_HACKS"
-msgid "Hacks"
-msgstr "ハック"
-
-msgctxt "UI_MENU_HACKS_WARNING"
-msgid ""
-"Experimental: shortcuts the console does not have, for playing and testing faster. They can "
-"change how the game behaves."
-msgstr "実験的な機能です。本体にはない近道で、より速く遊んだりテストしたりできます。ゲームの動作が変わることがあります。"
-
-msgctxt "UI_MENU_TURBO"
-msgid "Turbo"
-msgstr "ターボ"
-
-msgctxt "UI_MENU_TURBO_DESC"
-msgid ""
-"The whole game runs faster: menus, movies, loads and races. Hold or press F2. The screen shows at "
-"most 60 frames a second."
-msgstr "メニュー、ムービー、読み込み、レースなど、ゲーム全体が速くなります。F2を押している間、または押すたびに切り替わります。画面表示は最大60フレーム/秒です。"
-
-msgctxt "UI_MENU_TURBO_HOLD"
-msgid "Hold F2"
-msgstr "F2を押している間"
-
-msgctxt "UI_MENU_TURBO_TOGGLE"
-msgid "F2 on/off"
-msgstr "F2でON/OFF"
-
-msgctxt "UI_MENU_TURBO_SPEED"
-msgid "Turbo speed"
-msgstr "ターボの速さ"
-
-msgctxt "UI_MENU_TURBO_SPEED_DESC"
-msgid "How many times faster. A slow PC may not reach it."
-msgstr "何倍速にするか。PCの性能が低いと届かないことがあります。"
-
-msgctxt "UI_MENU_SEED"
-msgid "Same randomness every time"
-msgstr "毎回同じランダム"
-
-msgctxt "UI_MENU_SEED_DESC"
-msgid ""
-"The game draws the same random numbers in every session: the same title course, the same items. "
-"For testing."
-msgstr "ゲームが毎回同じ乱数を使います。タイトルのコースもアイテムも同じになります。テスト用です。"
-
-msgctxt "UI_MENU_FREEZE_KEYS"
-msgid "Freeze keys"
-msgstr "停止キー"
-
-msgctxt "UI_MENU_FREEZE_KEYS_DESC"
-msgid ""
-"F3 stops the game on the frame on screen and starts it again; F4 moves it on by one frame. To "
-"look at a moment closely."
-msgstr "F3で画面に出ているフレームでゲームを止め、もう一度押すと再開します。F4で1フレームずつ進みます。ある瞬間をじっくり見るためのものです。"
-
 msgctxt "UI_MENU_ANISO"
 msgid "Texture filtering"
 msgstr "テクスチャフィルタリング"

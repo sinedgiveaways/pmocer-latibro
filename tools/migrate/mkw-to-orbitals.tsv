@@ -1,4 +1,0 @@
-# one-shot migration, never loaded by the runtime. Read only by tools/migrate_config.py.
-# The general rule is MKW_X -> ORBITALS_X; only names that do not follow it are listed here.
-# Format: old name <TAB> new name, or old name <TAB> "-" for a setting that no longer exists (its line is deleted).
-# Filled in with the renames of the plan (docs/mkw-removal-plan.md); none departs from the rule yet.

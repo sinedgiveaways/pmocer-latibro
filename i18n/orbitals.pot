@@ -40,62 +40,6 @@ msgctxt "UI_MENU_TAB_GRAPHICS"
 msgid "Graphics"
 msgstr ""
 
-msgctxt "UI_MENU_TAB_HACKS"
-msgid "Hacks"
-msgstr ""
-
-msgctxt "UI_MENU_HACKS_WARNING"
-msgid ""
-"Experimental: shortcuts the console does not have, for playing and testing faster. They can "
-"change how the game behaves."
-msgstr ""
-
-msgctxt "UI_MENU_TURBO"
-msgid "Turbo"
-msgstr ""
-
-msgctxt "UI_MENU_TURBO_DESC"
-msgid ""
-"The whole game runs faster: menus, movies, loads and races. Hold or press F2. The screen shows at "
-"most 60 frames a second."
-msgstr ""
-
-msgctxt "UI_MENU_TURBO_HOLD"
-msgid "Hold F2"
-msgstr ""
-
-msgctxt "UI_MENU_TURBO_TOGGLE"
-msgid "F2 on/off"
-msgstr ""
-
-msgctxt "UI_MENU_TURBO_SPEED"
-msgid "Turbo speed"
-msgstr ""
-
-msgctxt "UI_MENU_TURBO_SPEED_DESC"
-msgid "How many times faster. A slow PC may not reach it."
-msgstr ""
-
-msgctxt "UI_MENU_SEED"
-msgid "Same randomness every time"
-msgstr ""
-
-msgctxt "UI_MENU_SEED_DESC"
-msgid ""
-"The game draws the same random numbers in every session: the same title course, the same items. "
-"For testing."
-msgstr ""
-
-msgctxt "UI_MENU_FREEZE_KEYS"
-msgid "Freeze keys"
-msgstr ""
-
-msgctxt "UI_MENU_FREEZE_KEYS_DESC"
-msgid ""
-"F3 stops the game on the frame on screen and starts it again; F4 moves it on by one frame. To "
-"look at a moment closely."
-msgstr ""
-
 msgctxt "UI_MENU_ANISO"
 msgid "Texture filtering"
 msgstr ""

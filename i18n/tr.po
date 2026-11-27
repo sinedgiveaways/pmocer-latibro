@@ -40,68 +40,6 @@ msgctxt "UI_MENU_TAB_GRAPHICS"
 msgid "Graphics"
 msgstr "Grafik"
 
-msgctxt "UI_MENU_TAB_HACKS"
-msgid "Hacks"
-msgstr "Hileler"
-
-msgctxt "UI_MENU_HACKS_WARNING"
-msgid ""
-"Experimental: shortcuts the console does not have, for playing and testing faster. They can "
-"change how the game behaves."
-msgstr ""
-"Deneysel: konsolda olmayan kısayollar; daha hızlı oynamak ve denemek için. Oyunun davranışını "
-"değiştirebilirler."
-
-msgctxt "UI_MENU_TURBO"
-msgid "Turbo"
-msgstr "Turbo"
-
-msgctxt "UI_MENU_TURBO_DESC"
-msgid ""
-"The whole game runs faster: menus, movies, loads and races. Hold or press F2. The screen shows at "
-"most 60 frames a second."
-msgstr ""
-"Tüm oyun hızlanır: menüler, videolar, yüklemeler ve yarışlar. F2'ye basılı tut veya bas. Ekran "
-"saniyede en fazla 60 kare gösterir."
-
-msgctxt "UI_MENU_TURBO_HOLD"
-msgid "Hold F2"
-msgstr "F2'ye basılı tut"
-
-msgctxt "UI_MENU_TURBO_TOGGLE"
-msgid "F2 on/off"
-msgstr "F2 açık/kapalı"
-
-msgctxt "UI_MENU_TURBO_SPEED"
-msgid "Turbo speed"
-msgstr "Turbo hızı"
-
-msgctxt "UI_MENU_TURBO_SPEED_DESC"
-msgid "How many times faster. A slow PC may not reach it."
-msgstr "Kaç kat daha hızlı. Yavaş bir bilgisayar buna ulaşamayabilir."
-
-msgctxt "UI_MENU_SEED"
-msgid "Same randomness every time"
-msgstr "Hep aynı rastgelelik"
-
-msgctxt "UI_MENU_SEED_DESC"
-msgid ""
-"The game draws the same random numbers in every session: the same title course, the same items. "
-"For testing."
-msgstr "Oyun her oturumda aynı rastgele sayıları çeker: aynı başlık pisti, aynı eşyalar. Test için."
-
-msgctxt "UI_MENU_FREEZE_KEYS"
-msgid "Freeze keys"
-msgstr "Dondurma tuşları"
-
-msgctxt "UI_MENU_FREEZE_KEYS_DESC"
-msgid ""
-"F3 stops the game on the frame on screen and starts it again; F4 moves it on by one frame. To "
-"look at a moment closely."
-msgstr ""
-"F3 oyunu ekrandaki karede durdurur ve yeniden başlatır; F4 onu bir kare ilerletir. Bir anı "
-"yakından incelemek için."
-
 msgctxt "UI_MENU_ANISO"
 msgid "Texture filtering"
 msgstr "Doku filtreleme"
