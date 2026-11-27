@@ -97,18 +97,18 @@ backgrounds.
 ## Public releases (the owner's order, 27/11/2026)
 
 - Development and every test build stay on `sinedgiveaways/pmocer-latibro` (`orbitals-port`, artifacts `kiro-...`).
-- Only builds the owner calls final are published, on the public repository **`sinedgiveaways/Obitals-Together`**
-  (spelled so by the owner): a release per version tag (`v0.3.0` first), with the full Windows package
+- Only builds the owner calls final are published, on the public repository **`sinedgiveaways/Orbitals-Together`**
+  (renamed from the first, misspelled Obitals-Together on 27/11/2026; GitHub redirects the old name): a release per version tag (`v0.3.0` first), with the full Windows package
   (`orbitals-together-<version>-windows-x64.zip`) as its asset, step-by-step READMEs in English (`README.md`) and
   French (`README.fr.md`) (download, setup, local play, Remote Play Together, forking), and the full source of that tag
   so anyone can fork it (the tag's tree without `.kiro/` and this file; its `README.md` kept as `DEVELOPMENT.md`). Never publish there without the owner saying a build is final.
 - To publish: on pmocer-latibro add the version's `CHANGELOG.md` section and `.rc` version, tag `vX.Y.Z`, push it,
   and have the owner test `Build Windows` on the tag (`.../build-windows.yml/dispatches -f ref=vX.Y.Z`). Then replace
-  Obitals-Together's tree with the tag's (`git archive vX.Y.Z`, without `.kiro/` and this file; `README.md` kept as
+  Orbitals-Together's tree with the tag's (`git archive vX.Y.Z`, without `.kiro/` and this file; `README.md` kept as
   `DEVELOPMENT.md`; its own `README.md`, `README.fr.md` with the new version and file name), commit on `main`, tag
-  `vX.Y.Z` there, create the release (`gh api repos/sinedgiveaways/Obitals-Together/releases -f tag_name=...`) and run
+  `vX.Y.Z` there, create the release (`gh api repos/sinedgiveaways/Orbitals-Together/releases -f tag_name=...`) and run
   its **Publish release** workflow (`.../publish.yml/dispatches -f ref=main -f "inputs[tag]=vX.Y.Z"`): it builds the
   zip from the tag and attaches it. The agent cannot upload release files itself (uploads.github.com is not reachable
   through its GitHub access). Put the zip's sha256 from the workflow log in the release notes. 0.3.0 was published so
-  on 27/11/2026: https://github.com/sinedgiveaways/Obitals-Together/releases/tag/v0.3.0. The launcher's update check
-  and bug links point to Obitals-Together.
+  on 27/11/2026: https://github.com/sinedgiveaways/Orbitals-Together/releases/tag/v0.3.0. The launcher's update check
+  and bug links point to Orbitals-Together.

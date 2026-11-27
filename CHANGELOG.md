@@ -8,7 +8,7 @@ The releases of the project this one was forked from (0.1.0 to 0.1.12) are in gi
 ## [0.3.0] - 2026-11-27
 
 First public build of Orbitals Together, published on
-[sinedgiveaways/Obitals-Together](https://github.com/sinedgiveaways/Obitals-Together). Orbitals Deluxe Edition 1.0.5
+[sinedgiveaways/Orbitals-Together](https://github.com/sinedgiveaways/Orbitals-Together). Orbitals Deluxe Edition 1.0.5
 runs from boot to its levels in split screen at 30 fps, two local controllers or a friend over Steam Remote Play
 Together.
 
@@ -20,7 +20,7 @@ Together.
 - The game's Online Play opens Steam's Remote Play Together invite list.
 - Two local controllers through Steam Input give two players.
 - All 20 menu languages complete.
-- Updates and bug reports go to sinedgiveaways/Obitals-Together.
+- Updates and bug reports go to sinedgiveaways/Orbitals-Together.
 
 ### Tested
 

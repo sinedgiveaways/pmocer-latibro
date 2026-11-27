@@ -17,7 +17,7 @@ Exit codes: 0 done, 1 failed.
 Usage: python -I update.py check --version VER [--os linux|windows]
        python -I update.py fetch --tag TAG --dest DIR [--os linux|windows]
        python -I update.py clean --game DIR
-ORBITALS_UPDATE_REPO=owner/name (default sinedgiveaways/Obitals-Together, where the final builds are published) and ORBITALS_UPDATE_AS=<version> (compare as that version: a
+ORBITALS_UPDATE_REPO=owner/name (default sinedgiveaways/Orbitals-Together, where the final builds are published) and ORBITALS_UPDATE_AS=<version> (compare as that version: a
 test) change what is asked.
 """
 
@@ -37,7 +37,7 @@ import zipfile
 from pathlib import Path
 
 # never offer the earlier project's releases as an update of this package
-REPO = os.environ.get("ORBITALS_UPDATE_REPO") or "sinedgiveaways/Obitals-Together"
+REPO = os.environ.get("ORBITALS_UPDATE_REPO") or "sinedgiveaways/Orbitals-Together"
 CHECK_TIMEOUT = 5  # s: the start screen waits for nothing, but a hung request should not linger
 FETCH_TIMEOUT = 30
 ASSET_SUFFIX = {  # tools/build/release.py's names

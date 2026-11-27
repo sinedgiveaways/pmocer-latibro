@@ -1,5 +1,5 @@
 # The Windows package of a version tag, built from that tag's source and attached to the GitHub release of the same
-# name: how the final builds reach sinedgiveaways/Obitals-Together (and any fork's own releases). The release is made
+# name: how the final builds reach sinedgiveaways/Orbitals-Together (and any fork's own releases). The release is made
 # if it does not exist yet. Never on pmocer-latibro, where development and test builds stay (Build Windows artifacts).
 # Same build as build-windows.yml. Run it from the Actions tab (Run workflow, the tag) or push a v* tag.
 name: Publish release
