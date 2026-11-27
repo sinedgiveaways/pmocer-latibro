@@ -102,6 +102,10 @@ layer, both players owning the port).
   The log has `friends: TryPopFriendInvitationNotificationInfo: no invitation (offline)` at the menu, from an existing override.
 - Next: the same test with an executable whose log header says `g5ba7f29` (or `gd116ac3`).
 
+- **Result (27/11/2026, executable of `d116ac3`):** the owner reports that "Partie en ligne" now opens the Steam invite
+  list with the notice and it works. Which of the two triggers fired was not read from a log (none was sent); the
+  `online:` lines of the next log will say.
+
 ## What is missing or unknown
 
 1. **No run with Orbitals.** It does not reach a scene yet ([roadmap.md](roadmap.md)), so none of the above is
