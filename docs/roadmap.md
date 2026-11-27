@@ -477,6 +477,11 @@ le choix « Joueurs locaux / Steam Remote Play Together ».
 **Confirmé en jeu (27/11/2026, `d116ac3`) :** « Partie en ligne » ouvre la liste d'invitation Steam; le joueur dit que ça
 fonctionne. Online Play par Remote Play Together est donc terminé (option 1). Le log montre que le déclencheur est `nifm::HandleNetworkRequestErrorResult` (appelé depuis `main+0x175ac`); l'appel du compte n'arrive jamais.
 
+**Gel « GameThread timed out » (27/11/2026) :** le joueur dit que le gel a disparu (builds `81c27bf` à `d116ac3`). Aucun gel
+observé depuis, donc le diagnostic `81c27bf` n'a pas parlé. Cause non établie : le gel venait 2 parties sur 5, ce qui
+laisse la disparition possible par chance. Le diagnostic reste dans le build ; s'il ne se déclenche pas dans les
+prochaines parties, il peut être retiré avec `c03f2a0`.
+
 **Diagnostics à retirer quand ils ne servent plus :** `ORBITALS_OCCLUSION=visible` (`68d2a22`), le log des écritures
 dans une copie transitoire (`97bc308`), les notes de signal des variables de condition (`c03f2a0`, utile tant que le
 gel n'est pas résolu).
