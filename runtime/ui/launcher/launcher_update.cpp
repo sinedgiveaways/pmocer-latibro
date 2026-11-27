@@ -18,6 +18,7 @@
 #include <unistd.h>
 #endif
 
+#include "ui/launcher/launcher_setup.h"
 #include "ui/launcher/launcher_update.h"
 
 extern "C" {
@@ -131,7 +132,7 @@ static int SDLCALL reader(void *) {
 }
 
 static bool spawn(const char *const *args) {
-    g_proc = SDL_CreateProcess(args, true);
+    g_proc = launcher_process(args, true);
     if (!g_proc) {
         rt_log("update: cannot start %s: %s", args[0], SDL_GetError());
         return false;
@@ -292,7 +293,7 @@ int update_just_installed(const char *exe_dir, char *tag, unsigned cap) {
     char python[1200], script[1200];
     if (find_tools(exe_dir, python, script, sizeof python)) {   // the *.old files: nobody waits for it
         const char *args[] = {python, "-I", script, "clean", "--game", exe_dir, nullptr};
-        SDL_Process *c = SDL_CreateProcess(args, false);
+        SDL_Process *c = launcher_process(args, false);
         if (c) SDL_DestroyProcess(c);
     }
     rt_log("update: %s installed by the previous run", tag);

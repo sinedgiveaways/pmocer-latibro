@@ -50,7 +50,7 @@ void lastrun_start(const char *exe_dir, const char *game_dir) {
     char python[1200], script[1200];
     if (!game_dir || !*game_dir || !setup_tool(exe_dir, "prepare/lastrun.py", python, script, sizeof python)) return;
     const char *args[] = {python, "-I", script, "--game", game_dir, "--version", rt_port_version, nullptr};
-    g_proc = SDL_CreateProcess(args, true);
+    g_proc = launcher_process(args, true);
     if (!g_proc) {
         rt_log("launcher: cannot read the last run: %s", SDL_GetError());
         return;

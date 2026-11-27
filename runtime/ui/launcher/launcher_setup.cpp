@@ -135,7 +135,7 @@ void setup_start(const char *exe_dir, const char *game_dir, const char *source, 
     if (!source) args[9] = nullptr;
     rt_log("setup: %s %s --game %s --runtime %s --source %s --romfs %s", python, script, game_dir, exe_dir, source ? source : "(last)",
            link_romfs ? "link" : "copy");
-    g_proc = SDL_CreateProcess(args, true);
+    g_proc = launcher_process(args, true);
     if (!g_proc) {
         set_finished(-1, "", SDL_GetError());
         return;
@@ -158,4 +158,21 @@ SetupState setup_state(void) {
     SetupState s = g_state;
     SDL_UnlockMutex(g_lock);
     return s;
+}
+
+SDL_Process *launcher_process(const char *const *args, bool pipe) {
+    SDL_PropertiesID props = SDL_CreateProperties();
+    SDL_SetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, (void *)args);
+    SDL_ProcessIO io = pipe ? SDL_PROCESS_STDIO_APP : SDL_PROCESS_STDIO_INHERITED;
+    SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, io);
+    SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, io);
+    SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDERR_NUMBER, SDL_PROCESS_STDIO_INHERITED);
+#ifdef _WIN32   // CREATE_NO_WINDOW (gfx_shader_auto.c does the same; SDL 3.4 still reads the exit code). SDL makes the
+                // inherited handles NULL then, which loses nothing: a windows-subsystem exe has no standard handles.
+                // Elsewhere background detaches the child, and there is no console window to hide
+    SDL_SetBooleanProperty(props, SDL_PROP_PROCESS_CREATE_BACKGROUND_BOOLEAN, true);
+#endif
+    SDL_Process *p = SDL_CreateProcessWithProperties(props);
+    SDL_DestroyProperties(props);
+    return p;
 }

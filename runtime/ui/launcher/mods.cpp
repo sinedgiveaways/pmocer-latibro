@@ -652,7 +652,7 @@ void mods_import_start(const char *exe_dir) {
     args[na] = nullptr;
     rt_log("mods: %s %s --game %s %s %s%s%s", python, script, cfg_game_dir(), kind, G.pick,
            G.name[0] ? " --name " : "", G.name[0] ? G.name : "");
-    G.proc = SDL_CreateProcess(args, true);
+    G.proc = launcher_process(args, true);
     if (!G.proc) {
         set_finished(-1, "", SDL_GetError());
         return;
@@ -747,7 +747,7 @@ void mods_merge_start(const char *exe_dir) {
     const char *args[] = {python, "-I", script, "--game", cfg_game_dir(), "--romfs", romfs,
                           "--enable", mods, "--choices", choices, nullptr};
     rt_log("mods: merge %s", mods);
-    G.mproc = SDL_CreateProcess(args, true);
+    G.mproc = launcher_process(args, true);
     if (!G.mproc) {
         merge_finished(-1, "", SDL_GetError());
         return;
@@ -929,7 +929,7 @@ void mods_merge_sync(const char *exe_dir) {
     const char *args[] = {python, "-I", script, "--game", cfg_game_dir(), "--romfs", romfs,
                           "--enable", mods, "--choices", choices, nullptr};
     rt_log("mods: merge at Play %s", mods);
-    SDL_Process *proc = SDL_CreateProcess(args, false);   // output inherits ours: the log shows it
+    SDL_Process *proc = launcher_process(args, false);   // output inherits ours: the log shows it
     if (!proc) {
         rt_log("mods: merge at Play failed to start: %s", SDL_GetError());
         return;
