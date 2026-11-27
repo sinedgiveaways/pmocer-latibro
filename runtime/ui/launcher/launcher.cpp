@@ -320,7 +320,7 @@ static void page_main(float w, float h) {
     bool ready = rt_game_present() && update_state().phase != UPDATE_FETCHING;
     // the column's height, to centre it: logo and title, the gap, Play, the menu, the gap and Quit
     float mark = 84 * s, items = item_height(), gap = 12 * s;
-    float play_h = fmaxf(52.0f, 76 * s), col_h = mark + 48 * s + play_h + gap * 2 + items * 4 + 28 * s + items;
+    float play_h = fmaxf(52.0f, 76 * s), col_h = mark + 48 * s + play_h + gap * 2 + items * 5;
     ImGui::SetNextWindowPos(ImVec2(left - 8 * s, fmaxf(32 * s, (h - col_h) * 0.45f) - 8 * s));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8 * s, 8 * s));   // room for the cursor's ring
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, gap));
@@ -383,7 +383,7 @@ static void page_main(float w, float h) {
     v0 = dl->VtxBuffer.Size;
     if (menu_item(menu_text(UI_LAUNCH_SHORTCUT), cw, true)) make_shortcut();
     intro_apply(dl, v0, intro(6));
-    ImGui::Dummy(ImVec2(0, 28 * s));
+    // Quit right under the others, as in the owner's mock-up (27/11/2026)
     v0 = dl->VtxBuffer.Size;
     if (menu_item(menu_text(UI_LAUNCH_QUIT), cw, true)) L.result = LAUNCHER_QUIT;
     intro_apply(dl, v0, intro(7));
@@ -399,7 +399,9 @@ static void page_main(float w, float h) {
     // the game files at the lower left, the version at the lower right
     ImDrawList *fg = ImGui::GetForegroundDrawList();
     int f0 = fg->VtxBuffer.Size;
-    float y = h - 48 * s - lh, r = lh * 0.24f;
+    // above the built-in background's lower band (its top at 84.9 % of the picture's height, background.png row 393 of
+    // 463), as in the owner's mock-up; inside the window whatever its shape
+    float y = fminf(backdrop_picture_y(w, h, 0.849f) - lh - 14 * s, h - 48 * s - lh), r = lh * 0.24f;
     const char *state = menu_text(ready ? UI_LAUNCH_FILES_READY : UI_LAUNCH_FILES_MISSING);
     fg->AddCircleFilled(ImVec2(left + r, y + lh * 0.5f), r, ready ? LOOK_OK : LOOK_WARN, 16);
     fg->AddText(ImVec2(left + r * 2 + 10 * s, y), ready ? LOOK_HEADING : LOOK_WARN, state);

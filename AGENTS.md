@@ -18,6 +18,9 @@ folder has a README that names each file: read it before opening the code. The o
   services). If a fix seems to need one, it is the wrong fix.
 - **Nothing of the game in git.** No game code, assets, keys or anything generated from them (C, SPIR-V, dumps,
   screenshots of the game). Generated output lives in `build/`. Install the hook: `git config core.hooksPath tools/git`.
+  One exception, decided by the owner on 27/11/2026: the start screen's two pictures in
+  `runtime/ui/launcher/images/` (`background.png`, `drapeau.jpg`), royalty-free according to the owner, are built into
+  the executable. Keep them; do not add other pictures of the game.
 - **Licenses.** The project is GPL-3.0-or-later. Copy code only from GPL-3.0-compatible projects (MIT, BSD,
   Apache-2.0, LGPL, GPL-2.0-or-later, GPL-3.0, among them eden-nx2, Eglantine and Lichii), keeping their headers and
   citing source and commit in the code and in [docs/research.md](docs/research.md#sources). From GPL-2.0-only

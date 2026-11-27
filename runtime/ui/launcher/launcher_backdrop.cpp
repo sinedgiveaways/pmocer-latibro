@@ -14,9 +14,9 @@ extern "C" {
 #include "platform/platform.h"
 }
 
-static SDL_Texture *g_splash;   // background.png/.jpg (else splash.png) next to the executable, the player's own picture
+static SDL_Texture *g_splash;   // background.png/.jpg (else splash.png) next to the executable, else the built-in one
 static int g_splash_w, g_splash_h;
-static SDL_Texture *g_mark;     // drapeau.png/.jpg: the player's own mark, in place of the port's logo
+static SDL_Texture *g_mark;     // drapeau.png/.jpg next to the executable, else the built-in one
 
 static SDL_Texture *texture_of(SDL_Renderer *ren, SDL_Surface *s, int *w, int *h) {
     if (!s) return nullptr;
@@ -30,8 +30,10 @@ static SDL_Texture *texture_of(SDL_Renderer *ren, SDL_Surface *s, int *w, int *h
 void backdrop_load(SDL_Renderer *ren, const char *exe_dir) {
     SDL_Surface *s = launcher_image_find(exe_dir, "background");
     if (!s) s = launcher_image_find(exe_dir, "splash");
+    if (!s) s = launcher_image_builtin("background");
     g_splash = texture_of(ren, s, &g_splash_w, &g_splash_h);
-    g_mark = texture_of(ren, launcher_image_find(exe_dir, "drapeau"), nullptr, nullptr);
+    SDL_Surface *m = launcher_image_find(exe_dir, "drapeau");
+    g_mark = texture_of(ren, m ? m : launcher_image_builtin("drapeau"), nullptr, nullptr);
 }
 
 bool backdrop_mark(ImDrawList *dl, ImVec2 p, float size) {
@@ -97,7 +99,15 @@ void backdrop_draw(ImDrawList *dl, float w, float h, bool picture) {
     }
     float k = fmaxf(w / g_splash_w, h / g_splash_h), sw = g_splash_w * k, sh = g_splash_h * k;
     dl->AddImage((ImTextureID)(intptr_t)g_splash, ImVec2((w - sw) / 2, (h - sh) / 2), ImVec2((w + sw) / 2, (h + sh) / 2));
-    ImU32 dark = IM_COL32(18, 21, 27, 235), none = IM_COL32(18, 21, 27, 0);
-    dl->AddRectFilledMultiColor(ImVec2(0, 0), ImVec2(w * 0.62f, h), dark, none, none, dark);
-    dl->AddRectFilledMultiColor(ImVec2(0, h * 0.75f), ImVec2(w, h), none, none, dark, dark);
+    // a light shade on the left under the menu, the picture as it is elsewhere (the owner's mock-up, 27/11/2026)
+    ImU32 dark = IM_COL32(8, 12, 24, 120), none = IM_COL32(8, 12, 24, 0);
+    dl->AddRectFilledMultiColor(ImVec2(0, 0), ImVec2(w * 0.40f, h), dark, none, none, dark);
+}
+
+// Where a height of the picture (0 top, 1 bottom) lands in a w x h window, with the cover scaling above; without a
+// picture, at that share of the window.
+float backdrop_picture_y(float w, float h, float at) {
+    if (!g_splash) return h * at;
+    float k = fmaxf(w / g_splash_w, h / g_splash_h), sh = g_splash_h * k;
+    return (h - sh) / 2 + sh * at;
 }

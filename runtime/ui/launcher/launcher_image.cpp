@@ -1,6 +1,6 @@
-// The player's own pictures (launcher_image.h): background.png (or .jpg) behind the start screen and drapeau.png (or
-// .jpg) as the mark beside its title and as the windows' icon, all read from the folder of the executable like
-// splash.png. None of it ships with the port: the pictures are the player's own, never in git.
+// The start screen's pictures (launcher_image.h): background behind the start screen and drapeau as the mark beside its
+// title and as the windows' icon. Both are built into the executable (images/, royalty-free pictures chosen by the
+// owner, 27/11/2026); a background.png/.jpg or drapeau.png/.jpg the player puts beside the executable comes first.
 // Decoding: stb_image (runtime/third_party/stb, public domain / MIT, nothings/stb @ 6b5799b), PNG and JPEG only.
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,6 +17,37 @@
 
 extern "C" {
 #include "platform/platform.h"
+}
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc23-extensions"   // #embed in C++
+// Relative to this file: #embed does not search the -I directories (ui/menu/menu_look.cpp)
+static const unsigned char builtin_background[] = {
+#embed "images/background.png"
+};
+static const unsigned char builtin_drapeau[] = {
+#embed "images/drapeau.jpg"
+};
+#pragma clang diagnostic pop
+static_assert(sizeof builtin_background > 100000, "images/background.png not embedded");
+static_assert(sizeof builtin_drapeau > 10000, "images/drapeau.jpg not embedded");
+
+static SDL_Surface *surface_of(const unsigned char *buf, int n) {
+    int w, h, ch;
+    unsigned char *px = stbi_load_from_memory(buf, n, &w, &h, &ch, 4);
+    if (!px) return nullptr;
+    SDL_Surface *s = SDL_CreateSurface(w, h, SDL_PIXELFORMAT_RGBA32);
+    if (s) {
+        for (int y = 0; y < h; y++) memcpy((unsigned char *)s->pixels + (size_t)y * s->pitch, px + (size_t)y * w * 4, (size_t)w * 4);
+    }
+    stbi_image_free(px);
+    return s;
+}
+
+extern "C" SDL_Surface *launcher_image_builtin(const char *name) {
+    if (!strcmp(name, "background")) return surface_of(builtin_background, (int)sizeof builtin_background);
+    if (!strcmp(name, "drapeau")) return surface_of(builtin_drapeau, (int)sizeof builtin_drapeau);
+    return nullptr;
 }
 
 extern "C" SDL_Surface *launcher_image_load(const char *path) {
@@ -36,15 +67,8 @@ extern "C" SDL_Surface *launcher_image_load(const char *path) {
         free(buf);
         return nullptr;
     }
-    int w, h, ch;
-    unsigned char *px = stbi_load_from_memory(buf, (int)n, &w, &h, &ch, 4);
+    SDL_Surface *s = surface_of(buf, (int)n);
     free(buf);
-    if (!px) return nullptr;
-    SDL_Surface *s = SDL_CreateSurface(w, h, SDL_PIXELFORMAT_RGBA32);
-    if (s) {
-        for (int y = 0; y < h; y++) memcpy((unsigned char *)s->pixels + (size_t)y * s->pitch, px + (size_t)y * w * 4, (size_t)w * 4);
-    }
-    stbi_image_free(px);
     return s;
 }
 
@@ -65,6 +89,7 @@ extern "C" void app_icon_custom(SDL_Window *w) {
     char *cut = plat_last_sep(dir);
     if (cut) *cut = 0;
     SDL_Surface *s = launcher_image_find(dir, "drapeau");
+    if (!s) s = launcher_image_builtin("drapeau");
     if (!s) return;
     SDL_SetWindowIcon(w, s);
     SDL_DestroySurface(s);

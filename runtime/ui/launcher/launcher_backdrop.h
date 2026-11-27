@@ -11,3 +11,5 @@ bool backdrop_has_picture(void);   // there is a background picture
 struct ImVec2;
 // drapeau's picture, rounded, at size px with its top left at p; false (nothing drawn) when there is none.
 bool backdrop_mark(ImDrawList *dl, ImVec2 p, float size);
+// Where height `at` of the picture (0..1) lands in the window
+float backdrop_picture_y(float w, float h, float at);
