@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# At AT seconds after build/orbitals-recomp starts: every mapping with its Rss (MiB), address range and name.
+# At AT seconds after build/orbitals-together starts: every mapping with its Rss (MiB), address range and name.
 # Usage: memtop.sh AT OUT
 set -euo pipefail
 at=$1; out=$2

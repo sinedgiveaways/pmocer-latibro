@@ -21,7 +21,7 @@ ROMFS_MARGIN = 0.95  # a few short still passes: some dumping tools skip empty f
 
 
 def is_nx(path: Path) -> bool:
-    """A .nx package (NXFormat): read through the runtime (orbitals-recomp --unpack, runtime/sdk/fs/nx.cpp), which has its reader."""
+    """A .nx package (NXFormat): read through the runtime (orbitals-together --unpack, runtime/sdk/fs/nx.cpp), which has its reader."""
     try:
         with path.open("rb") as f:
             return f.read(4) == b"NXAR"
@@ -30,8 +30,8 @@ def is_nx(path: Path) -> bool:
 
 
 def runtime_exe(folder: Path) -> Path:
-    """The runtime program in folder: orbitals-recomp.exe on Windows, orbitals-recomp elsewhere."""
-    return folder / ("orbitals-recomp.exe" if os.name == "nt" else "orbitals-recomp")
+    """The runtime program in folder: orbitals-together.exe on Windows, orbitals-together elsewhere."""
+    return folder / ("orbitals-together.exe" if os.name == "nt" else "orbitals-together")
 
 
 def unpack(runtime: Path, pkg: Path, dest: Path | str, *prefixes: str) -> str:

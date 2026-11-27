@@ -37,7 +37,7 @@ int vk_guard_on_slow(void) {
     return on;
 }
 
-// In the repo (build/orbitals-recomp next to tools/run/gpu_ok.sh), refuses to open the GPU when that script refuses, whatever
+// In the repo (build/orbitals-together next to tools/run/gpu_ok.sh), refuses to open the GPU when that script refuses, whatever
 // started the run: on 08/11/2026 three capture replays started by hand under perf, not through replay.sh, went to a
 // GPU gpu_ok.sh would have refused, and each took a ring timeout. The player's copy has no such script: no check.
 void vk_guard_gpu_ok(void) {
@@ -60,7 +60,7 @@ void vk_guard_note(uint64_t *use) {
     while (u > old && !__atomic_compare_exchange_n(use, &old, u, 1, __ATOMIC_RELAXED, __ATOMIC_RELAXED)) {}
 }
 
-// The stack of the call that broke the rule, before rt_fatal (build/orbitals-recomp addresses: tools/run/sym.py names them).
+// The stack of the call that broke the rule, before rt_fatal (build/orbitals-together addresses: tools/run/sym.py names them).
 static void guard_stack(void) {
 #if defined(__linux__)
     void *frames[24];

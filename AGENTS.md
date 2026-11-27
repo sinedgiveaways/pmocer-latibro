@@ -1,11 +1,11 @@
 # Guide for coding agents
 
-Read this before changing orbitals-recomp with an AI agent. The rules are those of [CONTRIBUTING.md](CONTRIBUTING.md);
+Read this before changing orbitals-together with an AI agent. The rules are those of [CONTRIBUTING.md](CONTRIBUTING.md);
 this file says how to work by them without wasting runs.
 
 ## What this is
 
-A static recompilation of Orbitals (Switch 2) to x86-64, `orbitals-recomp`: the game's AArch64 code becomes C
+A static recompilation of Orbitals (Switch 2) to x86-64, `orbitals-together`: the game's AArch64 code becomes C
 ([recomp/](recomp/README.md)), the runtime ([runtime/](runtime/README.md)) replaces the console (kernel, SDK by
 function name, NVN2 over Vulkan), and the game's SM86 shaders become SPIR-V offline ([sm86/](sm86/README.md)). Every
 folder has a README that names each file: read it before opening the code. The open work is in
@@ -45,7 +45,7 @@ A game run takes minutes; most changes can be checked in seconds:
 - **Shader translator**: `uv run tools/shaders/translate.py` retranslates only what changed; a change to control flow
   (`sm86/translate/flow.py`, loops, branches) must pass `uv run tools/shaders/flow_check.py` before any GPU run, since a
   broken loop can hang the GPU of the whole desktop. `tools/shaders/glsl_hash.py` proves a refactor changes no output.
-- **Runtime pieces**: `build/orbitals-recomp --selftest` and the `--probe-*` options ([runtime/probes](runtime/probes/README.md)).
+- **Runtime pieces**: `build/orbitals-together --selftest` and the `--probe-*` options ([runtime/probes](runtime/probes/README.md)).
 - **CPU lifter**: `uv run --with unicorn tools/cpu/lift_diff.py` compares translated instructions with Unicorn.
 - **Comments and docs only**: no rebuild needed; a comment in `runtime/cpu` rebuilds the whole game.
 

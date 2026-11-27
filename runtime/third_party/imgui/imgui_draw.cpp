@@ -4007,7 +4007,7 @@ const char* ImFont::CalcWordWrapPositionA(float scale, const char* text, const c
 
             // Allow wrapping after punctuation.
             inside_word = (c != '.' && c != ',' && c != ';' && c != '!' && c != '?' && c != '\"');
-            // orbitals-recomp: not inside a number ("1.8.0" wrapped as "1.8." and "0" on the start screen)
+            // orbitals-together: not inside a number ("1.8.0" wrapped as "1.8." and "0" on the start screen)
             if (!inside_word && next_s < text_end && *next_s >= '0' && *next_s <= '9')
                 inside_word = true;
         }

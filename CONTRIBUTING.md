@@ -33,7 +33,7 @@
   an intermediate pass.
 - **Shader translator** changes that touch control flow are checked off the GPU first (`tools/shaders/flow_check.py`
   on every program); a broken structured loop can hang the GPU of the whole desktop.
-- **Self-tests**: `build/orbitals-recomp --selftest` and the `--probe-*` options of [runtime/probes](runtime/probes/README.md).
+- **Self-tests**: `build/orbitals-together --selftest` and the `--probe-*` options of [runtime/probes](runtime/probes/README.md).
 
 ## Code
 

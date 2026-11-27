@@ -1,4 +1,4 @@
-# The Windows package (the start screen, orbitals-recomp.exe, and the setup tools that build the game from the player's
+# The Windows package (the start screen, orbitals-together.exe, and the setup tools that build the game from the player's
 # own dump): a tag port-* builds it and puts the zip in a pre-release of that tag. Nothing of any game goes in.
 name: Port Windows package
 
@@ -44,7 +44,7 @@ jobs:
           key: dist-dl-windows-${{ hashFiles('tools/build/dist.py') }}
       - name: llvm-mingw and the Windows libraries
         run: uv run tools/build/windeps.py
-      - name: orbitals-recomp.exe
+      - name: orbitals-together.exe
         run: uv run tools/build/build.py --target windows --dist --runtime-only
       - name: Setup tools
         run: uv run tools/build/dist.py --target windows
@@ -64,5 +64,5 @@ jobs:
         run: |
           gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
             gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --prerelease --title "$GITHUB_REF_NAME" \
-              --notes "The start screen and setup of the orbitals-port branch, for Windows. Unzip, run orbitals-recomp.exe, Game files > choose your .nup > Set up, then Play, and send logs/setup.log and logs/orbitals.log."
+              --notes "The start screen and setup of the orbitals-port branch, for Windows. Unzip, run orbitals-together.exe, Game files > choose your .nup > Set up, then Play, and send logs/setup.log and logs/orbitals.log."
           gh release upload "$GITHUB_REF_NAME" build/release/*.zip --repo "$GITHUB_REPOSITORY" --clobber

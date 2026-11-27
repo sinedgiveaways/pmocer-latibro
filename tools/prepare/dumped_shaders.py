@@ -8,7 +8,7 @@ nvnProgramSetShaders at run time; a run with ORBITALS_SPIRV_DUMP writes each one
 script does what the shaders step does (the SM86 spec from NVIDIA's nvdisasm, then translate.py), with the dumped programs
 as the only input. Run it again after each run that dumped more: what is translated stays.
 
-Usage (Windows, from the folder that holds orbitals-recomp.exe and setup\\):
+Usage (Windows, from the folder that holds orbitals-together.exe and setup\\):
     setup\\python\\python.exe setup\\src\\tools\\prepare\\dumped_shaders.py --dumped spirv-dump
     [--game DIR] [--jobs N]
 --game is the installation (default: the current folder). Nothing of the game goes anywhere but the installation.

@@ -23,7 +23,7 @@ yet.
 
 - **Same implementation as `v0.1.11-rpt8`.** The release `v0.1.11-rpt8` of `sinedgiveaways/mkw-recomp` (MIT, 14/11/2026)
   has `runtime/steam/{steam_rpt.c, steam_rpt.h, steam_flat.h}`. After mapping the names back (`ORBITALS_` to `MKW_`,
-  `orbitals-recomp` to `mkw`, `orbitals.ini` to `mkw.ini`), the three files here have **0 differing lines** (488, 58
+  `orbitals-together` to `mkw`, `orbitals.ini` to `mkw.ini`), the three files here have **0 differing lines** (488, 58
   and 121 lines). So the rename changed no behaviour, and the plan "follow rpt8" is already what the tree holds. The
   release's notes mention Steam only for the Steam Deck. The guide's own "Tested" section (`docs/remote-play.md`, 13/11/2026)
   says what was run: Valve's SDK 1.65 library and a mock of Steam built from Valve's headers, SDL virtual gamepads
@@ -56,15 +56,15 @@ yet.
 - Orbitals now reaches its first level in split screen with two players, each on a controller (logs83:
   `input: gamepad "Xbox One Controller" for player 2`, `hid: controllers initialized (... 2 players with a
   controller)`). Item 1 below is no longer a blocker.
-- The Windows package carries `steam_api64.dll` (checked in `orbitals-recomp-0.2.0-81c27bf-windows-x64.zip`). The
-  `kiro-orbitals-recomp-exe` artifact is the executable alone, without it.
+- The Windows package carries `steam_api64.dll` (checked in `orbitals-together-0.2.0-81c27bf-windows-x64.zip`). The
+  `kiro-orbitals-together-exe` artifact is the executable alone, without it.
 - With no App ID set, `steam_rpt_start` turns itself off without a log line (logs83 has no `steam:` line). That is
   intended.
 - With two controllers connected, logs83 has no `hid: controller applet asks for ...` line, so Orbitals did not call
   `ShowControllerSupport` then. Whether it calls it with only one controller (when the automatic "local players or
   Remote Play Together" question would appear) is the first thing the real test below shows.
 - **The real test (asked of the owner on 27/11/2026):**
-  - Set up: RetroArch (1118310) in Steam with `"<game folder>\orbitals-recomp.exe" %command%` as its launch options,
+  - Set up: RetroArch (1118310) in Steam with `"<game folder>\orbitals-together.exe" %command%` as its launch options,
     `[steam] steam_appid = 1118310` in `orbitals.ini`, the second controller unplugged (the guest is player 2;
     `INPUT_MAX_PLAYERS` is 2), and a start with Play from Steam.
   - The log lines to look for, in this order: `steam: running as App ID 1118310; Remote Play Together ready`,
@@ -94,7 +94,7 @@ layer, both players owning the port).
 
 ### Test of 27/11/2026 (log header `0.2.0-g81c27bf`): invalid, old executable
 
-- The owner chose "Partie en ligne" and saw no invite message. The log's first lines say `Orbitals Recomp 0.2.0-g81c27bf`
+- The owner chose "Partie en ligne" and saw no invite message. The log's first lines say `Orbitals Together 0.2.0-g81c27bf`
   and `steam: running as App ID 1118310; Remote Play Together ready`: the executable was the one before `5ba7f29`, which
   has no `steam_rpt_online` and no `online:` lines. The log has none, so it answers nothing about Online Play.
 - The video (20 s) does show that "Partie locale" with one controller already opens the automatic choice ("Joueurs
@@ -138,7 +138,7 @@ layer, both players owning the port).
    `steam_rpt_saved_add` (the typed App IDs list), `is_app_id`, and the choice of `steam_rpt_multiplayer` by mode.
    The Steam calls themselves need a Steam client.
 7. **Linux only paths.** Flatpak and Snap Steam cannot work (the guide says so); the AppImage's data folder for
-   the library is `~/.local/share/orbitals-recomp`, now correct after the rename.
+   the library is `~/.local/share/orbitals-together`, now correct after the rename.
 
 ## Plan
 

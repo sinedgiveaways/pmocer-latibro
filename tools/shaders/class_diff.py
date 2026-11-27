@@ -6,7 +6,7 @@ Why: Orbitals' pixel programs 238181b4 and 9255edc1 are near twins (592 and 600 
 from the same constant words), yet running 238181b4 turns the whole level black and running 9255edc1 does not
 (SKIP_PROGRAMS A/B, 18/11/2026). The forms only the bad one has point at the instruction the translator gets wrong.
 
-Usage (from the folder that holds orbitals-recomp.exe and setup\\; forward slashes):
+Usage (from the folder that holds orbitals-together.exe and setup\\; forward slashes):
     setup\\python\\python.exe setup/src/tools/shaders/class_diff.py --dumped spirv-dump --keys BAD,GOOD [--spec FILE]
 """
 

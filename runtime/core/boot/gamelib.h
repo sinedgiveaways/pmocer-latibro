@@ -1,6 +1,6 @@
 // The game code's tables: module layout, lifted function tables, the ExeFS hashes the code was generated from and the
 // code patch sets. tools/build/build.py writes them (build/obj/rt/modules.c) from the generator's layout.json and
-// patches.h. The development build links them into build/orbitals-recomp (rt_game_builtin); the player's build compiles them into
+// patches.h. The development build links them into build/orbitals-together (rt_game_builtin); the player's build compiles them into
 // the game code library, orbitalgame.so / orbitalgame.dll (SavageWindRecomp runtime/gamelib.h, MIT).
 #pragma once
 #include <stdint.h>

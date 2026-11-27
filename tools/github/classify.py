@@ -153,7 +153,7 @@ STILL = re.compile(
 )
 
 
-PORT_BUILD = re.compile(r"\[host\] log: .*\(Orbitals Recomp ([^)\s]+)\)")
+PORT_BUILD = re.compile(r"\[host\] log: .*\(Orbitals (?:Recomp|Together) ([^)\s]+)\)")
 
 
 def modified_build(log: str) -> str | None:

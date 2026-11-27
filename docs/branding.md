@@ -1,7 +1,7 @@
 # Branding: the executable's icon
 
-`orbitals-recomp.exe` carries the icon of Orbitals, as a Windows `.ico` of 16, 32, 48 and 256 pixels. Its version
-information (`FileDescription`, `ProductName`, `OriginalFilename`, `ProductVersion`) is in `runtime/platform/orbitals-recomp.rc`.
+`orbitals-together.exe` carries the icon of Orbitals, as a Windows `.ico` of 16, 32, 48 and 256 pixels. Its version
+information (`FileDescription`, `ProductName`, `OriginalFilename`, `ProductVersion`) is in `runtime/platform/orbitals-together.rc`.
 
 ## Source picture
 
@@ -32,7 +32,7 @@ checks its SHA-256 and runs `make_ico.py` before building.
 ## Replacing the icon
 
 Put any PNG at `assets/icon/orbitals_logo.png` (a square one needs no `--crop`) and run `make_ico.py`. No code changes.
-To change the version information, edit `runtime/platform/orbitals-recomp.rc` (renamed with the other artifacts later in the plan,
+To change the version information, edit `runtime/platform/orbitals-together.rc` (renamed with the other artifacts later in the plan,
 `docs/mkw-removal-plan.md`).
 
 ## Why the picture and the `.ico` are not committed

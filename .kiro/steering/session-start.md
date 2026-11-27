@@ -29,11 +29,11 @@ write a short message such as "log up", "c up" or "crash log up". An upload is t
 ## The owner
 
 - Writes in French in short messages ("c up", "crash log up"): answer in French, plainly.
-- Windows 11, RTX 4080; game folder `C:\Users\mco2v\Downloads\orbitals-recomp\` (`exefs\`, `logs\`, `orbitals.ini`).
+- Windows 11, RTX 4080; game folder `C:\Users\mco2v\Downloads\orbitals-together\` (`exefs\`, `logs\`, `orbitals.ini`).
 - Wants few, decisive tests: say what you expect and what each outcome means; one run per hypothesis. When you offer
   options, they usually let you choose ("choisis la meilleure solution").
-- Builds to test are GitHub Actions run links, artifacts `kiro-orbitals-recomp-exe` (runtime only) or
-  `kiro-orbitals-recomp-windows-x64` plus a setup run (translator changes). See `build-naming.md`.
+- Builds to test are GitHub Actions run links, artifacts `kiro-orbitals-together-exe` (runtime only) or
+  `kiro-orbitals-together-windows-x64` plus a setup run (translator changes). See `build-naming.md`.
 
 ## Working rules you must keep
 

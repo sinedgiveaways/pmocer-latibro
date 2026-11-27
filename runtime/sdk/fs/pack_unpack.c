@@ -23,7 +23,7 @@ static int wanted(const char *path, int nprefix, char **prefix) {
 
 int pack_unpack_main(int argc, char **argv) {
     if (argc < 2) {
-        fprintf(stderr, "usage: orbitals-recomp --unpack PACKAGE DEST [PREFIX...]\n");
+        fprintf(stderr, "usage: orbitals-together --unpack PACKAGE DEST [PREFIX...]\n");
         return 2;
     }
     Pack *p = pack_open(argv[0]);

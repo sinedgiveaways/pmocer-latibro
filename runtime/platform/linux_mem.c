@@ -323,7 +323,7 @@ static void fault_handler(int sig, siginfo_t *si, void *uc) {
         PlatCrash c = {sig == SIGSEGV ? "access violation" : sig == SIGBUS ? "bus error"
                        : sig == SIGILL ? "illegal instruction" : "arithmetic exception",
                        (uint32_t)sig, rip, in_module ? rip - (uintptr_t)at.dli_fbase : rip, -1, 0,
-                       !in_module ? "no module" : ours_exe ? "orbitals-recomp" : "orbitalgame", 0};
+                       !in_module ? "no module" : ours_exe ? "orbitals-together" : "orbitalgame", 0};
 #if defined(__aarch64__)
         if (!in_module) c.ret = (uintptr_t)UC_RET(u);   // a wild call left its return address in x30
 #else

@@ -8,7 +8,7 @@ patches name this game's build id, and writes both files.
 
 Usage: import.py --game EXEDIR --romfs ROMFS [--exefs DIR] [--build-id HEX] (--zip FILE | --folder DIR)
                  [--name NAME] [--variant PATH]
-  --game: the folder of orbitals-recomp / orbitals-recomp.exe (mods/ is made inside it)
+  --game: the folder of orbitals-together / orbitals-together.exe (mods/ is made inside it)
   --romfs: the game's RomFS the manifest's original hashes come from: a loose folder or a .nup package
   --zip: a mod archive, .zip, .rar or .7z (rar and 7z through tar, which is bsdtar on Windows 10 and later)
   --folder: an extracted mod folder

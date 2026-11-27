@@ -2,7 +2,7 @@
 // (urllib and OpenSSL; the runtime has no HTTP), run in a child process whose event lines a thread of ours reads, as
 // launcher_setup.cpp does for prepare.py. The swap is done here, once that Python has exited, because Windows cannot
 // rename a folder whose program is still running:
-//   Windows  each top entry of the new package (orbitals-recomp.exe, its DLLs, setup/, licenses/) replaces the one next to the
+//   Windows  each top entry of the new package (orbitals-together.exe, its DLLs, setup/, licenses/) replaces the one next to the
 //            program, which is renamed to <name>.old first (a running exe and its loaded DLLs can be renamed, not
 //            removed); a failed rename puts back the ones already done.
 //   Linux    the new AppImage replaces $APPIMAGE (a rename in the same folder: the running one keeps its inode), and
@@ -67,7 +67,7 @@ static bool installable(const char *exe_dir, char *dest, size_t cap) {
     snprintf(dest, cap, "%s", app);
     char *cut = strrchr(dest, '/');
     if (!cut) return false;
-    snprintf(cut, cap - (size_t)(cut - dest), "/.orbitals-recomp-update");
+    snprintf(cut, cap - (size_t)(cut - dest), "/.orbitals-together-update");
     return true;
 #endif
 }
@@ -263,8 +263,8 @@ int update_apply(const char *exe_dir) {
 void update_relaunch(const char *exe_dir) {
 #ifdef _WIN32
     char exe[1200];
-    // the program that is running, whatever its name (orbitals-recomp.exe on this branch)
-    if (!plat_exe_path(exe, sizeof exe)) snprintf(exe, sizeof exe, "%s/orbitals-recomp.exe", exe_dir);
+    // the program that is running, whatever its name (orbitals-together.exe on this branch)
+    if (!plat_exe_path(exe, sizeof exe)) snprintf(exe, sizeof exe, "%s/orbitals-together.exe", exe_dir);
     const char *args[] = {exe, nullptr};
     SDL_Process *p = SDL_CreateProcess(args, false);
     if (!p) rt_log("update: cannot start %s: %s", exe, SDL_GetError());

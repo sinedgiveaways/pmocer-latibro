@@ -38,7 +38,7 @@ uint8_t *pack_read_whole(Pack *p, const PackEntry *e);
 int pack_read_at(Pack *p, const PackEntry *e, uint64_t off, void *buf, uint64_t len);
 
 int pack_unpack_main(int argc, char **argv);   // mkw --unpack PACKAGE DEST [PREFIX...] (pack_unpack.c)
-int oodle_batch_main(int argc, char **argv);   // orbitals-recomp --oodle-batch IN OUT (oodle_batch.c)
+int oodle_batch_main(int argc, char **argv);   // orbitals-together --oodle-batch IN OUT (oodle_batch.c)
 
 // The .nx backend (nx.cpp), behind pack.c.
 typedef struct NxPack NxPack;

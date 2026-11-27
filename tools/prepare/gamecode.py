@@ -61,9 +61,9 @@ def compile_game(game: Path, exefs: Path, work: Path, cc: list[str], target: str
     jobs_c.append((obj / "modules.c", obj / "modules.o", [*flags, gid, *inc]))
     jobs_c.sort(key=lambda j: -j[0].stat().st_size)  # the largest first: no 10 MB main_table.c alone at the end
     total, done = len(jobs_c) + 1, 0  # the link is the last unit: a progress bar full before it hid it (issue #2)
-    # Windows: the import library names the program the DLL's imports come from, orbitals-recomp.exe on this branch
-    # (dist.py); a change here changes the compile step's key, so a library linked against orbitals-recomp.exe is linked again
-    extra = [str(package_dir(game) / "lib/liborbitals-recomp.dll.a")] if windows else ["-Wl,-z,noexecstack"]
+    # Windows: the import library names the program the DLL's imports come from, orbitals-together.exe on this branch
+    # (dist.py); a change here changes the compile step's key, so a library linked against orbitals-together.exe is linked again
+    extra = [str(package_dir(game) / "lib/liborbitals-together.dll.a")] if windows else ["-Wl,-z,noexecstack"]
     base = common_key(cc, gen)
 
     def one(job: tuple[Path, Path, list[str]]) -> str:

@@ -9,4 +9,4 @@ Files, saves and RomFS, and the RomFS overlay with the internal resolution.
 | `nup.c`, `nup.h` | `.nup` packages: the table of contents, and each file in place or zstd-decompressed whole |
 | `nx.cpp` | `.nx` packages (NXFormat) through its reader (`third_party/nxformat`): any range of a file, decoding only its blocks |
 | `pack_unpack.c` | `mkw --unpack PACKAGE DEST [PREFIX...]`: a package's files written out, for the setup (exefs, the shader archives, a copied RomFS) |
-| `oodle_batch.c` | `orbitals-recomp --oodle-batch IN OUT`: Oodle streams (the IoStore's blocks and shader groups) decompressed in a batch with ooz (`third_party/ooz`), for `tools/shaders/iostore.py` |
+| `oodle_batch.c` | `orbitals-together --oodle-batch IN OUT`: Oodle streams (the IoStore's blocks and shader groups) decompressed in a batch with ooz (`third_party/ooz`), for `tools/shaders/iostore.py` |

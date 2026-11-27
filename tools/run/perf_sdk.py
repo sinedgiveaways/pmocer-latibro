@@ -1,11 +1,11 @@
-"""How much CPU the SDK's recompiled code takes in a perf profile of build/orbitals-recomp, by thread and by namespace.
+"""How much CPU the SDK's recompiled code takes in a perf profile of build/orbitals-together, by thread and by namespace.
 
 Why: deciding whether an SDK namespace (nn::os, libc, math) is worth replacing by native code needs its share of the
 game threads' time, not its call count (the census of 05/11/2026 found 23 M LockMutex calls in a race, which says
 nothing of their cost). Lifted functions are f_<guest address>; bindb names them and gives their module.
 
 Usage: uv run tools/run/perf_sdk.py scratchpad/NAME.perf [--threads 8] [--top 25]
-       (a perf record of build/orbitals-recomp, as run_perf.sh leaves; needs build/bindb.sqlite)
+       (a perf record of build/orbitals-together, as run_perf.sh leaves; needs build/bindb.sqlite)
 """
 
 import argparse

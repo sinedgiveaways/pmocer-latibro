@@ -18,7 +18,7 @@ MKW's own environment variables:
 | `ORBITALS_GPU_CRUMBS=0/1/ab` | GPU breadcrumbs for a device loss, and for a GPU that stops 5 s without one (`vk/diag/vk_crumbs.c`, `VK_AMD_buffer_marker`, else NVIDIA checkpoints); on by default |
 | `ORBITALS_VK_FORMAT_LIST=0/1` | Render targets list their view formats so RADV keeps DCC compression (smo-recomp `dcc-format-list`); on by default on integrated GPUs |
 | `ORBITALS_VK_PLACED=1` | Experiment: every CPU-visible pool as driver memory mapped at its address (`VK_EXT_map_memory_placed`), without a shadow copy; one run reached frame 300 against 151 |
-| `ORBITALS_TEXPRE=1` / `<dir>` | Precomputed BC7 of the ASTC textures (`vk_texpre.c`; `1`: `<exe>/texpre`). Off by default: slower than the GPU encoder; the ones it lacks are recorded in `<dir>/src` for `build/orbitals-recomp --texpre` (`ORBITALS_TEXPRE_RECORD=0`: don't; `ORBITALS_TEXPRE_JOBS`: threads) |
+| `ORBITALS_TEXPRE=1` / `<dir>` | Precomputed BC7 of the ASTC textures (`vk_texpre.c`; `1`: `<exe>/texpre`). Off by default: slower than the GPU encoder; the ones it lacks are recorded in `<dir>/src` for `build/orbitals-together --texpre` (`ORBITALS_TEXPRE_RECORD=0`: don't; `ORBITALS_TEXPRE_JOBS`: threads) |
 | `ORBITALS_ASTC_BC7=0` | ASTC of 256x256 or more stays RGBA8 (by default it is recompressed to BC7 on the GPU) |
 | `ORBITALS_PHYS_LAZY=0` | Physical pools get memory at `MapVirtual`, not at the GPU's first use (4 MiB chunks) |
 | `ORBITALS_SPARSE_IMAGES=0` | Sparse textures without a Vulkan sparse image: a whole image, like the ones that cannot be sparse (depth on RADV) |

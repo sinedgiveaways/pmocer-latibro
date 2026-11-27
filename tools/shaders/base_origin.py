@@ -11,7 +11,7 @@ and stay on their machine; only the counts are printed.
 programs (each writer, each operand of an OR, jump targets in between); --tex counts instead where the texture handles of the
 programs refused with "texture handle in a register not traced to a constant bank" come from.
 
-Usage (Windows, from the folder that holds orbitals-recomp.exe and setup\\; forward slashes, as a "\\n" in a pasted
+Usage (Windows, from the folder that holds orbitals-together.exe and setup\\; forward slashes, as a "\\n" in a pasted
 path breaks the line):
     setup\\python\\python.exe setup/src/tools/shaders/base_origin.py --dumped spirv-dump [--spec FILE] [--depth N]
 --spec defaults to the installation's sm86/instructions.json (made by dumped_shaders.py).

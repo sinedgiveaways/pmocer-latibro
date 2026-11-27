@@ -73,7 +73,7 @@ static void save_png(const GfxBackend *b, const tex_t *t, const char *path) {
 }
 
 static int usage(void) {
-    fprintf(stderr, "usage: orbitals-recomp --replay DIR [--out DIR] [--tag NAME]\n");
+    fprintf(stderr, "usage: orbitals-together --replay DIR [--out DIR] [--tag NAME]\n");
     return 2;
 }
 

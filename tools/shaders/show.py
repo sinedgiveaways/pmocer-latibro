@@ -5,7 +5,7 @@ code, so paste its output into a chat or an issue comment only, never into git o
 Why: Orbitals draws its colour-grading LUT (32 layers of a 3D texture) with a geometry stage the runtime did not run;
 the translator has no geometry support, and writing it needs the instructions those programs use (18/11/2026).
 
-Usage (from the folder that holds orbitals-recomp.exe and setup\\; forward slashes):
+Usage (from the folder that holds orbitals-together.exe and setup\\; forward slashes):
     setup\\python\\python.exe setup/src/tools/shaders/show.py [--dumped spirv-dump] [--stage 2] [--keys PREFIX,...]
 Stages: 0 vertex, 1 fragment, 2 geometry, 3 tessellation control, 4 tessellation evaluation, 5 compute.
 Identical programs (the same code) are printed once, with the keys that share it.

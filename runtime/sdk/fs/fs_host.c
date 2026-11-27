@@ -1499,7 +1499,7 @@ static uint64_t probe_romfs(void) {
     uint64_t first = 0;
     while (first < count && !romfs_source_path(first, any, sizeof any)) first++;
     if (first == count) {   // a .nx package: every row is read through its blocks, no host bytes to compare with
-        rt_log("probe-fs: %llu RomFS files, all inside a .nx package: reads not compared (orbitals-recomp --unpack checks them)",
+        rt_log("probe-fs: %llu RomFS files, all inside a .nx package: reads not compared (orbitals-together --unpack checks them)",
                (unsigned long long)count);
         return count;
     }

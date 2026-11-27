@@ -14,4 +14,4 @@
 | `win32_sys.c` | Windows: process, desktop and libraries |
 | `win32_load.c` | Windows: machine load (CPU, PDH for temperature and GPU) and desktop shortcut |
 | `common.c`, `fp_x86.h` | Common parts, x86 floating point control |
-| `orbitals-recomp.rc`, `orbitals-recomp.manifest` | `orbitals-recomp.exe`'s manifest (UTF-8 code page, from totk-pc-recomp); `build.py --target windows` |
+| `orbitals-together.rc`, `orbitals-together.manifest` | `orbitals-together.exe`'s manifest (UTF-8 code page, from totk-pc-recomp); `build.py --target windows` |

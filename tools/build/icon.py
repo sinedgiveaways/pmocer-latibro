@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Draws the icon of orbitals-recomp.exe by code (our own: a checkered flag on a rounded square, no art of the game) and writes it as
+"""Draws the icon of orbitals-together.exe by code (our own: a checkered flag on a rounded square, no art of the game) and writes it as
 an .ico with PNG images of 256, 48, 32 and 16 pixels. tools/build/build.py --target windows calls it before the
-resource (runtime/platform/orbitals-recomp.rc names "orbitals-recomp.ico"); the file is made in build/, never committed. With an .svg name it
+resource (runtime/platform/orbitals-together.rc names "orbitals-together.ico"); the file is made in build/, never committed. With an .svg name it
 writes the same drawing as vector shapes instead (the repo's logo, docs/logo.svg: text, so it can be versioned); with a
 .png name, one 256-pixel image (the Linux AppImage's icon, tools/build/release.py); with a .c name, the C source of
 app_icon_set(SDL_Window *), which gives the window a 128-pixel copy (build.py, every target): Wayland compositors with

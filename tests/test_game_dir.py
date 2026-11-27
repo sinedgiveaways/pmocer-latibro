@@ -41,7 +41,7 @@ def probe(exe: Path, *args: str, **overrides: str) -> dict[str, str]:
 def launcher(game_dir_probe: Path, tmp_path: Path) -> Path:
     folder = tmp_path / "Launcher ñ with spaces"
     folder.mkdir()
-    return Path(shutil.copy2(game_dir_probe, folder / "orbitals-recomp"))
+    return Path(shutil.copy2(game_dir_probe, folder / "orbitals-together"))
 
 
 def installation(folder: Path, volume: int = 80) -> Path:

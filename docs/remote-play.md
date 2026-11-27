@@ -11,9 +11,9 @@ It is off by default and changes nothing until you set it up.
 - Steam installed, running and signed in on the PC that runs the game (the host). On Linux, Steam from Valve or your
   distribution: the Flatpak and Snap versions run in a sandbox the game cannot reach.
 - A **Steam App ID** that your account owns (free games count once they are in your library) and that supports Remote
-  Play Together. Steam treats orbitals-recomp as that game while it runs, so your friends see its name. Use an App ID you own or are
+  Play Together. Steam treats orbitals-together as that game while it runs, so your friends see its name. Use an App ID you own or are
   allowed to use. RetroArch (`1118310`) is free and supports Remote Play Together.
-- Steam's runtime library next to `orbitals-recomp` / `orbitals-recomp.exe`: `libsteam_api.so` on Linux, `steam_api64.dll` on Windows,
+- Steam's runtime library next to `orbitals-together` / `orbitals-together.exe`: `libsteam_api.so` on Linux, `steam_api64.dll` on Windows,
   Steamworks SDK 1.62 or newer.
 
 ## Set up
@@ -26,10 +26,10 @@ It is off by default and changes nothing until you set it up.
    ```
 
    It downloads Valve's SDK 1.65 copy (from the Steamworks.NET release, checked by sha256). Pass `--dest DIR` for
-   another folder: the one that holds `orbitals-recomp`. The Linux AppImage runs its copy of `orbitals-recomp` in `~/.local/share/orbitals-recomp`,
+   another folder: the one that holds `orbitals-together`. The Linux AppImage runs its copy of `orbitals-together` in `~/.local/share/orbitals-together`,
    so that is the folder there.
 
-2. **The App ID.** In `orbitals.ini` next to `orbitals-recomp`:
+2. **The App ID.** In `orbitals.ini` next to `orbitals-together`:
 
    ```ini
    [steam]
@@ -40,21 +40,21 @@ It is off by default and changes nothing until you set it up.
    Remote Play Together > Steam App ID; it takes effect at the next start).
 
    **Your own App ID in the menu.** Under that row, select **Enter a Steam App ID**, type the number with the
-   keyboard's number keys (Backspace deletes a digit) and press Enter or A. orbitals-recomp runs as that game from the next start,
+   keyboard's number keys (Backspace deletes a digit) and press Enter or A. orbitals-together runs as that game from the next start,
    and the Steam App ID row keeps the number in its list, so you can switch back to it later. The list is
    `steam_appids` in `orbitals.ini` (comma-separated, 16 at most: the oldest goes first); delete a number there to take it
    off the list.
 
    **Another Steam game.** Any game you own whose store page lists Remote Play Together can stand in for
-   RetroArch. Put orbitals-recomp in that game's launch options (step 3) and set `steam_appid = auto` (in the menu:
-   Automatic): orbitals-recomp then runs as whichever game Steam started it from. orbitals-recomp remembers the last one in
-   `cache/steam-appid`, so a later start from its own folder (`orbitals-recomp.exe`) runs as that game too, as a fixed number
+   RetroArch. Put orbitals-together in that game's launch options (step 3) and set `steam_appid = auto` (in the menu:
+   Automatic): orbitals-together then runs as whichever game Steam started it from. orbitals-together remembers the last one in
+   `cache/steam-appid`, so a later start from its own folder (`orbitals-together.exe`) runs as that game too, as a fixed number
    would; your friends' controllers still need the start from Steam (step 3). A number works too (the App ID is the number
    in the game's store address, `store.steampowered.com/app/<number>/`), but it must be the game whose launch
-   options you used: otherwise the log says `steam: Steam started orbitals-recomp as App ID ..., but steam_appid = ...`.
+   options you used: otherwise the log says `steam: Steam started orbitals-together as App ID ..., but steam_appid = ...`.
    Steam shows your friends the name of that game, and only games with Remote Play Together let them join.
 
-   **The game's controller settings in Steam matter too.** Steam hands controllers to orbitals-recomp as it would to that game,
+   **The game's controller settings in Steam matter too.** Steam hands controllers to orbitals-together as it would to that game,
    so a game that uses Steam Input in its own way can leave a player without one. Tried on Windows (November 2026):
 
    | App ID | Your controller | Your friend's controller |
@@ -62,21 +62,21 @@ It is off by default and changes nothing until you set it up.
    | 1118310 (RetroArch) | works | works |
    | 985890 (Streets of Rage 4) | works | works |
    | 1361510 (TMNT: Shredder's Revenge), Steam Input on | none: Steam lists no controller at all | none |
-   | 1361510, Steam Input off (Properties > Controller) | works | listed, but no button reaches orbitals-recomp |
+   | 1361510, Steam Input off (Properties > Controller) | works | listed, but no button reaches orbitals-together |
 
    To check another one, look in `logs/orbitals.log` after a friend has joined for `input: ... Steam virtual ...` and
    `input: gamepad ... for player 2 (... a Remote Play guest's)`, then make sure player 2 moves in the game. The log
    lists every controller SDL sees (`input: SDL lists N joysticks`) each time the list changes.
 
 3. **Start the game from Steam, as the App ID's game** (needed for your friends' controllers). Started from its
-   folder, orbitals-recomp runs as the App ID and invitations work, but Steam does not hand the guests' controllers to it: Steam
+   folder, orbitals-together runs as the App ID and invitations work, but Steam does not hand the guests' controllers to it: Steam
    gives them to a game through its overlay, and only loads that into games it starts. A Non-Steam Game shortcut does
-   not work either: Steam then runs orbitals-recomp as the shortcut, which has no Remote Play Together. Instead, let Steam start orbitals-recomp
+   not work either: Steam then runs orbitals-together as the shortcut, which has no Remote Play Together. Instead, let Steam start orbitals-together
    in place of the App ID's own program:
    - install the App ID's game in Steam (RetroArch, free);
-   - right-click it > Properties > General > Launch options, and enter the path of `orbitals-recomp.exe` in quotes followed by
-     `%command%`, for example `"C:\Users\you\Downloads\orbitals-recomp\orbitals-recomp.exe" %command%`;
-   - press Play on it. Steam starts `orbitals-recomp.exe` with the game's program as its last argument, which orbitals-recomp leaves out (the
+   - right-click it > Properties > General > Launch options, and enter the path of `orbitals-together.exe` in quotes followed by
+     `%command%`, for example `"C:\Users\you\Downloads\orbitals-together\orbitals-together.exe" %command%`;
+   - press Play on it. Steam starts `orbitals-together.exe` with the game's program as its last argument, which orbitals-together leaves out (the
      log says `boot: started by Steam's %command%`). Empty the launch options to get the real game back.
 
 The log says `steam: running as App ID ...; Remote Play Together ready`. When something is missing, a notice at the

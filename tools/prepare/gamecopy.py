@@ -57,7 +57,7 @@ def remove_stale(dst: Path, src: Path, kept: set[str], version: str) -> None:
 
 
 def clear_dir(d: Path, src: Path) -> None:
-    """d emptied before a copy from src that writes every file anyway (orbitals-recomp --unpack of a .nx), so no other version's
+    """d emptied before a copy from src that writes every file anyway (orbitals-together --unpack of a .nx), so no other version's
     stay."""
     if own_dir(d, src):
         shutil.rmtree(d)

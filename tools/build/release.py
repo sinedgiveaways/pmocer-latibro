@@ -2,7 +2,7 @@
 Linux AppImage or the Windows zip. Only the runtime, its libraries and setup/ go in, never anything of the game: a dev
 folder that also holds the built game (orbitalgame.*, spirv/, the caches) packs the same release.
 
-Linux: the AppImage's AppRun keeps a copy of mkw in ${XDG_DATA_HOME:-~/.local/share}/orbitals-recomp, updated when the
+Linux: the AppImage's AppRun keeps a copy of mkw in ${XDG_DATA_HOME:-~/.local/share}/orbitals-together, updated when the
 AppImage brings a new one, links setup/ there to the mount (a new path on every start) and starts it with the bundled
 libraries first on the library path. The runtime keeps using the folder of its executable for the game the setup builds,
 its settings and caches, as in the Windows zip; the read-only mount only holds the tools. The libraries come from the
@@ -14,7 +14,7 @@ AArch64 (--target linux-aarch64): the same AppImage from build/dist/linux-aarch6
 (sysroot.py --arch aarch64), packed with this machine's appimagetool and the aarch64 type-2 runtime.
 
 Usage: uv run tools/build/release.py --target linux|linux-aarch64|windows --version 0.1.0
-       writes build/release/orbitals-recomp-<version>-x86_64.AppImage, -aarch64.AppImage or -windows-x64.zip
+       writes build/release/orbitals-together-<version>-x86_64.AppImage, -aarch64.AppImage or -windows-x64.zip
 """
 
 import argparse
@@ -53,24 +53,24 @@ APPRUN = """#!/bin/sh
 # the game the setup builds; setup/ and the libraries stay in the mount.
 set -eu
 here=$(dirname "$(readlink -f "$0")")
-home=${XDG_DATA_HOME:-$HOME/.local/share}/orbitals-recomp
+home=${XDG_DATA_HOME:-$HOME/.local/share}/orbitals-together
 mkdir -p "$home"
-if ! cmp -s "$here/orbitals-recomp" "$home/orbitals-recomp"; then
+if ! cmp -s "$here/orbitals-together" "$home/orbitals-together"; then
     # a rename, not a write over it: a mkw still running keeps its old file
-    cp "$here/orbitals-recomp" "$home/orbitals-recomp.new"
-    mv -f "$home/orbitals-recomp.new" "$home/orbitals-recomp"
+    cp "$here/orbitals-together" "$home/orbitals-together.new"
+    mv -f "$home/orbitals-together.new" "$home/orbitals-together"
 fi
 ln -sfn "$here/setup" "$home/setup"
 export LD_LIBRARY_PATH="$here/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-exec "$home/orbitals-recomp" "$@"
+exec "$home/orbitals-together" "$@"
 """
 
 DESKTOP = """[Desktop Entry]
 Type=Application
-Name=Orbitals Recomp
+Name=Orbitals Together
 Comment=Static recompilation of Orbitals; builds the game from your own copy
 Exec=AppRun
-Icon=orbitals-recomp
+Icon=orbitals-together
 Categories=Game;
 Terminal=false
 """
@@ -115,14 +115,14 @@ def check_no_game(root: Path) -> None:
 
 def licenses(dst: Path) -> None:
     dst.mkdir()
-    shutil.copy2(ROOT / "LICENSE", dst / "orbitals-recomp-LICENSE")
-    shutil.copy2(ROOT / "LICENSE-MIT", dst / "orbitals-recomp-LICENSE-MIT")  # the pre-GPL code's notice
+    shutil.copy2(ROOT / "LICENSE", dst / "orbitals-together-LICENSE")
+    shutil.copy2(ROOT / "LICENSE-MIT", dst / "orbitals-together-LICENSE-MIT")  # the pre-GPL code's notice
     for name, rel in LICENSES.items():
         shutil.copy2(sysroot.SYSROOT / rel, dst / f"{name}-copyright")
 
 
 def linux(dist: Path, version: str, arch: str = "x86_64") -> Path:
-    exe = dist / "orbitals-recomp"
+    exe = dist / "orbitals-together"
     glibc = subprocess.run(["objdump", "-T", str(exe)], capture_output=True, text=True, check=True).stdout
     newest = max((tuple(map(int, v.split("."))) for v in set(_glibc_versions(glibc))), default=(0, 0))
     if newest > (2, 31):  # built against the machine's glibc: the AppImage would need that glibc or newer
@@ -130,20 +130,20 @@ def linux(dist: Path, version: str, arch: str = "x86_64") -> Path:
     app = OUT / "AppDir"
     shutil.rmtree(app, ignore_errors=True)
     app.mkdir(parents=True)
-    shutil.copy2(exe, app / "orbitals-recomp")
+    shutil.copy2(exe, app / "orbitals-together")
     shutil.copytree(dist / "setup", app / "setup", symlinks=True)
     bundle_libs(exe, app / "lib")
     licenses(app / "licenses")
     check_no_game(app)
     (app / "AppRun").write_text(APPRUN)
     (app / "AppRun").chmod(0o755)
-    (app / "orbitals-recomp.desktop").write_text(DESKTOP)
-    subprocess.run([sys.executable, str(ROOT / "tools/build/icon.py"), str(app / "orbitals-recomp.png")], check=True)
-    (app / ".DirIcon").symlink_to("orbitals-recomp.png")
+    (app / "orbitals-together.desktop").write_text(DESKTOP)
+    subprocess.run([sys.executable, str(ROOT / "tools/build/icon.py"), str(app / "orbitals-together.png")], check=True)
+    (app / ".DirIcon").symlink_to("orbitals-together.png")
     # this machine's appimagetool packs either architecture; the runtime is the target's
     tool, runtime = fetch(*PINS["appimagetool"]), fetch(*PINS["runtime" if arch == "x86_64" else f"runtime-{arch}"])
     tool.chmod(0o755)
-    out = OUT / f"orbitals-recomp-{version}-{arch}.AppImage"
+    out = OUT / f"orbitals-together-{version}-{arch}.AppImage"
     # appimagetool is an AppImage itself: extracted and run, no FUSE in a container. Into a .part then renamed: an
     # AppImage of the same name still mounted (a test of it) made mksquashfs fail with "Text file busy" (09/11/2026).
     env = dict(os.environ, ARCH=arch, APPIMAGE_EXTRACT_AND_RUN="1")
@@ -160,20 +160,20 @@ def _glibc_versions(text: str) -> list[str]:
 
 
 def windows(dist: Path, version: str) -> Path:
-    out = OUT / f"orbitals-recomp-{version}-windows-x64.zip"
-    files = [dist / "orbitals-recomp.exe", *(dist / d for d in WIN_DLLS), *sorted((dist / "setup").rglob("*"))]
+    out = OUT / f"orbitals-together-{version}-windows-x64.zip"
+    files = [dist / "orbitals-together.exe", *(dist / d for d in WIN_DLLS), *sorted((dist / "setup").rglob("*"))]
     # Remote Play Together: Steam's steam_api64.dll goes in when tools/build/steamlib.py put it beside the exe (the
     # workflows do; a local build without it packs the same zip as before), as the earlier project's release did
     files.append(dist / "steam_api64.dll")
     check_no_game(dist / "setup")
-    top = Path("orbitals-recomp")
+    top = Path("orbitals-together")
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
         for p in files:
             if p.is_file():
                 z.write(p, top / p.relative_to(dist))
-        z.write(ROOT / "LICENSE", top / "licenses/orbitals-recomp-LICENSE")
-        z.write(ROOT / "LICENSE-MIT", top / "licenses/orbitals-recomp-LICENSE-MIT")
-        # the libraries in orbitals-recomp.exe and beside it (tools/build/windeps.py keeps each package's licence files)
+        z.write(ROOT / "LICENSE", top / "licenses/orbitals-together-LICENSE")
+        z.write(ROOT / "LICENSE-MIT", top / "licenses/orbitals-together-LICENSE-MIT")
+        # the libraries in orbitals-together.exe and beside it (tools/build/windeps.py keeps each package's licence files)
         for p in sorted((ROOT / "build/win/deps/share/licenses").rglob("*")):
             if p.is_file():
                 z.write(p, top / "licenses" / p.relative_to(ROOT / "build/win/deps/share/licenses"))

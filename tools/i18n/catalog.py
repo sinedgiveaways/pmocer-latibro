@@ -110,7 +110,7 @@ def po_path(lang: str) -> Path:
 
 
 def header_for(lang: str) -> str:
-    return f"Project-Id-Version: orbitals-recomp\\nLanguage: {lang.replace('-', '_')}\\nMIME-Version: 1.0\\n" \
+    return f"Project-Id-Version: orbitals-together\\nLanguage: {lang.replace('-', '_')}\\nMIME-Version: 1.0\\n" \
            "Content-Type: text/plain; charset=UTF-8\\nContent-Transfer-Encoding: 8bit\\n"  # fmt: skip
 
 

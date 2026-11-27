@@ -66,7 +66,7 @@ static int generated_stage(int n, const NVNshaderData *sd) {
 
 // ORBITALS_GEN_WATCH=1: who writes the generated programs. At the first one, a 32 MiB window around its code is made
 // read-only (committed read-write pages only); each later write there logs the host instruction (addr2line on
-// build/orbitals-recomp names the lifted guest function, f_7000...) and makes that page writable again.
+// build/orbitals-together names the lifted guest function, f_7000...) and makes that page writable again.
 static uint64_t gw_lo, gw_hi;
 static volatile int32_t gw_logged;
 static int gen_watch_fault(uint64_t addr, uint64_t rip) {
@@ -98,7 +98,7 @@ static void gen_watch_start(uint64_t code) {
 
 // ORBITALS_WRITE_WATCH=<addr>:<bytes> (diagnosis): who writes that guest range (the race's uniform rows holding NaN, run-race33).
 // Its pages are made read-only at every present (nvn2_write_watch_arm); the first writes to each page in a frame log the
-// address and host instruction (addr2line on build/orbitals-recomp names the lifted function) and make the page writable again.
+// address and host instruction (addr2line on build/orbitals-together names the lifted function) and make the page writable again.
 // A page the runtime also write-tracks loses that tracking while watched: for diagnosis only.
 static uint64_t ww_lo, ww_hi;
 static volatile int32_t ww_logged;

@@ -1,4 +1,4 @@
-"""Thread snapshot of a running build/orbitals-recomp: every host thread's guest call chain, with module+offset and names.
+"""Thread snapshot of a running build/orbitals-together: every host thread's guest call chain, with module+offset and names.
 
 Why: a hang shows nothing in the log. gdb's backtrace of the process lists lifted functions as f_<guest address>;
 mapped through build/bindb.sqlite they read as the game's own call chain, plus the host frame the thread sits in (a
@@ -48,7 +48,7 @@ def main() -> None:
         text = args.gdb_out.read_text(errors="replace")
     else:
         pid = args.pid or int(
-            subprocess.run(["pgrep", "-x", "orbitals-recomp"], capture_output=True, text=True, check=True).stdout.split()[0]
+            subprocess.run(["pgrep", "-x", "orbitals-together"], capture_output=True, text=True, check=True).stdout.split()[0]
         )
         text = gdb_dump(pid, args.depth)
         if args.save:

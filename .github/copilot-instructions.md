@@ -1,4 +1,4 @@
-# Instructions for GitHub Copilot (and any coding agent) on orbitals-recomp
+# Instructions for GitHub Copilot (and any coding agent) on orbitals-together
 
 You are taking over the Orbitals port. Read, in this order, before changing anything:
 
@@ -24,8 +24,8 @@ shaders are translated to SPIR-V (`sm86/`). The game runs from boot to its first
   configured, push the GitLab copy too.
 - A push builds Windows (`Build Windows`) and runs `Tests`. Give the owner the run link
   (`gh api "repos/sinedgiveaways/pmocer-latibro/actions/runs?branch=orbitals-port&per_page=6"`, `.name=="Build
-  Windows"`). Builds for the owner are named `kiro-...`: artifact `kiro-orbitals-recomp-exe` when only the runtime
-  changes, the whole `kiro-orbitals-recomp-windows-x64` package and a setup run when the translator changes.
+  Windows"`). Builds for the owner are named `kiro-...`: artifact `kiro-orbitals-together-exe` when only the runtime
+  changes, the whole `kiro-orbitals-together-windows-x64` package and a setup run when the translator changes.
 - `orbitals-frame-report.exe` (workflow `frame_report.exe`) names the game's functions on the owner's machine; the
   sandbox has no ExeFS, so `tools/analisis/q.py` does not work there (docs/workflow.md).
 
@@ -79,7 +79,7 @@ backgrounds.
 - The owner finds many runs tedious: prefer one decisive test (a dump at the moment of the defect, a diagnostic that
   answers at the next occurrence) over several blind runs. They let the agent choose between the options it proposes.
 - Delete each `analysis-data` asset once its analysis is finished, without asking.
-- The owner's game folder is `C:\Users\mco2v\Downloads\orbitals-recomp\` (`exefs\`, `romfs\`, `aoc\`, `logs\`,
+- The owner's game folder is `C:\Users\mco2v\Downloads\orbitals-together\` (`exefs\`, `romfs\`, `aoc\`, `logs\`,
   `orbitals.ini`). A key of `orbitals.ini` is an `ORBITALS_*` switch without the prefix.
 
 ## Rules that are easy to break

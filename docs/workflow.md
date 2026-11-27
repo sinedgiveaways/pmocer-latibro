@@ -24,9 +24,9 @@ GitLab only holds the code, pushed by hand: after a push to GitHub, push the sam
 
 - A push to the branch starts the Windows build and the tests (`Build Windows`, `Tests`); `gh api -X POST
   repos/sinedgiveaways/pmocer-latibro/actions/workflows/build-windows.yml/dispatches -f ref=<branch>` starts one by
-  hand. The artifact is `kiro-orbitals-recomp-windows-x64`; the run's page
+  hand. The artifact is `kiro-orbitals-together-windows-x64`; the run's page
   (`https://github.com/sinedgiveaways/pmocer-latibro/actions/runs/<id>`) is the link to give the player.
-- The player copies it over their `orbitals-recomp` folder, keeping `spirv/`, `spirv-dump/` and `aoc/`.
+- The player copies it over their `orbitals-together` folder, keeping `spirv/`, `spirv-dump/` and `aoc/`.
 - The game code (`orbitalgame.dll`) is generated and compiled on the player's machine by the setup. Its key is
   `recomp/*.py`, `runtime/cpu/*.h`, `tools/build/build.py` and `tools/prepare/gamecode.py`
   (`tools/prepare/prepare.py` `COMPILER`): a change there recompiles the game at the next start (minutes), a change
@@ -39,7 +39,7 @@ GitLab only holds the code, pushed by hand: after a push to GitHub, push the sam
 
 ## Commands on the player's side
 
-From the `orbitals-recomp` folder, in PowerShell. Paths use forward slashes: a `\n` in a pasted path (as in
+From the `orbitals-together` folder, in PowerShell. Paths use forward slashes: a `\n` in a pasted path (as in
 `prepare\nup.py`) becomes a line break, which cut every early attempt of these commands in two.
 
 | Command | What it does |

@@ -83,7 +83,7 @@ void flight_init(void) {
     const char *d = cfg_get("ORBITALS_FLIGHT_DIR");
     char tmp[PLAT_PATH_MAX];
     if (d && *d) snprintf(tmp, sizeof tmp, "%s", d);
-    else {   // <exe dir>/../flight: build/flight for build/v121*/orbitals-recomp
+    else {   // <exe dir>/../flight: build/flight for build/v121*/orbitals-together
         char *slash = plat_exe_path(tmp, sizeof tmp) ? plat_last_sep(tmp) : NULL;
         if (slash) snprintf(slash, sizeof tmp - (size_t)(slash - tmp), "/../flight");
         else snprintf(tmp, sizeof tmp, "flight");
@@ -269,7 +269,7 @@ static void dump_main(void *arg) {
         free(have), free(j);
         return;
     }
-    fprintf(f, "# orbitals-recomp flight dump: %s at frame %llu, interval %.1f ms\n", j->why, (unsigned long long)j->trig_frame,
+    fprintf(f, "# orbitals-together flight dump: %s at frame %llu, interval %.1f ms\n", j->why, (unsigned long long)j->trig_frame,
             j->trig_interval_us / 1000.0);
     fprintf(f, "frame\tt_ms\tinterval_ms");
     for (int k = 0; k < PERF_N; k++) fprintf(f, "\t%s", blocked_names[k]);

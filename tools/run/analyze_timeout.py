@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Summarize Orbitals Recomp thread state around an Unreal RenderThread timeout.
+"""Summarize Orbitals Together thread state around an Unreal RenderThread timeout.
 
 This is a read-only, standard-library analyzer for orbitals.log. It prints a compact,
 shareable text report; it never uploads or modifies the input log.

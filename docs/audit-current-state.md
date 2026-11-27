@@ -150,7 +150,7 @@ and the source of the proof in `docs/mkw-removal.md`. That's an Étape 1 proposa
 
 ## 6. Questions before Étape 1
 
-1. What is Orbitals' exact name for user-facing text and the executable: `orbitals-recomp.exe` (already used in
+1. What is Orbitals' exact name for user-facing text and the executable: `orbitals-together.exe` (already used in
    `port_windows.yml`, `launcher.cpp`, `dist.py`, `release.py` and others), `orbitals`, or `orbital` (used in README and `orbital.ini`)? The repo mixes `orbital` and
    `orbitals`. The `ORBITALS_` prefix is clear; the file names are not.
 2. Does `mkw-recomp` have to disappear from the Git history and `LICENSE`, or only from the product? (Section 3.4.)

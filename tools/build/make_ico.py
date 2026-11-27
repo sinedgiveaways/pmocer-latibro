@@ -2,7 +2,7 @@
 # requires-python = ">=3.10"
 # dependencies = ["pillow>=10"]
 # ///
-"""Makes the Windows icon of orbitals-recomp.exe from a PNG: assets/icon/orbitals_logo.png -> assets/icon/orbitals.ico.
+"""Makes the Windows icon of orbitals-together.exe from a PNG: assets/icon/orbitals_logo.png -> assets/icon/orbitals.ico.
 
 Why: the executable's icon (runtime/platform/*.rc, embedded by tools/build/build.py) is an .ico with the sizes Windows
 asks for (16, 32, 48 and 256 pixels). The source picture is not square, so a square is cut from it first (--crop) and

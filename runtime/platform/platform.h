@@ -251,7 +251,7 @@ typedef struct {
     uintptr_t rip, offset;     // the faulting instruction, and its offset in its module
     int access;                // the data access that faulted: 0 read, 1 write, 8 execute; -1 when not an access
     uint64_t addr;             // its address when access >= 0
-    const char *module;        // where rip is: "orbitals-recomp", "orbitalgame" or "no module" (offset is then rip); NULL: the exe
+    const char *module;        // where rip is: "orbitals-together", "orbitalgame" or "no module" (offset is then rip); NULL: the exe
     uintptr_t ret;             // rip in no module: the word at rsp, the caller's return address after a wild call
 } PlatCrash;
 void plat_crash_hook(void (*fn)(const PlatCrash *c));

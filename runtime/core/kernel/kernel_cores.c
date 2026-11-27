@@ -240,7 +240,7 @@ int kern_core_away(void) {
     lock();
     core_put(t);
     acct(t, S_HOST);
-    if (rt_trace & RT_TRACE_SCHED)   // the caller as an exe RVA (orbitals-recomp.map)
+    if (rt_trace & RT_TRACE_SCHED)   // the caller as an exe RVA (orbitals-together.map)
         t->wobj = (uintptr_t)__builtin_return_address(0) - plat_exe_base();
     unlock();
     return 1;

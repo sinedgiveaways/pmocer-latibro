@@ -1,5 +1,5 @@
-"""Build the game: compile the generated C (build/generated, from recomp/gen.py) and the runtime, link build/orbitals-recomp (or
-build/orbitals-recomp.exe with --target windows).
+"""Build the game: compile the generated C (build/generated, from recomp/gen.py) and the runtime, link build/orbitals-together (or
+build/orbitals-together.exe with --target windows).
 
 Why: the generated code is ~0.9 GB of C in ~355 chunks; Ninja recompiles only what changed and runs the chunks in
 parallel. Each job can take several hundred MB, so the job count comes from a memory budget, not the core count.
@@ -10,7 +10,7 @@ code's tables (runtime/core/boot/gamelib.h: module layout, function tables, the 
 game copy, patch sets); build/obj/rt/defaults.c the default game paths; build/obj/rt/i18n/ the menu texts
 of every language, from i18n/*.po (tools/i18n/catalog.py).
 
---target windows cross-compiles build/orbitals-recomp.exe from Linux with llvm-mingw and the MSYS2 UCRT64 libraries that
+--target windows cross-compiles build/orbitals-together.exe from Linux with llvm-mingw and the MSYS2 UCRT64 libraries that
 tools/build/windeps.py puts in build/win (totk-pc-recomp's --toolchain build: its LLVM_LINK_LIBS). Objects go to
 build/obj-win. The window, input, keyboard and menu are SDL3 on both systems; platform/win32.c replaces platform/linux.c.
 
@@ -78,23 +78,23 @@ class Target:
     link_flags: list[str]
     link_libs: list[str]
     vma: Path  # the directory with vk_mem_alloc.h
-    windres: str = ""  # Windows: compiles runtime/platform/orbitals-recomp.rc (the exe's manifest)
+    windres: str = ""  # Windows: compiles runtime/platform/orbitals-together.rc (the exe's manifest)
 
 
 LINUX = Target(
-    "clang", "clang++", "llvm-ar", ROOT / "build/orbitals-recomp",
+    "clang", "clang++", "llvm-ar", ROOT / "build/orbitals-together",
     ["-D_GNU_SOURCE"],
     # -no-pie: the function tables (hundreds of thousands of pointers) need no load-time relocation.
-    ["-fuse-ld=lld", "-no-pie", "-Wl,-z,noexecstack", "-Wl,-Map=$builddir/orbitals-recomp.map"],
+    ["-fuse-ld=lld", "-no-pie", "-Wl,-z,noexecstack", "-Wl,-Map=$builddir/orbitals-together.map"],
     ["-lvulkan", "-lSDL3", "-lopus", "-lvpx", "-lzstd", "-l:libstdc++.a", "-lm", "-lpthread", "-ldl"],
     ROOT / "scratchpad/vma",  # vk_mem_alloc.h 3.4.0 (AUR only on Arch); fetched as in tools/build/README.md
 )  # fmt: skip
 WINDOWS = Target(
     str(WIN / "llvm-mingw/bin/x86_64-w64-mingw32-clang"), str(WIN / "llvm-mingw/bin/x86_64-w64-mingw32-clang++"),
-    str(WIN / "llvm-mingw/bin/llvm-ar"), ROOT / "build/orbitals-recomp.exe",
+    str(WIN / "llvm-mingw/bin/llvm-ar"), ROOT / "build/orbitals-together.exe",
     [f"-I{WIN / 'deps/include'}"],
     # 16 MiB main-thread stack, as the Linux runtime; the map as on Linux.
-    [f"-L{WIN / 'deps/lib'}", "-fuse-ld=lld", "-Wl,--stack,16777216", "-Wl,--Map=$builddir/orbitals-recomp.map"],
+    [f"-L{WIN / 'deps/lib'}", "-fuse-ld=lld", "-Wl,--stack,16777216", "-Wl,--Map=$builddir/orbitals-together.map"],
     ["-lpsapi", "-lbcrypt", "-ladvapi32", "-lws2_32", "-liphlpapi", "-luser32", "-lole32", "-luuid", "-lshell32", "-lgdi32", "-ldwmapi", "-lruntimeobject", "-lwinmm", "-lvulkan-1", "-lSDL3", "-lopus",
      "-l:libvpx.a", "-l:libzstd.a", "-l:libc++.a", "-l:libc++abi.a", "-l:libunwind.a", "-l:libwinpthread.a"],
     WIN / "deps/include/vma",
@@ -238,8 +238,8 @@ RT_EXPORTS = ("rt_dispatch", "rt_sj_owner", "rt_svc", "rt_brk", "rt_udf", "rt_ti
 def ninja_file(target: Target, gen: Path, out: Path, rt_extra: list[str], dist: Path | None,
                runtime_only: bool = False, ld_extra: list[str] | None = None,
                sys_flags: list[str] | None = None) -> str:  # fmt: skip
-    """dist: the player's build into that folder, the runtime (orbitals-recomp, orbitals-recomp.exe) and the game code apart (orbitalgame.so,
-    orbitalgame.dll); else build/orbitals-recomp with the game code linked in. runtime_only (with dist): the runtime alone, what a
+    """dist: the player's build into that folder, the runtime (orbitals-together, orbitals-together.exe) and the game code apart (orbitalgame.so,
+    orbitalgame.dll); else build/orbitals-together with the game code linked in. runtime_only (with dist): the runtime alone, what a
     release ships and the CI builds, without the game's generated C."""
     inc = " ".join(f"-I{d}" for d in sorted({RUNTIME} | {p.parent for p in RUNTIME.rglob("*.h")}))
     gid = f'-DRT_GAME_ID=\\"{game_id()}\\"'
@@ -249,9 +249,9 @@ def ninja_file(target: Target, gen: Path, out: Path, rt_extra: list[str], dist: 
         link_flags += [f"-Wl,--export-dynamic-symbol={s}" for s in RT_EXPORTS]
     elif dist:  # the exports (a .def file lld reads as an input) and the import library the game code links against
         out.mkdir(parents=True, exist_ok=True)
-        (out / "orbitals-recomp.def").write_text("EXPORTS\n" + "".join(f"    {s}\n" for s in RT_EXPORTS))
+        (out / "orbitals-together.def").write_text("EXPORTS\n" + "".join(f"    {s}\n" for s in RT_EXPORTS))
         # GUI subsystem: started from Explorer or a shortcut, no console window opens (main() stays the entry)
-        link_flags += [str(out / "orbitals-recomp.def"), f"-Wl,--out-implib,{out / 'liborbitals-recomp.dll.a'}", "-Wl,--subsystem,windows"]
+        link_flags += [str(out / "orbitals-together.def"), f"-Wl,--out-implib,{out / 'liborbitals-together.dll.a'}", "-Wl,--subsystem,windows"]
     # ccache before the C compilers (ORBITALS_CCACHE=0 leaves it out): a folder move changes every runtime command's -I list
     # and a comment in runtime/cpu recompiles all the game code; ninja rebuilds both, ccache hands back the objects
     # (07/11/2026: ~12 min per step of a bisection). Not for C++: menu_look.cpp #embeds a file ccache may not track.
@@ -313,9 +313,9 @@ def ninja_file(target: Target, gen: Path, out: Path, rt_extra: list[str], dist: 
         rt_objs.append(str(obj))
         lines.append(f"build {obj}: {'rtcxx' if src.suffix == '.cpp' else 'rtcc'} {src}")
     if target.windres:  # windres writes no depfile: the manifest and the icon it embeds are listed by hand
-        rc = RUNTIME / "platform/orbitals-recomp.rc"
-        ico = out / "rt/platform/orbitals-recomp.ico"  # the name the .rc includes; the file is never committed
-        rt_objs.append(str(out / "rt/platform/orbitals-recomp_rc.o"))
+        rc = RUNTIME / "platform/orbitals-together.rc"
+        ico = out / "rt/platform/orbitals-together.ico"  # the name the .rc includes; the file is never committed
+        rt_objs.append(str(out / "rt/platform/orbitals-together_rc.o"))
         if ORBITALS_ICO.is_file():  # tools/build/make_ico.py's icon (docs/branding.md); else the one icon.py draws
             lines.append(f"build {ico}: copyico {ORBITALS_ICO}")
         else:
@@ -327,7 +327,7 @@ def ninja_file(target: Target, gen: Path, out: Path, rt_extra: list[str], dist: 
     exe = dist / target.exe.name
     tab = out / "rt/modules.o"
     if runtime_only:
-        lines.append(f"build {exe}{f' | {out}/liborbitals-recomp.dll.a' if target is WINDOWS else ''}: link {' '.join(rt_objs)}")
+        lines.append(f"build {exe}{f' | {out}/liborbitals-together.dll.a' if target is WINDOWS else ''}: link {' '.join(rt_objs)}")
         return "\n".join(lines) + "\n"
     lines.append(f"build {tab}: tabcc {out / 'rt/modules.c'}")
     if target is LINUX:
@@ -335,7 +335,7 @@ def ninja_file(target: Target, gen: Path, out: Path, rt_extra: list[str], dist: 
         lines.append(f"build {dist / 'orbitalgame.so'}: solink {tab} {' '.join(libs)}")
         lines.append("  solibs = -Wl,-z,noexecstack")
     else:
-        implib = out / "liborbitals-recomp.dll.a"
+        implib = out / "liborbitals-together.dll.a"
         lines.append(f"build {exe} | {implib}: link {' '.join(rt_objs)}")
         lines.append(f"build {dist / 'orbitalgame.dll'}: solink {tab} {' '.join(libs)} | {implib}")
         lines.append(f"  solibs = {implib}")

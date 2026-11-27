@@ -10,7 +10,7 @@ LGPL-2.1, beside it) when present. Every download is checked against its sha256;
 
 Layout:
     build/win/llvm-mingw/   the toolchain (bin/x86_64-w64-mingw32-clang)
-    build/win/deps/         include/, lib/ (import and static libraries), bin/ (the DLLs orbitals-recomp.exe loads)
+    build/win/deps/         include/, lib/ (import and static libraries), bin/ (the DLLs orbitals-together.exe loads)
 
 Usage: uv run tools/build/windeps.py [--dry-run]   (downloads cached in build/win/dl; ~250 MB unpacked; SDL needs cmake
 and ninja, ~10 s on 16 threads)
@@ -56,7 +56,7 @@ PINS = {
         MSYS2 + "mingw-w64-ucrt-x86_64-libvpx-1.17.0-1-any.pkg.tar.zst",
         "8ff6919dbb88ea26ce28d22fd81d6f0d6e200cf56a4dd81ffc2d33124fe98024",
     ),
-    "libvpx-license": (  # the package carries none; orbitals-recomp.exe links libvpx statically and the zip carries its BSD notice
+    "libvpx-license": (  # the package carries none; orbitals-together.exe links libvpx statically and the zip carries its BSD notice
         "https://raw.githubusercontent.com/webmproject/libvpx/v1.17.0/LICENSE",
         "8267348d5af1262c11d1a08de2f5afc77457755f1ac658627dd9acf71011d615",
     ),

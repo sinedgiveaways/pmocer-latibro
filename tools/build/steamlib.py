@@ -1,4 +1,4 @@
-"""Put Steam's runtime library next to orbitals-recomp, for Steam Remote Play Together (runtime/steam/, docs/remote-play.md).
+"""Put Steam's runtime library next to orbitals-together, for Steam Remote Play Together (runtime/steam/, docs/remote-play.md).
 
 Why: the runtime loads libsteam_api.so / steam_api64.dll at run time from its own folder and links nothing of Valve's,
 so neither the build nor the release carries it. This takes it from the Steamworks.NET 2025.165.0 standalone archive,
@@ -7,8 +7,8 @@ archive and the library are checked against pinned sha256s, the same ones as the
 extension's release workflow (13/11/2026: both checked by hand against a download of that archive).
 
 Usage: uv run tools/build/steamlib.py [--target linux|windows] [--dest DIR]
-       DIR: the folder holding orbitals-recomp or orbitals-recomp.exe (default build/dist/<target>). The Linux AppImage runs its copy of orbitals-recomp in
-       ~/.local/share/orbitals-recomp: pass that folder there.
+       DIR: the folder holding orbitals-together or orbitals-together.exe (default build/dist/<target>). The Linux AppImage runs its copy of orbitals-together in
+       ~/.local/share/orbitals-together: pass that folder there.
 """
 
 import argparse
@@ -35,7 +35,7 @@ LIBRARY = {
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--target", choices=tuple(LIBRARY), default="linux")
-    ap.add_argument("--dest", type=Path, help="the folder of orbitals-recomp (default build/dist/<target>)")
+    ap.add_argument("--dest", type=Path, help="the folder of orbitals-together (default build/dist/<target>)")
     args = ap.parse_args()
     dest = args.dest or ROOT / "build/dist" / args.target
     member, want = LIBRARY[args.target]

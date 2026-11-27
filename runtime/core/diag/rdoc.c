@@ -69,7 +69,7 @@ void rdoc_init(void) {
     char full[PLAT_PATH_MAX], tmpl[PLAT_PATH_MAX + 16];
     if (!plat_full_path(dir && *dir ? dir : "build/captures", full, sizeof full)) return;
     plat_file_mkdir_p(full);
-    snprintf(tmpl, sizeof tmpl, "%s/orbitals-recomp", full);
+    snprintf(tmpl, sizeof tmpl, "%s/orbitals-together", full);
     api->SetCaptureFilePathTemplate(tmpl);
     rt_log("rdoc: ready, %d frame(s), captures %s", n_targets, full);
 }

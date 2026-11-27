@@ -1,6 +1,6 @@
 // The start screen, shown before the game: Play, Settings, Game files and Quit, the game files' state at the lower left
 //. The player's build (build.py --dist) always starts here; Play starts the process again
-// with the launcher skipped (main.c), so the game claims its address space in a fresh process. build/orbitals-recomp shows it only
+// with the launcher skipped (main.c), so the game claims its address space in a fresh process. build/orbitals-together shows it only
 // with --launcher.
 //
 // Its own window and SDL_Renderer (Dear ImGui's SDL3 and SDL_Renderer back ends), not the game's Vulkan device: nothing of
@@ -240,7 +240,7 @@ static void make_shortcut(void) {
     const char *appimage = getenv("APPIMAGE");
     if (appimage && *appimage && strlen(appimage) < sizeof exe) snprintf(exe, sizeof exe, "%s", appimage);
     else if (!plat_exe_path(exe, sizeof exe)) return;
-    int ok = plat_desktop_shortcut("Orbitals Recomp", exe, L.exe_dir, made, sizeof made);
+    int ok = plat_desktop_shortcut("Orbitals Together", exe, L.exe_dir, made, sizeof made);
     snprintf(L.shortcut_note, sizeof L.shortcut_note, menu_text(ok ? UI_LAUNCH_SHORTCUT_DONE : UI_LAUNCH_SHORTCUT_FAILED),
              made);
     rt_log("launcher: desktop shortcut %s %s", ok ? "made:" : "failed", ok ? made : "");
@@ -349,7 +349,7 @@ static void page_main(float w, float h) {
         play_test = false;
         char state[PLAT_PATH_MAX + 32];
         snprintf(state, sizeof state, "%s/setup-state.json", cfg_game_dir());
-        if (mods_code_changed() && L.tools && plat_file_exists(state)) {   // a set-up folder (not build/orbitals-recomp)
+        if (mods_code_changed() && L.tools && plat_file_exists(state)) {   // a set-up folder (not build/orbitals-together)
             // a code mod changed: the game code is built again first (generate and compile), on the files page
             L.play_after_setup = 1;
             L.page = PAGE_FILES;
@@ -406,7 +406,7 @@ static void page_main(float w, float h) {
     fg->AddCircleFilled(ImVec2(left + r, y + lh * 0.5f), r, ready ? LOOK_OK : LOOK_WARN, 16);
     fg->AddText(ImVec2(left + r * 2 + 10 * s, y), ready ? LOOK_HEADING : LOOK_WARN, state);
     char ver[96];
-    snprintf(ver, sizeof ver, "Orbitals Recomp %s", rt_port_version);
+    snprintf(ver, sizeof ver, "Orbitals Together %s", rt_port_version);
     const char *note = menu_text(UI_LAUNCH_NO_GAME_DATA);
     float right = w - 56 * s;
     fg->AddText(ImVec2(right - ImGui::CalcTextSize(ver).x, y), LOOK_DIM, ver);
@@ -987,7 +987,7 @@ static bool open_window(void) {
     // minimized and without focus (tools/run/kwin-rule.sh), as gfx_window_sdl.c does for the game's window.
     const char *bg = getenv("ORBITALS_BACKGROUND_WINDOW");
     bool background = bg && *bg && strcmp(bg, "0");
-    SDL_SetHint(SDL_HINT_APP_ID, background ? "orbitals-recomp-run" : "orbitals-recomp");
+    SDL_SetHint(SDL_HINT_APP_ID, background ? "orbitals-together-run" : "orbitals-together");
     if (background) SDL_SetHint(SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN, "0");
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
         rt_log("launcher: SDL_Init failed: %s", SDL_GetError());
@@ -999,7 +999,7 @@ static bool open_window(void) {
     // Hidden until its first frame is drawn (launcher_run): shown at once, it is black while the first frame is made.
     SDL_WindowFlags f = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN |
                         (background ? SDL_WINDOW_NOT_FOCUSABLE : 0);
-    L.win = SDL_CreateWindow("Orbitals Recomp", (int)(1280 * ds), (int)(720 * ds), f);
+    L.win = SDL_CreateWindow("Orbitals Together", (int)(1280 * ds), (int)(720 * ds), f);
     if (L.win) app_icon_set(L.win);
     L.ren = L.win ? SDL_CreateRenderer(L.win, nullptr) : nullptr;
     if (!L.ren) {

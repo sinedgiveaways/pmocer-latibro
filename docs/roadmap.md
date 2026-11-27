@@ -199,7 +199,7 @@ multicoloured blocks on some surfaces (a sofa), the speckles of 1.1 above.
 The blocks are in the G-buffer already (base colour and normals), so a material texture is read wrong. Nearly every
 BC material texture of the base pass is GPU-owned, and `ORBITALS_TRACE_STALE=1` (logs26, `b978be8`) listed 262
 sampled textures whose storage the CPU rewrote after the GPU wrote them: BC mip chains (NVN formats 0x45 to 0x50, 8
-to 12 levels) written by one copy (`build/orbitals-recomp+0xd821f`), the storage rewritten from its start. Mask `0fff`
+to 12 levels) written by one copy (`build/orbitals-together+0xd821f`), the storage rewritten from its start. Mask `0fff`
 of a 2048x2048 BC1 is exactly its level 0 (0x200000 of 0x2ab400 bytes): Unreal's mip streaming copies the old mips on
 the GPU and writes the new large mip with the CPU, which the runtime dropped for a GPU-owned texture. Fixed in
 `vk_tex_upload.c merge_cpu_writes` (`93b106b`): the sofa, the tree and the props were clean in logs27. But that first
@@ -358,7 +358,7 @@ Cette section fait foi sur les conclusions les plus récentes et corrige les hyp
 ### 6.6 Shaders traduits au setup (25/11/2026)
 
 - Les programmes d'Orbitals sont lus dans les bibliothèques de shaders Unreal (`Orbitals-Switch2.utoc/.ucas`) par
-  `tools/shaders/iostore.py`; les groupes, compressés en Oodle par Unreal, sont décodés par `orbitals-recomp
+  `tools/shaders/iostore.py`; les groupes, compressés en Oodle par Unreal, sont décodés par `orbitals-together
   --oodle-batch` (ooz, GPL-3.0-or-later, `runtime/third_party/ooz`). 23 432 programmes, dont les 820 clés relevées dans
   `pipeline-keys.bin` d'une partie. L'étape `shaders` du setup les traduit tous avant le premier lancement.
 - À vérifier sur la machine du joueur: durée de la traduction, nombre d'échecs (`spirv/failed.tsv`), et l'effet sur

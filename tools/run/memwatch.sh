@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Every 5 s while build/orbitals-recomp runs: its RSS, anonymous and swapped memory (MiB), amdgpu GTT and VRAM in use (MiB) and the
+# Every 5 s while build/orbitals-together runs: its RSS, anonymous and swapped memory (MiB), amdgpu GTT and VRAM in use (MiB) and the
 # machine's MemAvailable. Usage: memwatch.sh OUT.tsv
 set -euo pipefail
 out=$1; dev=/sys/class/drm/card1/device

@@ -1,7 +1,7 @@
 # runtime/gfx/cap
 
 Frame capture and its replay without the game: what the Vulkan back end receives over a few frames (game memory,
-pools, mappings, registered textures and samplers, submits and presents) goes to a file, and `build/orbitals-recomp --replay DIR`
+pools, mappings, registered textures and samplers, submits and presents) goes to a file, and `build/orbitals-together --replay DIR`
 hands it to the back end again in seconds.
 
 | File | What it is |

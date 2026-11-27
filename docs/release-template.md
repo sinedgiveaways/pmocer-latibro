@@ -11,9 +11,9 @@
 ## Install
 
 - Linux x86-64, glibc 2.31 or newer (Debian 11, Ubuntu 20.04, SteamOS and later): `chmod +x` the AppImage and run it.
-  The game it builds lives in `~/.local/share/orbitals-recomp`. On 64-bit ARM (ARMv8.2: Snapdragon 8 Gen 1 and newer), the
+  The game it builds lives in `~/.local/share/orbitals-together`. On 64-bit ARM (ARMv8.2: Snapdragon 8 Gen 1 and newer), the
   `-aarch64.AppImage`.
-- Windows 10/11 x64: unpack the zip into a folder and run `orbitals-recomp.exe`.
+- Windows 10/11 x64: unpack the zip into a folder and run `orbitals-together.exe`.
 - Either: a Vulkan 1.3 GPU and about 30 GB free. Open **Game files**, point it at your own dump of Orbitals
   with its update (one `.nup` file, or its `exefs/` and `romfs/`) and press **Prepare**. Nothing of the game ships here: the setup builds it on your
   machine and downloads NVIDIA's `nvdisasm` and `ptxas` (pinned by sha256; 84 MB on Linux, 126 MB on Windows) to
@@ -33,4 +33,4 @@ skipped).
 ## Reporting a problem
 
 Open an issue with the bug form and attach the logs: `logs/orbitals.log` (the game and the start screen) and
-`logs/setup.log` (the setup's tools), in `~/.local/share/orbitals-recomp` on Linux and next to `orbitals-recomp.exe` on Windows.
+`logs/setup.log` (the setup's tools), in `~/.local/share/orbitals-together` on Linux and next to `orbitals-together.exe` on Windows.

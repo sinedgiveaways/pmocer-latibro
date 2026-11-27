@@ -5,6 +5,23 @@ updating, known issues, reporting) for the GitHub release. A section is headed `
 summary paragraph, `### Changes`, `### Tested` (what was run before publishing) and optionally `### Known issues`.
 The releases of the project this one was forked from (0.1.0 to 0.1.12) are in git history, not here.
 
+## [0.1.0] - 2026-11-27
+
+First release of Orbitals Together, the new name of `orbitals-recomp`. Orbitals runs from boot to its levels in split
+screen at 30 fps, and the game's Online Play opens Steam's Remote Play Together invite list so a friend can join the
+local mode for 2.
+
+### Changes
+
+- The program is `orbitals-together.exe` (was `orbitals-recomp.exe`), the window, the start screen, the version
+  resource and the package say "Orbitals Together". `orbitals.ini`, `ORBITALS_*` and the folders are unchanged.
+- The game's Online Play ("Partie en ligne") opens the Remote Play Together invite list (`nifm::HandleNetworkRequestErrorResult`).
+- Fixed in game: flickering, stripes on the asteroid after a return to the menu, the blue disc and the grey lines.
+
+### Tested
+
+- Played with a friend over Remote Play Together (27/11/2026), build `d116ac3` before the rename.
+
 ## [0.2.0] - 2026-11-16
 
 First Orbitals release. `orbitals-recomp` recompiles Orbitals (Nintendo Switch 2) from your own dump; it no longer

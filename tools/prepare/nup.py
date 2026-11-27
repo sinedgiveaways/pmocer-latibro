@@ -276,7 +276,7 @@ def main() -> None:
     sub.add_parser("list").add_argument("nup", type=Path)
     ad = sub.add_parser("addons")
     ad.add_argument("nup", type=Path)
-    ad.add_argument("game", type=Path, help="the game folder (orbitals-recomp): GAME/aoc/<index>/")
+    ad.add_argument("game", type=Path, help="the game folder (orbitals-together): GAME/aoc/<index>/")
     ex = sub.add_parser("extract")
     ex.add_argument("nup", type=Path)
     ex.add_argument("out", type=Path)

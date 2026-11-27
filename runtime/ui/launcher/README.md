@@ -10,7 +10,7 @@ shows this platform-specific limit. Unsupported stored paths fall back to the la
 
 | File | What it is |
 |---|---|
-| `launcher.cpp`, `launcher.h` | Start screen before the game (a column on the left: the port's logo and the title, Play, the profile that plays, then Settings, Game files, Mods, Desktop shortcut and Quit; the game files' state at the lower left, the version at the lower right) in its own window with SDL_Renderer; always in the player's build, with `--launcher` in `build/orbitals-recomp`. Test: `ORBITALS_LAUNCHER_SHOT=<frame>[:<page>[:<tab>]]` |
+| `launcher.cpp`, `launcher.h` | Start screen before the game (a column on the left: the port's logo and the title, Play, the profile that plays, then Settings, Game files, Mods, Desktop shortcut and Quit; the game files' state at the lower left, the version at the lower right) in its own window with SDL_Renderer; always in the player's build, with `--launcher` in `build/orbitals-together`. Test: `ORBITALS_LAUNCHER_SHOT=<frame>[:<page>[:<tab>]]` |
 | `launcher_backdrop.cpp`, `launcher_backdrop.h` | The start screen's background: the player's `splash.png` scaled to cover, over the whole main page, else the port's logo flag drawn large and waving, in the page's dark tones (no art of the game ships) |
 | `launcher_logo.cpp`, `launcher_logo.h` | The port's logo drawn with ImGui, the main page's intro (its elements fade and rise in one after the other) and the fade of a page coming in |
 | `launcher_look.cpp`, `launcher_look.h` | The start screen's own look: its palette (dark blue-grey, the logo's blue for the main action), its ImGui style and the colours it gives the settings rows; the in-game menu keeps `menu_look` |

@@ -1,4 +1,4 @@
-# orbitals-recomp.exe for Windows, built on every push and pull request to orbitals-port (or by hand) so it can be downloaded from the
+# orbitals-together.exe for Windows, built on every push and pull request to orbitals-port (or by hand) so it can be downloaded from the
 # run's Artifacts and tried on a Windows machine. Same build as port_windows.yml: the Windows executable is
 # cross-compiled from Linux with llvm-mingw and Ninja (tools/build/build.py --target windows), not with MSVC or CMake.
 # Nothing of any game goes in. The icon's source picture is not in the repository: it is fetched here, checked by
@@ -61,26 +61,26 @@ jobs:
       - name: Steam's steam_api64.dll for Remote Play Together (pinned sha256, docs/remote-play.md)
         run: uv run tools/build/steamlib.py --target windows
       - name: Zip
-        run: uv run tools/build/release.py --target windows --version "0.2.0-${GITHUB_SHA::7}"
-      - name: orbitals-recomp.exe out of the zip
+        run: uv run tools/build/release.py --target windows --version "0.1.0-${GITHUB_SHA::7}"
+      - name: orbitals-together.exe out of the zip
         run: |
           mkdir -p build/exe
           python - <<'EOF'
           import glob, zipfile
           z = zipfile.ZipFile(glob.glob("build/release/*windows-x64.zip")[0])
-          name = next(n for n in z.namelist() if n.endswith("/orbitals-recomp.exe"))
+          name = next(n for n in z.namelist() if n.endswith("/orbitals-together.exe"))
           print("steam_api64.dll in the zip:", any(n.endswith("/steam_api64.dll") for n in z.namelist()))
-          open("build/exe/orbitals-recomp.exe", "wb").write(z.read(name))
+          open("build/exe/orbitals-together.exe", "wb").write(z.read(name))
           print("extracted", name)
           EOF
       - name: Old names in the executable (fails the build) and in the package (report)
         run: |
-          python tools/build/check_names.py build/exe/orbitals-recomp.exe --strict --limit 20
+          python tools/build/check_names.py build/exe/orbitals-together.exe --strict --limit 20
           python tools/build/check_names.py build/dist/windows
           python - <<'EOF'
           # each old name, counted in UTF-8 and UTF-16LE; then the version resource, as UTF-16 text
           import re
-          d = open("build/exe/orbitals-recomp.exe", "rb").read()
+          d = open("build/exe/orbitals-together.exe", "rb").read()
           for name in ("MKW_", "Mario Kart", "MarioKart", "mkw-recomp", "adriadam10", "ORBITALS_"):
               n8 = len(re.findall(re.escape(name.encode()), d, re.I))
               n16 = len(re.findall(re.escape(name.encode("utf-16le")), d, re.I))
@@ -98,11 +98,11 @@ jobs:
           EOF
       - uses: actions/upload-artifact@v4
         with:
-          name: kiro-orbitals-recomp-exe
-          path: build/exe/orbitals-recomp.exe
+          name: kiro-orbitals-together-exe
+          path: build/exe/orbitals-together.exe
           retention-days: 14
       - uses: actions/upload-artifact@v4
         with:
-          name: kiro-orbitals-recomp-windows-x64
+          name: kiro-orbitals-together-windows-x64
           path: build/release/*.zip
           retention-days: 14

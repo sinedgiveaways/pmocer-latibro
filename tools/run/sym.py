@@ -1,6 +1,6 @@
-"""Names the host addresses of build/orbitals-recomp that a run's log prints (exe+0x..., mkw+0x..., build/orbitals-recomp+0x..., 0x...).
+"""Names the host addresses of build/orbitals-together that a run's log prints (exe+0x..., mkw+0x..., build/orbitals-together+0x..., 0x...).
 
-Why: build/orbitals-recomp is not position independent and loads at 0x200000, and the log gives offsets from that base; the
+Why: build/orbitals-together is not position independent and loads at 0x200000, and the log gives offsets from that base; the
 sessions to 01/11/2026 named addresses by hand 29 times, adding (or forgetting) the base. A lifted function f_<addr>
 is also named in the guest (main+0x... and its symbol) through tools/analisis/q.py.
 
@@ -14,9 +14,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-EXE = ROOT / "build/orbitals-recomp"
-BASE = 0x200000  # first PT_LOAD of build/orbitals-recomp (readelf -l)
-TOKEN = re.compile(r"\b(?:(exe|build/orbitals-recomp|mkw)\+)?(0x[0-9a-f]+)\b")
+EXE = ROOT / "build/orbitals-together"
+BASE = 0x200000  # first PT_LOAD of build/orbitals-together (readelf -l)
+TOKEN = re.compile(r"\b(?:(exe|build/orbitals-together|mkw)\+)?(0x[0-9a-f]+)\b")
 
 
 def addresses(text: str, bare: bool) -> list[tuple[str, int]]:

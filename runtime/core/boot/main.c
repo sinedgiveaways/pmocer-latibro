@@ -144,7 +144,7 @@ static void log_open(int game) {
     // the port's version as git describe gave it at build time (tools/build/build.py port_version): "-dirty" or a
     // commit no release has tells a report from a build with local changes (#88 on 11/11/2026: a log line of a
     // transcoder that is in no commit)
-    rt_log("log: %s (Orbitals Recomp %s)", g_log_path, rt_port_version);
+    rt_log("log: %s (Orbitals Together %s)", g_log_path, rt_port_version);
 }
 
 static void parse_trace(void) {
@@ -254,7 +254,7 @@ static void crash_handler(const PlatCrash *x) {
     if (plat_xchg32(&busy, 1)) plat_exit(71);
     char d[160];
     uintptr_t rip = x->rip;
-    rt_logf("FATAL: %s (%#x) at host %p (%s+%#llx)", x->what, x->code, (void *)rip, x->module ? x->module : "orbitals-recomp",
+    rt_logf("FATAL: %s (%#x) at host %p (%s+%#llx)", x->what, x->code, (void *)rip, x->module ? x->module : "orbitals-together",
             (unsigned long long)x->offset);
     rt_tpidr_trace_dump();
 #ifdef _WIN32
@@ -611,10 +611,10 @@ static void portable_paths(RtConfig *c) {
 }
 
 // The start screen (ui/launcher/launcher.cpp) comes first in the player's build (no linked game code) on a plain start, and in
-// build/orbitals-recomp with --launcher. --play, ORBITALS_NO_LAUNCHER=1 or any other mode skip it; Play runs the process again with
+// build/orbitals-together with --launcher. --play, ORBITALS_NO_LAUNCHER=1 or any other mode skip it; Play runs the process again with
 // ORBITALS_LAUNCHED=1, so the game claims its address space in a fresh process (and on Windows the window's libraries are
 // gone).
-// Steam launch options `"...\\orbitals-recomp.exe" %command%` on a Steam game (docs/remote-play.md: RetroArch's, the App ID of
+// Steam launch options `"...\\orbitals-together.exe" %command%` on a Steam game (docs/remote-play.md: RetroArch's, the App ID of
 // Remote Play Together) start mkw as that game, with its overlay and Steam Input, and append the game's own program:
 // with SteamAppId set (Steam started us), an argument that is not an option and names an existing file is that
 // program, and is skipped.

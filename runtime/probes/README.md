@@ -1,6 +1,6 @@
 # runtime/probes
 
-Self-tests of each subsystem, one command-line option each (`build/orbitals-recomp --probe-…`). They come from totk-pc-recomp
+Self-tests of each subsystem, one command-line option each (`build/orbitals-together --probe-…`). They come from totk-pc-recomp
 except `texpre_probe.c` and `fg_probe.c`.
 
 | File | Option | What it checks |

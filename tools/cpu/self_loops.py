@@ -1,10 +1,10 @@
-"""Count the jumps to themselves in build/orbitals-recomp against the guest's own `b .` loops in the generated C, per function.
+"""Count the jumps to themselves in build/orbitals-together against the guest's own `b .` loops in the generated C, per function.
 
 Why: a host `jmp` to itself hangs the thread that reaches it. Most come straight from guest code that loops on
 itself (`b .` after a call that never returns, or on a path that must not happen); the ones a function has beyond its
 guest loops are clang's (a spin wait whose load it hoisted, undefined behaviour) and need a look.
 
-Usage: uv run tools/cpu/self_loops.py [--bin build/orbitals-recomp] [--gen build/generated]   (~2 min: objdump of the binary)
+Usage: uv run tools/cpu/self_loops.py [--bin build/orbitals-together] [--gen build/generated]   (~2 min: objdump of the binary)
 Prints both totals and every function with more host self-jumps than guest self-loops.
 """
 
@@ -50,7 +50,7 @@ def guest_counts(gen: Path) -> Counter:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--bin", type=Path, default=ROOT / "build/orbitals-recomp")
+    ap.add_argument("--bin", type=Path, default=ROOT / "build/orbitals-together")
     ap.add_argument("--gen", type=Path, default=ROOT / "build/generated")
     args = ap.parse_args()
     host, guest = host_counts(args.bin), guest_counts(args.gen)

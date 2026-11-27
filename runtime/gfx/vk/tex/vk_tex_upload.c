@@ -467,7 +467,7 @@ void stale_note(Tex *e) {
     e->stale_noted++;
     plat_inc32(&n_logged);
     rt_log("vk: frame %llu: stale GPU-owned texture %#llx %ux%ux%u fmt %#x levels %u layers %u, %llu bytes%s: CPU pages "
-           "per level%s; uploads %u, gpu_dirty %d, GPU writer build/orbitals-recomp+%#llx, wt %u",
+           "per level%s; uploads %u, gpu_dirty %d, GPU writer build/orbitals-together+%#llx, wt %u",
            (unsigned long long)__atomic_load_n(&gfx_counters.frames, __ATOMIC_RELAXED), (unsigned long long)e->pub.addr,
            d->width, d->height, d->depth, d->format, e->pub.levels, e->pub.layers, (unsigned long long)e->t.L.size,
            partial ? ", PARTIAL" : "", lvs, e->n_up, e->gpu_dirty, (unsigned long long)e->gpu_caller, e->wt_n);

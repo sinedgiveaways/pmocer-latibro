@@ -8,8 +8,8 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 cap=${1:?usage: replay.sh CAPTURE_DIR [NAME]} name=${2:-t}
 out=$cap/$name
-if [ -n "$(find runtime -newer build/orbitals-recomp \( -name '*.c' -o -name '*.h' -o -name '*.cpp' \) -print -quit)" ]; then
-  echo "${0##*/}: runtime/ is newer than build/orbitals-recomp: build first" >&2; exit 1
+if [ -n "$(find runtime -newer build/orbitals-together \( -name '*.c' -o -name '*.h' -o -name '*.cpp' \) -print -quit)" ]; then
+  echo "${0##*/}: runtime/ is newer than build/orbitals-together: build first" >&2; exit 1
 fi
 # Each replay holds the whole capture and its GPU memory (UMA: system RAM): ~8.2 GB at peak, serial or in chunks since
 # released textures go with the parts sent (pt-ser/pt-par, 07/11/2026; before, chunked runs reached ~12 GB and one
@@ -24,7 +24,7 @@ status=0
 for mode in ${MODES:-serial par}; do
   par=0; [ "$mode" = par ] && par=1
   if ! JOB_MEM=${JOB_MEM:-12G} ORBITALS_REPLAY_PAR=$par tools/run/job.sh run "replay-$mode" \
-      build/orbitals-recomp --replay "$cap" --out "$out/$mode" --tag f > "$out/$mode.log" 2>&1; then
+      build/orbitals-together --replay "$cap" --out "$out/$mode" --tag f > "$out/$mode.log" 2>&1; then
     echo "$mode: FAILED ($out/$mode.log)"; grep -E "FATAL|fatal|validation" "$out/$mode.log" | head -5; status=1
   fi
   grep -E "^replay:|replay in chunks:" "$out/$mode.log" | cut -c1-260 || true
@@ -42,7 +42,7 @@ fi
 # of them only (the red frame: 1 of 60 race frames, img-par3).
 for i in $(seq 1 "${REPEAT:-0}"); do
   JOB_MEM=${JOB_MEM:-12G} ORBITALS_REPLAY_PAR=1 tools/run/job.sh run "replay-par$i" \
-    build/orbitals-recomp --replay "$cap" --out "$out/par$i" --tag f > "$out/par$i.log" 2>&1 || { echo "par$i: FAILED"; status=1; }
+    build/orbitals-together --replay "$cap" --out "$out/par$i" --tag f > "$out/par$i.log" 2>&1 || { echo "par$i: FAILED"; status=1; }
   echo "== serial against par$i: $(uv run tools/imagen/dircmp.py "$out/serial" "$out/par$i" --worst 1 | grep median)"
 done
 exit $status

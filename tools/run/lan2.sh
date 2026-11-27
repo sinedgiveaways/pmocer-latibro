@@ -19,7 +19,7 @@ if [ "${1:-}" = --inner ]; then   # in the user namespace and network namespace 
   # B: its own network namespace; it says when it is inside, then waits for its link before starting the game
   unshare -n bash -c 'ip link set lo up; touch "$1-b.ns"; while [ ! -e "$1-b.go" ]; do sleep 0.1; done
     exec env ORBITALS_CTL="$PWD/$1-b.ctl" ORBITALS_LAN_IP=10.77.0.2 ORBITALS_PROFILE_DIR="$PWD/build/profile-b" \
-      timeout -s KILL "$2" build/orbitals-recomp > "$1-b.log" 2>&1' _ "$r" "$secs" &
+      timeout -s KILL "$2" build/orbitals-together > "$1-b.log" 2>&1' _ "$r" "$secs" &
   b=$!
   while [ ! -e "$r-b.ns" ]; do sleep 0.05; done
   ip link add vA type veth peer name vB netns "$b"
@@ -27,17 +27,17 @@ if [ "${1:-}" = --inner ]; then   # in the user namespace and network namespace 
   ip link set vA up
   nsenter -t "$b" -n --preserve-credentials sh -c 'ip addr add 10.77.0.2/'"$p"' dev vB && ip link set vB up'
   touch "$r-b.go"
-  ORBITALS_CTL=$PWD/$r-a.ctl ORBITALS_LAN_IP=10.77.0.1 timeout -s KILL "$secs" build/orbitals-recomp > "$r-a.log" 2>&1 &
+  ORBITALS_CTL=$PWD/$r-a.ctl ORBITALS_LAN_IP=10.77.0.1 timeout -s KILL "$secs" build/orbitals-together > "$r-a.log" 2>&1 &
   wait
   exit 0
 fi
 
 n=${1:?usage: lan2.sh NAME [SECONDS]} secs=${2:-900}
 . tools/run/why.sh "$n"
-if [ -n "$(find runtime -newer build/orbitals-recomp \( -name '*.c' -o -name '*.h' -o -name '*.cpp' \) -print -quit)" ]; then
-  echo "lan2: runtime/ is newer than build/orbitals-recomp: build first (tools/build/build.py)" >&2; exit 1
+if [ -n "$(find runtime -newer build/orbitals-together \( -name '*.c' -o -name '*.h' -o -name '*.cpp' \) -print -quit)" ]; then
+  echo "lan2: runtime/ is newer than build/orbitals-together: build first (tools/build/build.py)" >&2; exit 1
 fi
-if pgrep -x mkw >/dev/null; then echo "lan2: a build/orbitals-recomp is already running" >&2; exit 1; fi
+if pgrep -x mkw >/dev/null; then echo "lan2: a build/orbitals-together is already running" >&2; exit 1; fi
 tools/run/gpu_ok.sh || exit 1
 # two runs: twice the floor of 8500 MB a single run needs
 need=${MIN_AVAIL:-17000}

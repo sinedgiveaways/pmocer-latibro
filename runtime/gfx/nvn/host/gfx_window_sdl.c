@@ -216,7 +216,7 @@ static void window_main(void *arg) {
     // compositor rule can keep them from taking the focus without touching the player's window (KWin ignores
     // NOT_FOCUSABLE on a new window: tools/run/kwin-rule.sh).
     const char *bg = cfg_get("ORBITALS_BACKGROUND_WINDOW");
-    SDL_SetHint(SDL_HINT_APP_ID, bg && strcmp(bg, "0") ? "orbitals-recomp-run" : "orbitals-recomp");
+    SDL_SetHint(SDL_HINT_APP_ID, bg && strcmp(bg, "0") ? "orbitals-together-run" : "orbitals-together");
     SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "0");
     g_video_ok = SDL_Init(SDL_INIT_VIDEO);
     if (!g_video_ok) rt_log("gfx: SDL video init failed (%s)", SDL_GetError());
@@ -282,7 +282,7 @@ static void open_window(void *arg) {
     const char *bg = cfg_get("ORBITALS_BACKGROUND_WINDOW");
     int background = bg && strcmp(bg, "0"), hidden = bg && !strcmp(bg, "hidden");
     if (background) SDL_SetHint(SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN, "0");
-    g_win = SDL_CreateWindow("Orbitals Recomp", w, h,
+    g_win = SDL_CreateWindow("Orbitals Together", w, h,
                              SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY |
                                  (background ? SDL_WINDOW_NOT_FOCUSABLE : 0) | (hidden ? SDL_WINDOW_HIDDEN : 0));
     if (!g_win) {

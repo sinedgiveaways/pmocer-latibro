@@ -35,7 +35,7 @@ Send the `.md` file. Say which version made it (it is in the file name and the f
 diagnosis use `ORBITALS_TRACE=host` (the "host call" lines, which give the NVN call sites the report lists):
 
 ```powershell
-$env:ORBITALS_TRACE = "host"; .\orbitals-recomp.exe
+$env:ORBITALS_TRACE = "host"; .\orbitals-together.exe
 ```
 
 The log is `logs\orbitals.log` next to the program. `crit.bin` (`ORBITALS_CRIT`, `tools/run/crit_path.py`) is **not** read

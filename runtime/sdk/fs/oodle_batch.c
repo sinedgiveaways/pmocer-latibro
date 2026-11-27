@@ -1,4 +1,4 @@
-// orbitals-recomp --oodle-batch IN OUT: Oodle streams (Kraken, Mermaid, Selkie, Leviathan) decompressed in a batch with
+// orbitals-together --oodle-batch IN OUT: Oodle streams (Kraken, Mermaid, Selkie, Leviathan) decompressed in a batch with
 // ooz (third_party/ooz). Why: Unreal's IoStore compresses most of Orbitals' containers with Oodle, shader code
 // included, and the setup's Python tools (tools/shaders/iostore.py) cannot decode it; this is the same executable the
 // player already has, so the setup needs no extra program and no proprietary library. One process for thousands of
@@ -31,7 +31,7 @@ static int wr32(FILE *f, int32_t v) {
 
 int oodle_batch_main(int argc, char **argv) {
     if (argc != 2) {
-        fprintf(stderr, "usage: orbitals-recomp --oodle-batch IN OUT\n");
+        fprintf(stderr, "usage: orbitals-together --oodle-batch IN OUT\n");
         return 2;
     }
     FILE *in = fopen(argv[0], "rb"), *out = fopen(argv[1], "wb");

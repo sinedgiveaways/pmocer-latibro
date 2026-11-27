@@ -123,9 +123,9 @@ def test_clean_removes_old(tmp_path: Path, name: str) -> None:
     (game / "update").mkdir(parents=True)
     old = game / name
     old.mkdir() if name == "setup.old" else old.write_text("x")
-    (game / "orbitals-recomp.exe").write_text("keep")
+    (game / "orbitals-together.exe").write_text("keep")
     update.clean(type("A", (), {"game": game})())
-    assert not old.exists() and not (game / "update").exists() and (game / "orbitals-recomp.exe").exists()
+    assert not old.exists() and not (game / "update").exists() and (game / "orbitals-together.exe").exists()
 
 
 def test_package_sources_import(tmp_path: Path) -> None:
@@ -172,7 +172,7 @@ def test_warm_uses_launcher_with_selected_installation(tmp_path: Path, monkeypat
     monkeypatch.setattr(prepare, "WARM_SECONDS", 0)
     prepare.warm(game, game / "setup-work", runtime)
     argv, kwargs = calls[0]
-    assert argv == [str(runtime / ("orbitals-recomp.exe" if os.name == "nt" else "orbitals-recomp"))]
+    assert argv == [str(runtime / ("orbitals-together.exe" if os.name == "nt" else "orbitals-together"))]
     assert kwargs["env"]["ORBITALS_GAME_DIR"] == str(game)
     assert kwargs["env"]["ORBITALS_PROFILE_DIR"] == str(game / "setup-work/warm-profile")
 
@@ -214,7 +214,7 @@ def test_setup_preserves_short_alias_for_warmup(tmp_path: Path, monkeypatch: pyt
         if sys.stderr is not original_stderr:
             sys.stderr.close()
     argv, kwargs = calls[0]
-    assert argv == [str(runtime / "orbitals-recomp")]
+    assert argv == [str(runtime / "orbitals-together")]
     assert kwargs["env"]["ORBITALS_GAME_DIR"] == str(alias)
     assert kwargs["env"]["ORBITALS_PROFILE_DIR"] == str(alias / "setup-work/warm-profile")
 
@@ -262,7 +262,7 @@ def test_unpack_uses_launcher_not_installation(tmp_path: Path, monkeypatch: pyte
     monkeypatch.setattr(gamesource.subprocess, "Popen", start)
     package = tmp_path / "Dump ñ.nx"
     assert gamesource.unpack(runtime, package, game, "exefs") == "unpack: 1 files, 64 bytes"
-    assert calls == [[str(runtime / ("orbitals-recomp.exe" if os.name == "nt" else "orbitals-recomp")),
+    assert calls == [[str(runtime / ("orbitals-together.exe" if os.name == "nt" else "orbitals-together")),
                       "--unpack", str(package), str(game), "exefs"]]
 
 

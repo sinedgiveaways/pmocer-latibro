@@ -789,7 +789,7 @@ out:
 }
 
 // The window at boot, black until the game's first image: a first frame that waits for its pipelines left players with
-// no window at all, only orbitals-recomp.exe in the Task Manager (issue #36). Not with ORBITALS_GPU=null.
+// no window at all, only orbitals-together.exe in the Task Manager (issue #36). Not with ORBITALS_GPU=null.
 void gfx_window_early(void) {
     const char *gpu = cfg_get("ORBITALS_GPU");
     if (gpu && !strcmp(gpu, "null")) return;

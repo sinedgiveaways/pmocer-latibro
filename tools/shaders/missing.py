@@ -5,7 +5,7 @@ Why: in Orbitals' first level every draw that places its objects from Unreal's G
 addressed from c3) loses all its triangles to clipping, with or without the VRAM mirror (17-18/11/2026). Those
 buffers are filled by compute dispatches; one of them missing would leave the scene zero.
 
-Usage (from the folder that holds orbitals-recomp.exe and setup\\; forward slashes):
+Usage (from the folder that holds orbitals-together.exe and setup\\; forward slashes):
     setup\\python\\python.exe setup/src/tools/shaders/missing.py [--dumped spirv-dump] [--spirv spirv] [--log logs/orbitals.log]
 --log also marks the programs that run looked up and found missing ("no prepared SPIR-V").
 """

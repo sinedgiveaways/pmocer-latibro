@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run build/orbitals-recomp under perf record (user space, flat) for up to $2 s (default 120) with the GPU memory cap; then the
+# Run build/orbitals-together under perf record (user space, flat) for up to $2 s (default 120) with the GPU memory cap; then the
 # 40 hottest symbols of the boot. Usage: run_perf.sh NAME [SECONDS]; WORLD_SECS (default 30): the game's own --seconds
 # limit, world clock. ORBITALS_RUN_BIN: another executable (a player folder's mkw, to compare its orbitalgame.so).
 set -euo pipefail
@@ -28,7 +28,7 @@ export ORBITALS_CTL=${ORBITALS_CTL:-$PWD/build/run/$n.ctl}
 export ORBITALS_BACKGROUND_WINDOW=${ORBITALS_BACKGROUND_WINDOW:-1} ORBITALS_ASSUME_FOCUS=${ORBITALS_ASSUME_FOCUS:-1}
 tools/run/kwin-rule.sh --ensure >/dev/null   # the rule that keeps that window minimized and without focus
 ORBITALS_FLIGHT_DIR=${ORBITALS_FLIGHT_DIR:-$PWD/scratchpad/flight${n#run}} ORBITALS_GPU_MEM_LIMIT=${ORBITALS_GPU_MEM_LIMIT:-4096} ORBITALS_SPIRV_DUMP=$PWD/scratchpad/missing-$n ORBITALS_TRACE=${ORBITALS_TRACE:-gfx,present} JOB_MEM=${JOB_MEM:-7G} \
-  tools/run/job.sh run "$n" perf record ${PERF_ARGS:-} -F 499 -o "scratchpad/$n.perf" -- timeout -s KILL "$secs" "${ORBITALS_RUN_BIN:-build/orbitals-recomp}" --seconds "${WORLD_SECS:-30}" \
+  tools/run/job.sh run "$n" perf record ${PERF_ARGS:-} -F 499 -o "scratchpad/$n.perf" -- timeout -s KILL "$secs" "${ORBITALS_RUN_BIN:-build/orbitals-together}" --seconds "${WORLD_SECS:-30}" \
   > "$log" 2>&1 || true
 echo "nvn functions $(grep -c 'first call' "$log"), presents $(grep -c 'QueuePresentTexture' "$log"), last frame $(grep -o 'vk_exec: frame [0-9]*' "$log" | tail -1)"
 grep -n 'FATAL\|fatal signal' "$log" | head -3 || true

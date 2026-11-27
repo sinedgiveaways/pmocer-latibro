@@ -8,7 +8,7 @@
 //   one after the other), zstd-compressed, and goes to the image as is.
 // - Otherwise the upload goes on through the GPU encoder, and a writer thread stores the storage with its descriptor and
 //   regions in <dir>/src/<hash>.astc.zst (ORBITALS_TEXPRE_RECORD=0: not).
-// - build/orbitals-recomp --texpre encodes every src file into its .bc7.zst on all cores, with the runtime's own deswizzle and ASTC
+// - build/orbitals-together --texpre encodes every src file into its .bc7.zst on all cores, with the runtime's own deswizzle and ASTC
 //   decoder (bit-exact with the GPU decoder: --probe-astc), and deletes the src file; a .bc7.zst of one frame (written
 //   before CHUNK) is split into frames.
 // ORBITALS_TEXPRE=1 (directory <exe dir>/texpre) or =<dir>; off by default: in the menus up to frame 1400 the uploads took
@@ -207,7 +207,7 @@ void vk_texpre_record(uint64_t h, const nvn_texdesc *d, const VkTexpreRegion *rg
     if (!plat_thread_spawn(writer, j, "texpre", 0)) writer(j);
 }
 
-// ---- build/orbitals-recomp --texpre
+// ---- build/orbitals-together --texpre
 typedef struct { char (*names)[64]; int n, cap; volatile int32_t next; uint64_t in_bytes, out_bytes, texels; int failed; } EncList;
 static PlatMutex enc_lock;
 

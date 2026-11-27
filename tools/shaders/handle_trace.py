@@ -8,7 +8,7 @@ instructions make those registers says what to follow next. Prints decoded instr
 no game code goes anywhere.
 
 Usage: python tools/shaders/handle_trace.py DUMP_DIR [--spec FILE] [--programs N] [--before N] [--out FILE]
-       Windows, from the folder of orbitals-recomp.exe:
+       Windows, from the folder of orbitals-together.exe:
        setup\\python\\python.exe setup\\src\\tools\\shaders\\handle_trace.py spirv-dump --spec sm86\\instructions.json
 Reads <key>.code of the programs translate.py listed in DUMP_DIR/../spirv/failed.tsv when it exists, else all of them.
 """

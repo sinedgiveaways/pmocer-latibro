@@ -2,7 +2,7 @@
 // (deltas) to stderr, into the run's log. Why: perf showed the replay thread half in the kernel during the boot with
 // no symbols; this said which driver calls (amdgpu GEM_VA 0xc0406448 for sparse binds, CS 0xc0186444, GEM_CREATE
 // 0xc0206440) and which thread (carga-io2, 14/11/2026). Build: cc -O2 -shared -fPIC -o build/ioctl_shim.so
-// tools/analisis/linux/ioctl_shim.c -ldl -lpthread; run: LD_PRELOAD=$PWD/build/ioctl_shim.so build/orbitals-recomp
+// tools/analisis/linux/ioctl_shim.c -ldl -lpthread; run: LD_PRELOAD=$PWD/build/ioctl_shim.so build/orbitals-together
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <pthread.h>

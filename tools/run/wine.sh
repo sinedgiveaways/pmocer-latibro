@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs a Windows program (build/orbitals-recomp.exe, a probe) under Wine in a prefix of its own, build/win/wineprefix, made on
+# Runs a Windows program (build/orbitals-together.exe, a probe) under Wine in a prefix of its own, build/win/wineprefix, made on
 # first use. Why: plain `wine` updates ~/.wine when its version changed and asks to install Wine Mono in a dialog on
 # the desktop (05/11/2026); here Mono and Gecko are switched off (no dialog) and the user's prefix is never touched.
 # A crash shows no "program error" dialog either (it left the program waiting for a click, 05/11/2026): winedbg writes

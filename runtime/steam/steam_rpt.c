@@ -373,7 +373,7 @@ static void read_keys(void) {
 static void requests(void) {
     if (plat_xchg32(&req_invite, 0) && !api.show_ui(rp)) {
         plat_xchg32(&invite_failed, 1);
-        rt_log("steam: the overlay did not open (Steam overlay off, or orbitals-recomp not started from Steam); the guest link works "
+        rt_log("steam: the overlay did not open (Steam overlay off, or orbitals-together not started from Steam); the guest link works "
                "without it");
         menu_notice(menu_text(UI_NOTICE_RPT_NO_OVERLAY), 10);
     }
@@ -445,22 +445,22 @@ void steam_rpt_start(void) {
     const char *app = steam_rpt_app_id();
     if (!*app) { plat_xchg32(&g_state, STEAM_RPT_OFF); return; }
     if (!strcmp(app, "auto")) {
-        fail("steam_appid = %s, but Steam passed no App ID and none is remembered: start orbitals-recomp once from a Steam game's "
+        fail("steam_appid = %s, but Steam passed no App ID and none is remembered: start orbitals-together once from a Steam game's "
              "launch options (%%command%%)", app);
         return;
     }
     if (!is_app_id(app)) { fail("steam_appid = %s is not a Steam App ID (a number)", app); return; }
     if (auto_saved)
         rt_log("steam: steam_appid = auto, started without Steam: App ID %s, the one Steam passed last time "
-               "(guests' controllers need orbitals-recomp started from that game in Steam, docs/remote-play.md)", app);
+               "(guests' controllers need orbitals-together started from that game in Steam, docs/remote-play.md)", app);
     char started[32];   // a number set while Steam started mkw as another game: the overlay is that game's
     if (plat_getenv("SteamAppId", started, sizeof started) && is_app_id(started) && strcmp(started, app))
-        rt_log("steam: Steam started orbitals-recomp as App ID %s, but steam_appid = %s: set steam_appid = auto to follow the game",
+        rt_log("steam: Steam started orbitals-together as App ID %s, but steam_appid = %s: set steam_appid = auto to follow the game",
                started, app);
 
     char tried[PLAT_PATH_MAX];
     void *lib = open_library(tried, sizeof tried);
-    if (!lib) { fail("Steam's library is missing: put " STEAM_LIBRARY " next to orbitals-recomp (looked for %s)", tried); return; }
+    if (!lib) { fail("Steam's library is missing: put " STEAM_LIBRARY " next to orbitals-together (looked for %s)", tried); return; }
     const char *missing = NULL;
 #define BIND(field, name) \
     if (!(*(void **)&api.field = plat_lib_sym(lib, name)) && !missing) missing = name;

@@ -17,9 +17,9 @@ too: the final program is checked alone and printed with what it removed. If nei
 does not come from one draw program (a compute pass, or several programs): the script says so and stops.
 
 Capture first, on the GPU that shows the artifact (Linux), with the scene on screen at the given present:
-    ORBITALS_CAPTURE=1 ORBITALS_CAPTURE_AT=2000 ORBITALS_CAPTURE_DIR=~/orbitals-cap ./orbitals-recomp
+    ORBITALS_CAPTURE=1 ORBITALS_CAPTURE_AT=2000 ORBITALS_CAPTURE_DIR=~/orbitals-cap ./orbitals-together
 Usage: uv run tools/test/skip_bisect.py CAPTURE_DIR [--exe PATH] [--color red] [--drop 0.6] [--out DIR]
-       (--exe: build/orbitals-recomp from a source build; from the AppImage, ~/.local/share/orbitals-recomp/orbitals-recomp)
+       (--exe: build/orbitals-together from a source build; from the AppImage, ~/.local/share/orbitals-together/orbitals-together)
 """
 
 import argparse
@@ -99,7 +99,7 @@ def bisect(rp: Replayer, base: tuple[int, int], drop: float) -> str | None:
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("capture", type=Path)
-    p.add_argument("--exe", type=Path, default=Path(__file__).resolve().parents[2] / "build/orbitals-recomp")
+    p.add_argument("--exe", type=Path, default=Path(__file__).resolve().parents[2] / "build/orbitals-together")
     p.add_argument("--color", choices=sorted(COLORS), default="red")
     p.add_argument("--drop", type=float, default=0.6, help="share of the pixels a culprit half removes")
     p.add_argument("--out", type=Path, help="replays and logs (default CAPTURE/bisect)")
@@ -118,7 +118,7 @@ def main() -> None:
         f"\nprogram key prefix {prefix}: skipping it alone leaves {alone[0]} of {base[0]} {a.color} pixels and "
         f"{alone[1]} of {base[1]} others"
     )
-    print(f"the program: <folder of orbitals-recomp>/spirv/{prefix}*.spv")
+    print(f"the program: <folder of orbitals-together>/spirv/{prefix}*.spv")
 
 
 if __name__ == "__main__":

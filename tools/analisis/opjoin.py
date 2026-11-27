@@ -6,7 +6,7 @@ Why: between two replays the frame CPU moves ±3 ms (ru20/ru21), more than a cha
 op position of the same submission, timed in both, gives the change for exactly the draws it touches (grabacion-
 reutilizada, 08/11/2026: the reused draws cost 1.4-3.7 us replayed as usual, so a hit at 3.4-4.2 us loses).
 
-The files come from `build/orbitals-recomp --replay` with ORBITALS_TRACE=draw ORBITALS_OP_DUMP=FILE (runtime/gfx/vk/exec/vk_exec.c): one
+The files come from `build/orbitals-together --replay` with ORBITALS_TRACE=draw ORBITALS_OP_DUMP=FILE (runtime/gfx/vk/exec/vk_exec.c): one
 line per draw or dispatch, "submission op-position kind ticks". Kinds above the NVN ops are vk_exec.c's OPX_* (the
 reused and captured ones by default 55 and 56: OP_COUNT_ + 3 and + 4).
 

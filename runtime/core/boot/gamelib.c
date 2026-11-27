@@ -1,4 +1,4 @@
-// The game code's tables (gamelib.h) and what the runtime reads from them. build/orbitals-recomp links them in; the player's build
+// The game code's tables (gamelib.h) and what the runtime reads from them. build/orbitals-together links them in; the player's build
 // loads them from orbitalgame.so / orbitalgame.dll in the selected game folder, which the start screen's setup builds from their own
 // game files (SavageWindRecomp runtime/gamelib.c, MIT: same idea, one entry point found by name, an id check).
 #include <stdio.h>

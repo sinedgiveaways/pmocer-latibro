@@ -69,7 +69,7 @@ void acct(RtThread *t, int st) {
 // may displace was of better or equal priority (DG_EQ: Horizon waits too), or the worse owners were claimed by better
 // waiters (DG_NOCORE). Per 60 presents: time per frame and a wait-length histogram per class, the owners that cost
 // most; a line per present over 25 ms; a line per wait with over 2 ms of DG_GAME (where the owner reached its
-// checkpoint), and one host RIP sample of the owner per such wait (exe RVA, for orbitals-recomp.map).
+// checkpoint), and one host RIP sample of the owner per such wait (exe RVA, for orbitals-together.map).
 static const char *const dg_name[DG_N] = {"game", "host", "eq", "nocore"};
 #define DG_NB 8   // wait lengths: < 0.05, 0.25, 1, 2, 4, 8, 16 ms, longer
 static const uint64_t dg_edge[DG_NB - 1] = {50000, 250000, 1000000, 2000000, 4000000, 8000000, 16000000};

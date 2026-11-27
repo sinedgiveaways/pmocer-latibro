@@ -6,7 +6,7 @@ param(
     [switch] $AllThreads
 )
 
-# Read-only Windows PowerShell analyzer for Orbitals Recomp orbitals.log.
+# Read-only Windows PowerShell analyzer for Orbitals Together orbitals.log.
 # Usage: .\Analyze-Timeout.ps1 .\logs\orbitals.log [-AllThreads]
 $ErrorActionPreference = 'Stop'
 
@@ -36,7 +36,7 @@ if ($fatalStart -ge 0) {
     $analysisLines = $lines[$fatalStart..($fatalEnd - 1)]
 }
 
-Write-Output 'Orbitals Recomp timeout analysis (Windows PowerShell; read-only)'
+Write-Output 'Orbitals Together timeout analysis (Windows PowerShell; read-only)'
 Write-Output "Log: $resolvedPath"
 
 $fatal = @($analysisLines | Where-Object { $_ -match '^\s*FATAL: svc #0x26 Break at\b' } | Select-Object -Last 1)

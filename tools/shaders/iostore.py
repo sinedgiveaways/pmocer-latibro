@@ -8,7 +8,7 @@ all of them before the first start, as <key>.ctl and <key>.code: the files the r
 
 Measured on the 1.1.2.0 Deluxe container (utoc version 8, flags 9 = compressed + indexed, no encryption, no signature):
 2 ShaderCodeLibrary chunks and 2748 ShaderCode chunks, stored in IoStore blocks of method None; each ShaderCode chunk
-is one shader group, Oodle-compressed by Unreal itself, decoded by orbitals-recomp --oodle-batch (runtime/sdk/fs,
+is one shader group, Oodle-compressed by Unreal itself, decoded by orbitals-together --oodle-batch (runtime/sdk/fs,
 ooz). 23 432 programs: 3 556 vertex, 16 459 pixel, 3 415 compute, 2 geometry. The key of every one of the 820 programs
 a run recorded in pipeline-keys.bin came out of these files (25/11/2026).
 
@@ -24,7 +24,7 @@ Written for this project from Unreal's public API documentation and measurements
 Usage:
   uv run tools/shaders/iostore.py info     Orbitals-Switch2.utoc
   uv run tools/shaders/iostore.py pack     Orbitals-Switch2.utoc --out build/shader-chunks.zip
-  uv run tools/shaders/iostore.py programs DIR_OR_UTOC... --exe orbitals-recomp(.exe) --out setup-work/unreal-programs
+  uv run tools/shaders/iostore.py programs DIR_OR_UTOC... --exe orbitals-together(.exe) --out setup-work/unreal-programs
 `pack` writes the raw shader chunks and index.tsv (for analysis); `programs` takes .utoc files or folders searched for
 them. Their output holds the game's data: it stays on the player's machine and is never committed (AGENTS.md).
 """
@@ -267,7 +267,7 @@ def split_record(rec: bytes) -> tuple[bytes, bytes] | None:
 
 
 def oodle_batch(exe: Path, streams: list[tuple[int, bytes]], work: Path) -> list[bytes | None]:
-    """Decompress (raw size, stream) pairs with orbitals-recomp --oodle-batch (runtime/sdk/fs/oodle_batch.c)."""
+    """Decompress (raw size, stream) pairs with orbitals-together --oodle-batch (runtime/sdk/fs/oodle_batch.c)."""
     src, dst = work / "oodle-in.bin", work / "oodle-out.bin"
     with open(src, "wb") as f:
         for raw, data in streams:
@@ -379,7 +379,7 @@ def main() -> int:
     ap.add_argument("command", choices=["info", "pack", "programs"])
     ap.add_argument("utoc", type=Path, nargs="+", help="a .utoc (programs: .utoc files or folders searched for them)")
     ap.add_argument("--out", type=Path, help="pack: the zip (build/shader-chunks.zip); programs: the folder")
-    ap.add_argument("--exe", type=Path, help="programs: orbitals-recomp(.exe), whose --oodle-batch decodes the groups")
+    ap.add_argument("--exe", type=Path, help="programs: orbitals-together(.exe), whose --oodle-batch decodes the groups")
     a = ap.parse_args()
     try:
         if a.command == "programs":

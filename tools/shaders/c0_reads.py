@@ -7,7 +7,7 @@ offset 0) and the runtime drops them, while its compute pushes are read from c0 
 graphics programs read c0 0x10-0x3f says where those bytes belong (17/11/2026: the colony drew black but for its
 emissive parts).
 
-Usage (from the folder that holds orbitals-recomp.exe and setup\\; forward slashes):
+Usage (from the folder that holds orbitals-together.exe and setup\\; forward slashes):
     setup\\python\\python.exe setup/src/tools/shaders/c0_reads.py --dumped spirv-dump [--spec FILE] [--hi 0x110]
 """
 

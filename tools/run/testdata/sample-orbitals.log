@@ -1,4 +1,4 @@
-[host] log: C:\Users\player\orbitals-recomp/logs/orbitals.log (Orbitals Recomp 0.2.0-g31c595b)
+[host] log: C:\Users\player\orbitals-together/logs/orbitals.log (Orbitals Together 0.2.0-g31c595b)
 [host] vk: using gpu 0: NVIDIA GeForce RTX 4080
 [host] imports: main calls the SDK's _ZN2nn5codec10AacDecoderC1Ev (no host override)
 [host] imports: main calls the SDK's _ZN2nn3hid12GetJcmsStateEPNS0_9JcmsStateERKNS0_10JcmsHandleE (no host override)
@@ -22,7 +22,7 @@ boot: DT_INIT sdk state=2 (94)
 [host] nvn: present interval 1 -> 2 (from main+0x1540268)
 [host] vk: present of NVN format 0x25 (Vulkan 37) from frame 1
 [host] vk: a draw without a bound program is skipped (logged once)
-[host] gfx_shader: prepared SPIR-V from C:\Users\player\orbitals-recomp/spirv
+[host] gfx_shader: prepared SPIR-V from C:\Users\player\orbitals-together/spirv
 [host] gfx_shader: no prepared SPIR-V 899b8305d50591fd514e5301a41ff81d86e34ed0ff9386351090809987b00c92 (1 lookups so far)
 [host] vk: a stage 1 shader of program 148 has no prepared SPIR-V: draws with it are skipped (logged once)
 [host] vk: pitch texture 0xf21410000 1920x1088 format 0x1 (2088960 bytes) written back to its storage at fence 26

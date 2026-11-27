@@ -75,7 +75,7 @@ def ssl_context() -> ssl.SSLContext:
 
 def get(url: str, timeout: int) -> urllib.request.addinfourl:
     req = urllib.request.Request(
-        url, headers={"User-Agent": "orbitals-recomp-launcher", "Accept": "application/vnd.github+json"}
+        url, headers={"User-Agent": "orbitals-together-launcher", "Accept": "application/vnd.github+json"}
     )
     return urllib.request.urlopen(req, timeout=timeout, context=ssl_context())
 
@@ -143,8 +143,8 @@ def fetch(args: argparse.Namespace) -> None:
         z.extractall(new)
     part.unlink()
     tops = [p for p in new.iterdir() if p.is_dir()]
-    if len(tops) != 1 or not (tops[0] / "orbitals-recomp.exe").is_file():
-        raise ValueError(f"{asset['name']} is not a package of the Orbitals port (no orbitals-recomp.exe)")
+    if len(tops) != 1 or not (tops[0] / "orbitals-together.exe").is_file():
+        raise ValueError(f"{asset['name']} is not a package of the Orbitals port (no orbitals-together.exe)")
     emit("ready", tops[0])
 
 

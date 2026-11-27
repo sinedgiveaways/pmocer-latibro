@@ -206,7 +206,7 @@ static void cb_log(uint64_t values) {
     char buf[1200];
     int k = 0;
     for (int i = 0; i < 32 && cb_cost[i].fn && k < (int)sizeof buf - 80; i++)
-        k += snprintf(buf + k, sizeof buf - (size_t)k, "; build/orbitals-recomp+%#llx %.3f ms (%llu)",
+        k += snprintf(buf + k, sizeof buf - (size_t)k, "; build/orbitals-together+%#llx %.3f ms (%llu)",
                       (unsigned long long)((uintptr_t)cb_cost[i].fn - plat_exe_base()),
                       cb_cost[i].ns / 1e6 / (double)cb_values, (unsigned long long)cb_cost[i].n);
     rt_log("vk: completion side effects per value over %llu values (ORBITALS_TRACE_TL, tools/run/sym.py)%s",
@@ -690,7 +690,7 @@ static void stall_log(uint64_t value, uint64_t waited_ns, uint64_t res, uint64_t
     char sub[48] = "idle", comp[96] = "idle";
     if (qs) snprintf(sub, sizeof sub, "in vkQueueSubmit2 for %.1f ms", (double)(now - qs) / 1e6);
     if (cs)
-        snprintf(comp, sizeof comp, "in the callback build/orbitals-recomp+%#llx for %.1f ms",
+        snprintf(comp, sizeof comp, "in the callback build/orbitals-together+%#llx for %.1f ms",
                  (unsigned long long)((uintptr_t)fn - plat_exe_base()), (double)(now - cs) / 1e6);
     else if (gs)
         snprintf(comp, sizeof comp, "waiting for the GPU for %.1f ms", (double)(now - gs) / 1e6);

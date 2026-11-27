@@ -81,7 +81,7 @@ def selector(windows_build: WindowsProbe):
     with tempfile.TemporaryDirectory(prefix="orbitals-") as tmp:
         folder = Path(tmp) / "launcher"
         folder.mkdir()
-        exe = Path(shutil.copy2(windows_build.exe, folder / "orbitals-recomp.exe"))
+        exe = Path(shutil.copy2(windows_build.exe, folder / "orbitals-together.exe"))
         yield WindowsProbe(exe, windows_build.runner, windows_build.env)
 
 

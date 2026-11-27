@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Poor man's profiler for build/orbitals-recomp when perf cannot record call graphs (perf_event_paranoid 2; with 1, as on this
+# Poor man's profiler for build/orbitals-together when perf cannot record call graphs (perf_event_paranoid 2; with 1, as on this
 # machine since 06/11/2026, `perf record -g` works and tools/run/kstacks.py names the kernel side): N gdb batch
 # backtraces of every thread, GAP seconds apart, into DIR. Needs the game started with ORBITALS_ALLOW_PTRACE=1.
 # Usage: sample_stacks.sh DIR [N] [GAP]
