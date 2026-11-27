@@ -68,9 +68,11 @@ It is off by default and changes nothing until you set it up.
    `input: gamepad ... for player 2 (... a Remote Play guest's)`, then make sure player 2 moves in the game. The log
    lists every controller SDL sees (`input: SDL lists N joysticks`) each time the list changes.
 
-3. **Start the game from Steam, as the App ID's game** (needed for your friends' controllers). Started from its
-   folder, orbitals-together runs as the App ID and invitations work, but Steam does not hand the guests' controllers to it: Steam
-   gives them to a game through its overlay, and only loads that into games it starts. A Non-Steam Game shortcut does
+3. **Set the App ID's game to start orbitals-together** (needed for your friends' controllers). With the launch options
+   below in place, the game can then be started either from its folder or with Play in Steam: the owner played with a
+   friend on 27/11/2026 starting `orbitals-together.exe` from its folder, the friend's controller working. Without them
+   invitations work but the guests' controllers did not reach the game (the earlier reading was that Steam only hands
+   them to a game it starts, through its overlay). A Non-Steam Game shortcut does
    not work either: Steam then runs orbitals-together as the shortcut, which has no Remote Play Together. Instead, let Steam start orbitals-together
    in place of the App ID's own program:
    - install the App ID's game in Steam (RetroArch, free);

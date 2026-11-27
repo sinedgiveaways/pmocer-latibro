@@ -121,6 +121,12 @@ layer, both players owning the port).
   player, so with two local controllers a guest gets none (the limit of 2).
 - **Confirmed in game (27/11/2026, `2106b33`):** the owner reports both local controllers work when started from Steam.
 
+### Start from the folder (27/11/2026)
+
+- The owner played with a friend starting `orbitals-together.exe` from its folder (not with Play in Steam), the
+  friend's controller working, with RetroArch's launch options set to the exe and `steam_appid = 1118310`. The public
+  READMEs say both starts work, with the launch options required.
+
 ## What is missing or unknown
 
 1. **No run with Orbitals.** It does not reach a scene yet ([roadmap.md](roadmap.md)), so none of the above is
