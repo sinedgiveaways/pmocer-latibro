@@ -119,6 +119,7 @@ layer, both players owning the port).
 - Fix (`input.c` `scan_pads`): with no direct controller, each host's virtual gamepad takes the next free player. With a
   direct controller, they are still skipped (often the same controller twice). A guest's gamepad still needs a free
   player, so with two local controllers a guest gets none (the limit of 2).
+- **Confirmed in game (27/11/2026, `2106b33`):** the owner reports both local controllers work when started from Steam.
 
 ## What is missing or unknown
 

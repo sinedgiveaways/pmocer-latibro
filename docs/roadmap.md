@@ -500,6 +500,10 @@ l'exe (`runtime/ui/launcher/images/`, libres de droit selon le joueur, exception
 mention « Votre propre copie du jeu » retirées, « Fichiers du jeu prêts (Orbitals Deluxe Edition 1.0.5) » en bas à
 gauche, au-dessus de la bannière du fond, comme la maquette du joueur. Menu en jeu en bleu au lieu de vert.
 
+**Deux manettes locales lancé par Steam (27/11/2026, `2106b33`, confirmé par le joueur) :** Steam Input ne montrait les
+manettes que comme manettes virtuelles Steam, et une manette virtuelle de l'hôte ne pouvait être que le joueur 1. Sans
+manette vue directement, chacune prend maintenant le joueur libre suivant (`input.c` `scan_pads`).
+
 **Diagnostics à retirer quand ils ne servent plus :** `ORBITALS_OCCLUSION=visible` (`68d2a22`), le log des écritures
 dans une copie transitoire (`97bc308`), les notes de signal des variables de condition (`c03f2a0`, utile tant que le
 gel n'est pas résolu).
