@@ -111,6 +111,15 @@ layer, both players owning the port).
   `account::IsNetworkServiceAccountAvailable` came once at frame 0 (boot). A friend joined (`steam: ... joined (session
   2 ... 1 guests)`) after the second use. The 10 s limit let all three through.
 
+### Two local controllers when started from Steam (27/11/2026, `0.1.0-g3868cc3`)
+
+- The owner started from Steam with two Xbox controllers plugged in: only player 1 had one. The log listed both as
+  Steam virtual gamepads only (`28de:11ff`, `XInput#0` and `XInput#1`), no direct controller: Steam Input wraps them.
+  `scan_pads` gave a host's virtual gamepad player 1 at most, so the second was dropped.
+- Fix (`input.c` `scan_pads`): with no direct controller, each host's virtual gamepad takes the next free player. With a
+  direct controller, they are still skipped (often the same controller twice). A guest's gamepad still needs a free
+  player, so with two local controllers a guest gets none (the limit of 2).
+
 ## What is missing or unknown
 
 1. **No run with Orbitals.** It does not reach a scene yet ([roadmap.md](roadmap.md)), so none of the above is

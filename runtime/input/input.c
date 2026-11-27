@@ -143,8 +143,11 @@ static int pad_is_open(SDL_JoystickID id) {
 
 // Remote Play Together (steam/steam_rpt.c): a guest's controller reaches the host as a Steam virtual gamepad, which SDL
 // lists once steam_rpt_start allowed them. Steam does not say whose a virtual gamepad is, but the ones there while no
-// guest is connected are the host's own controllers through Steam Input, often next to the same controller seen
-// directly: they never become another player, and stand in for player 1 only when no other gamepad is connected.
+// guest is connected are the host's own controllers through Steam Input. Next to a controller SDL sees directly they
+// are often that same controller again, so they become no player then. With no direct controller at all (a start
+// from Steam with Steam Input on: the owner's log of 27/11/2026, two Xbox controllers listed only as Steam virtual
+// gamepads XInput#0 and XInput#1), each is one of the host's controllers and takes the next free player, so two
+// local controllers give two players.
 // A virtual gamepad is only called the host's after VIRTUAL_SETTLE_MS without a guest: Steam may list a guest's
 // controller a moment before its session callback reaches steam_rpt.c, and a pad called the host's stays so. Under lock.
 enum { VIRTUAL_MAX = 16, VIRTUAL_SETTLE_MS = 2000 };
@@ -245,11 +248,10 @@ static void scan_pads(void) {
         int whose = virt ? host_pad(ids[i], guests) : 0;
         if (whose < 0) continue;                      // not known yet: the next scan, a second later, decides
         int host_only = whose == 1;
-        if (host_only && (pad || direct)) continue;   // the host's controller is already player 1, or will be
+        if (host_only && direct) continue;   // a copy of a controller SDL sees directly, which is a player itself
         int p = 0;
         while (p < INPUT_MAX_PLAYERS && (p ? extra[p] != NULL || remote_on[p] : pad != NULL)) p++;
         if (p == INPUT_MAX_PLAYERS) break;
-        if (host_only && p) continue;
         SDL_Gamepad *g = SDL_OpenGamepad(ids[i]);
         if (!g) {
             static SDL_JoystickID failed;   // logged once per gamepad: the scan tries again every second
@@ -259,12 +261,12 @@ static void scan_pads(void) {
         }
         if (!p) { pad = g; pad_adopt(); continue; }
         extra[p] = g;
-        extra_guest[p] = virt || guests > 0;
+        extra_guest[p] = !host_only && (virt || guests > 0);
         extra_rumble[p] = SDL_GetBooleanProperty(SDL_GetGamepadProperties(g), SDL_PROP_GAMEPAD_CAP_RUMBLE_BOOLEAN, false);
         extra_east_a[p] = SDL_GetGamepadButtonLabel(g, SDL_GAMEPAD_BUTTON_EAST) == SDL_GAMEPAD_BUTTON_LABEL_A;
         rt_log("input: gamepad \"%s\" for player %d (%s%s)", SDL_GetGamepadName(g), p + 1,
-               extra_rumble[p] ? "rumble" : "no rumble", virt ? ", a Remote Play guest's" : "");
-        if (virt) {
+               extra_rumble[p] ? "rumble" : "no rumble", host_only ? ", the host's through Steam Input" : virt ? ", a Remote Play guest's" : "");
+        if (virt && !host_only) {
             char text[160];
             snprintf(text, sizeof text, menu_text(UI_NOTICE_RPT_PAD), p + 1);
             menu_notice(text, 5);
