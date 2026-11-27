@@ -61,7 +61,12 @@ jobs:
       - name: Steam's steam_api64.dll for Remote Play Together (pinned sha256, docs/remote-play.md)
         run: uv run tools/build/steamlib.py --target windows
       - name: Zip
-        run: uv run tools/build/release.py --target windows --version "0.1.0-${GITHUB_SHA::7}"
+        run: |
+          # a release tag (v0.3.0) gives its own number; any other commit the newest CHANGELOG.md version and the commit
+          v=$(git describe --tags --match 'v[0-9]*' --exact-match 2>/dev/null | sed 's/^v//' || true)
+          [ -n "$v" ] || v="$(sed -nE 's/^## \[([0-9]+\.[0-9]+\.[0-9]+)\].*/\1/p' CHANGELOG.md | head -1)-${GITHUB_SHA::7}"
+          echo "package version $v"
+          uv run tools/build/release.py --target windows --version "$v"
       - name: orbitals-together.exe out of the zip
         run: |
           mkdir -p build/exe

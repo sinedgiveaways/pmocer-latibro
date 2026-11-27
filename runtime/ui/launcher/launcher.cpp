@@ -277,7 +277,7 @@ static void lastrun_row(float bw) {
     LastRun r = lastrun_state();
     if (r.kind == LASTRUN_NONE) return;
     const char *repo = getenv("ORBITALS_UPDATE_REPO");
-    if (!repo || !*repo) repo = "sinedgiveaways/pmocer-latibro";
+    if (!repo || !*repo) repo = "sinedgiveaways/Obitals-Together";   // the public repository of the final builds
     char text[700], button[160], url[300];
     url[0] = 0;
     if (r.kind == LASTRUN_KNOWN) {

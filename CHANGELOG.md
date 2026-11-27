@@ -5,6 +5,28 @@ updating, known issues, reporting) for the GitHub release. A section is headed `
 summary paragraph, `### Changes`, `### Tested` (what was run before publishing) and optionally `### Known issues`.
 The releases of the project this one was forked from (0.1.0 to 0.1.12) are in git history, not here.
 
+## [0.3.0] - 2026-11-27
+
+First public build of Orbitals Together, published on
+[sinedgiveaways/Obitals-Together](https://github.com/sinedgiveaways/Obitals-Together). Orbitals Deluxe Edition 1.0.5
+runs from boot to its levels in split screen at 30 fps, two local controllers or a friend over Steam Remote Play
+Together.
+
+### Changes
+
+- Start screen: the Orbitals background and mark built in, the game files line says Orbitals Deluxe Edition 1.0.5, no
+  Mods entry; no console window for its Python tools.
+- In-game menu (F1, or Start + Select): blue; the Hacks tab and its settings (turbo, fixed seed, freeze keys) removed.
+- The game's Online Play opens Steam's Remote Play Together invite list.
+- Two local controllers through Steam Input give two players.
+- All 20 menu languages complete.
+- Updates and bug reports go to sinedgiveaways/Obitals-Together.
+
+### Tested
+
+- Played by the owner on Windows 11 (RTX 4080), locally with two controllers and with a friend over Remote Play
+  Together (27/11/2026), on the builds before this tag.
+
 ## [0.1.0] - 2026-11-27
 
 First release of Orbitals Together, the new name of `orbitals-recomp`. Orbitals runs from boot to its levels in split
