@@ -504,6 +504,11 @@ gauche, au-dessus de la bannière du fond, comme la maquette du joueur. Menu en 
 manettes que comme manettes virtuelles Steam, et une manette virtuelle de l'hôte ne pouvait être que le joueur 1. Sans
 manette vue directement, chacune prend maintenant le joueur libre suivant (`input.c` `scan_pads`).
 
+**Traductions (27/11/2026, `a6b9009`, confirmé par le joueur) :** les 20 langues sont complètes (491/491,
+`tools/i18n/catalog.py status`). Les 5 textes qui manquaient hors français (description du jeu en LAN, aide des
+fichiers du jeu, erreur de version, les deux messages de Partie en ligne) ont été écrits par l'agent, non relus par des
+locuteurs natifs.
+
 **Diagnostics à retirer quand ils ne servent plus :** `ORBITALS_OCCLUSION=visible` (`68d2a22`), le log des écritures
 dans une copie transitoire (`97bc308`), les notes de signal des variables de condition (`c03f2a0`, utile tant que le
 gel n'est pas résolu).
