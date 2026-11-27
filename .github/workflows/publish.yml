@@ -1,0 +1,64 @@
+# The Windows package of a version tag, built from that tag's source and attached to the GitHub release of the same
+# name: how the final builds reach sinedgiveaways/Obitals-Together (and any fork's own releases). The release is made
+# if it does not exist yet. Never on pmocer-latibro, where development and test builds stay (Build Windows artifacts).
+# Same build as build-windows.yml. Run it from the Actions tab (Run workflow, the tag) or push a v* tag.
+name: Publish release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version tag to build and publish (v0.3.0)"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  ICON_URL: https://cdn2.steamgriddb.com/thumb/1973ddb8a87e4da50befa772a5a1474d.png
+  ICON_SHA256: daefe63212606dc82a4ad0412883d1a2c95e549de8cb9bd8009719908001e13a
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  windows:
+    if: github.repository != 'sinedgiveaways/pmocer-latibro'
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Tools
+        run: pacman -Syu --noconfirm --needed git ccache ninja cmake binutils uv python curl github-cli
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+          fetch-depth: 0
+      - name: Git trusts the checkout (build.py's version comes from git describe)
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Icon
+        run: |
+          mkdir -p assets/icon
+          curl -fsSL "$ICON_URL" -o assets/icon/orbitals_logo.png
+          echo "$ICON_SHA256  assets/icon/orbitals_logo.png" | sha256sum -c -
+          uv run tools/build/make_ico.py
+      - name: llvm-mingw and the Windows libraries
+        run: uv run tools/build/windeps.py
+      - name: The executable
+        run: uv run tools/build/build.py --target windows --dist --runtime-only
+      - name: Setup tools
+        run: uv run tools/build/dist.py --target windows
+      - name: Steam's steam_api64.dll for Remote Play Together (pinned sha256, docs/remote-play.md)
+        run: uv run tools/build/steamlib.py --target windows
+      - name: Zip
+        run: |
+          v=$(git describe --tags --match 'v[0-9]*' --exact-match | sed 's/^v//')
+          echo "package version $v"
+          uv run tools/build/release.py --target windows --version "$v"
+          sha256sum build/release/*.zip
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$TAG" -R "$GITHUB_REPOSITORY" --title "Orbitals Together ${TAG#v}" --notes "See the README."
+          gh release upload "$TAG" build/release/*.zip -R "$GITHUB_REPOSITORY" --clobber
