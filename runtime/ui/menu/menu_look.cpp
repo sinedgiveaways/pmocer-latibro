@@ -28,27 +28,27 @@ extern "C" const unsigned char *menu_look_font_data(void) { return roboto_ttf; }
 
 float menu_look_scale(uint32_t h) { return (h >= 720 ? h : 720) / 1080.0f; }
 
-// SavageWindRecomp's colours: dark green panels, gold accents.
+// SavageWindRecomp's layout with blue panels (Orbitals Together, 27/11/2026: its green was changed to blue), gold accents.
 void menu_look_style(ImGuiStyle &s) {
     ImGui::StyleColorsDark(&s);
     s.WindowRounding = 14; s.FrameRounding = 8; s.GrabRounding = 8; s.TabRounding = 8; s.ChildRounding = 10;
     s.WindowPadding = ImVec2(28, 22); s.FramePadding = ImVec2(14, 8); s.ItemSpacing = ImVec2(14, 12);
     s.WindowBorderSize = 0; s.ScrollbarSize = 18;
     ImVec4 *c = s.Colors;
-    ImVec4 gold(0.93f, 0.76f, 0.33f, 1), green(0.15f, 0.36f, 0.25f, 1);
-    c[ImGuiCol_WindowBg] = ImVec4(0.06f, 0.09f, 0.08f, 0.94f);
+    ImVec4 gold(0.93f, 0.76f, 0.33f, 1), blue(0.15f, 0.27f, 0.48f, 1);
+    c[ImGuiCol_WindowBg] = ImVec4(0.06f, 0.08f, 0.13f, 0.94f);
     c[ImGuiCol_ChildBg] = ImVec4(0, 0, 0, 0);
     c[ImGuiCol_Text] = ImVec4(0.96f, 0.94f, 0.88f, 1);
-    c[ImGuiCol_TextDisabled] = ImVec4(0.62f, 0.64f, 0.58f, 1);
-    c[ImGuiCol_Button] = ImVec4(0.14f, 0.22f, 0.18f, 1);
-    c[ImGuiCol_ButtonHovered] = green;
-    c[ImGuiCol_ButtonActive] = ImVec4(0.21f, 0.50f, 0.34f, 1);
-    c[ImGuiCol_Tab] = ImVec4(0.12f, 0.18f, 0.15f, 1);
-    c[ImGuiCol_TabHovered] = green;
-    c[ImGuiCol_TabSelected] = ImVec4(0.21f, 0.44f, 0.31f, 1);
+    c[ImGuiCol_TextDisabled] = ImVec4(0.60f, 0.63f, 0.70f, 1);
+    c[ImGuiCol_Button] = ImVec4(0.13f, 0.18f, 0.30f, 1);
+    c[ImGuiCol_ButtonHovered] = blue;
+    c[ImGuiCol_ButtonActive] = ImVec4(0.21f, 0.38f, 0.66f, 1);
+    c[ImGuiCol_Tab] = ImVec4(0.11f, 0.15f, 0.26f, 1);
+    c[ImGuiCol_TabHovered] = blue;
+    c[ImGuiCol_TabSelected] = ImVec4(0.20f, 0.35f, 0.62f, 1);
     c[ImGuiCol_TabSelectedOverline] = gold;
     c[ImGuiCol_NavCursor] = gold;
-    c[ImGuiCol_Separator] = ImVec4(0.30f, 0.36f, 0.30f, 1);
+    c[ImGuiCol_Separator] = ImVec4(0.30f, 0.34f, 0.44f, 1);
 }
 
 // Roboto Medium (Latin with Latin Extended-A for Polish, Turkish and Catalan, Cyrillic, dashes and quotes) at 26 px

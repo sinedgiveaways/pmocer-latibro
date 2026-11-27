@@ -1586,8 +1586,8 @@ msgid "Back"
 msgstr "Wstecz"
 
 msgctxt "UI_LAUNCH_FILES_READY"
-msgid "Game files ready (version 1.0.0 or 1.8.0)"
-msgstr "Pliki gry gotowe (wersja 1.0.0/1.8.0)"
+msgid "Game files ready (Orbitals Deluxe Edition 1.0.5)"
+msgstr "Pliki gry gotowe (Orbitals Deluxe Edition 1.0.5)"
 
 msgctxt "UI_LAUNCH_FILES_MISSING"
 msgid "Game files not set up"

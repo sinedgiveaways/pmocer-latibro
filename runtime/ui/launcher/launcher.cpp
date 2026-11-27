@@ -38,6 +38,7 @@
 #include "imgui.h"
 #include "ui/launcher/launcher.h"
 #include "ui/launcher/launcher_backdrop.h"
+#include "ui/launcher/launcher_image.h"
 #include "ui/launcher/launcher_logo.h"
 #include "ui/launcher/launcher_look.h"
 #include "ui/launcher/launcher_players.h"
@@ -319,7 +320,7 @@ static void page_main(float w, float h) {
     bool ready = rt_game_present() && update_state().phase != UPDATE_FETCHING;
     // the column's height, to centre it: logo and title, the gap, Play, the menu, the gap and Quit
     float mark = 84 * s, items = item_height(), gap = 12 * s;
-    float play_h = fmaxf(52.0f, 76 * s), col_h = mark + 48 * s + play_h + gap * 2 + items * 5 + 28 * s + items;
+    float play_h = fmaxf(52.0f, 76 * s), col_h = mark + 48 * s + play_h + gap * 2 + items * 4 + 28 * s + items;
     ImGui::SetNextWindowPos(ImVec2(left - 8 * s, fmaxf(32 * s, (h - col_h) * 0.45f) - 8 * s));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8 * s, 8 * s));   // room for the cursor's ring
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, gap));
@@ -329,7 +330,7 @@ static void page_main(float w, float h) {
     ImDrawList *dl = ImGui::GetWindowDrawList();
     ImVec2 p = ImGui::GetCursorScreenPos();
     int v0 = dl->VtxBuffer.Size;
-    launcher_logo(dl, p, mark);
+    if (!backdrop_mark(dl, p, mark)) launcher_logo(dl, p, mark);   // drapeau.png/.jpg, else the port's own logo
     float ts = L.big->FontSize, tx = p.x + mark + 24 * s, by = p.y + (mark - ts - 4 * s - lh) * 0.5f;
     dl->AddText(L.big, ts, ImVec2(tx, by - ts * 0.06f), LOOK_TEXT, "Orbitals");
     dl->AddText(ImVec2(tx, by + ts + 4 * s), LOOK_HEADING, menu_text(UI_LAUNCH_SUBTITLE));
@@ -380,9 +381,6 @@ static void page_main(float w, float h) {
     if (menu_item(menu_text(UI_LAUNCH_FILES), cw, true)) L.page = PAGE_FILES;
     intro_apply(dl, v0, intro(4));
     v0 = dl->VtxBuffer.Size;
-    if (menu_item(menu_text(UI_LAUNCH_MODS), cw, true)) L.page = PAGE_MODS;
-    intro_apply(dl, v0, intro(5));
-    v0 = dl->VtxBuffer.Size;
     if (menu_item(menu_text(UI_LAUNCH_SHORTCUT), cw, true)) make_shortcut();
     intro_apply(dl, v0, intro(6));
     ImGui::Dummy(ImVec2(0, 28 * s));
@@ -398,7 +396,7 @@ static void page_main(float w, float h) {
     ImGui::End();
     ImGui::PopStyleVar(2);
 
-    // the game files at the lower left; at the lower right that the port ships no game data, over the version
+    // the game files at the lower left, the version at the lower right
     ImDrawList *fg = ImGui::GetForegroundDrawList();
     int f0 = fg->VtxBuffer.Size;
     float y = h - 48 * s - lh, r = lh * 0.24f;
@@ -407,10 +405,8 @@ static void page_main(float w, float h) {
     fg->AddText(ImVec2(left + r * 2 + 10 * s, y), ready ? LOOK_HEADING : LOOK_WARN, state);
     char ver[96];
     snprintf(ver, sizeof ver, "Orbitals Together %s", rt_port_version);
-    const char *note = menu_text(UI_LAUNCH_NO_GAME_DATA);
     float right = w - 56 * s;
     fg->AddText(ImVec2(right - ImGui::CalcTextSize(ver).x, y), LOOK_DIM, ver);
-    fg->AddText(ImVec2(right - ImGui::CalcTextSize(note).x, y - lh - 6 * s), LOOK_DIM, note);
     intro_apply(fg, f0, intro(7));
 }
 
@@ -1000,7 +996,7 @@ static bool open_window(void) {
     SDL_WindowFlags f = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN |
                         (background ? SDL_WINDOW_NOT_FOCUSABLE : 0);
     L.win = SDL_CreateWindow("Orbitals Together", (int)(1280 * ds), (int)(720 * ds), f);
-    if (L.win) app_icon_set(L.win);
+    if (L.win) app_icon_set(L.win), app_icon_custom(L.win);   // drapeau.png/.jpg over the port's icon
     L.ren = L.win ? SDL_CreateRenderer(L.win, nullptr) : nullptr;
     if (!L.ren) {
         rt_log("launcher: no window: %s", SDL_GetError());

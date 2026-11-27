@@ -7,29 +7,44 @@
 
 #include "imgui.h"
 #include "ui/launcher/launcher_backdrop.h"
+#include "ui/launcher/launcher_image.h"
 #include "ui/launcher/launcher_look.h"
 
 extern "C" {
 #include "platform/platform.h"
 }
 
-static SDL_Texture *g_splash;   // splash.png next to the executable, the player's own picture
+static SDL_Texture *g_splash;   // background.png/.jpg (else splash.png) next to the executable, the player's own picture
 static int g_splash_w, g_splash_h;
+static SDL_Texture *g_mark;     // drapeau.png/.jpg: the player's own mark, in place of the port's logo
+
+static SDL_Texture *texture_of(SDL_Renderer *ren, SDL_Surface *s, int *w, int *h) {
+    if (!s) return nullptr;
+    SDL_Texture *t = SDL_CreateTextureFromSurface(ren, s);
+    if (w) *w = s->w;
+    if (h) *h = s->h;
+    SDL_DestroySurface(s);
+    return t;
+}
 
 void backdrop_load(SDL_Renderer *ren, const char *exe_dir) {
-    char path[1100];
-    snprintf(path, sizeof path, "%s/splash.png", exe_dir);
-    if (!plat_file_exists(path)) return;
-    SDL_Surface *s = SDL_LoadPNG(path);
-    if (!s) return;
-    g_splash = SDL_CreateTextureFromSurface(ren, s);
-    g_splash_w = s->w, g_splash_h = s->h;
-    SDL_DestroySurface(s);
+    SDL_Surface *s = launcher_image_find(exe_dir, "background");
+    if (!s) s = launcher_image_find(exe_dir, "splash");
+    g_splash = texture_of(ren, s, &g_splash_w, &g_splash_h);
+    g_mark = texture_of(ren, launcher_image_find(exe_dir, "drapeau"), nullptr, nullptr);
+}
+
+bool backdrop_mark(ImDrawList *dl, ImVec2 p, float size) {
+    if (!g_mark) return false;
+    dl->AddImageRounded((ImTextureID)(intptr_t)g_mark, p, ImVec2(p.x + size, p.y + size), ImVec2(0, 0), ImVec2(1, 1),
+                        IM_COL32_WHITE, 0.18f * size);
+    return true;
 }
 
 void backdrop_free(void) {
     if (g_splash) SDL_DestroyTexture(g_splash);
-    g_splash = nullptr;
+    if (g_mark) SDL_DestroyTexture(g_mark);
+    g_splash = g_mark = nullptr;
 }
 
 bool backdrop_has_picture(void) { return g_splash != nullptr; }

@@ -536,22 +536,9 @@ static void tab_advanced(float scale) {
     }
 }
 
-// Shortcuts the console does not have (core/hacks/): all off by default, marked experimental.
-static void tab_hacks(float scale) {
-    opt_begin("##hacks", scale);
-    opt_text(UI_MENU_HACKS_WARNING, true);
-    // the first four values; "until" is the run scripts' (core/hacks/turbo.c)
-    static const UiTextId turbo[] = {UI_MENU_OFF, UI_MENU_TURBO_HOLD, UI_MENU_TURBO_TOGGLE, UI_MENU_ON};
-    opt_choice("ORBITALS_TURBO", UI_MENU_TURBO, turbo, 4, UI_MENU_TURBO_DESC);
-    opt_slider("ORBITALS_TURBO_SPEED", UI_MENU_TURBO_SPEED, 2, 8, UI_MENU_TURBO_SPEED_DESC, 1, "x%.0f");
-    row_set_or_not("ORBITALS_SEED", UI_MENU_SEED, UI_MENU_SEED_DESC, "1");
-    opt_toggle("ORBITALS_FREEZE_KEYS", UI_MENU_FREEZE_KEYS, UI_MENU_FREEZE_KEYS_DESC);
-    opt_end();
-}
-
 static const UiTextId kTabNames[TAB_COUNT] = {UI_MENU_TAB_SCREEN, UI_MENU_TAB_GRAPHICS, UI_MENU_TAB_GAME,
                                               UI_MENU_TAB_SOUND, UI_MENU_TAB_CONTROLS, UI_MENU_TAB_MENU,
-                                              UI_MENU_TAB_ADVANCED, UI_MENU_TAB_HACKS};
+                                              UI_MENU_TAB_ADVANCED};
 static int g_tab;               // the tab shown
 static int g_tab_request = -1;  // select this tab at the next layout; -1 none
 static int g_focus_page = -1;   // this tab's first row takes the cursor once it is shown; -1 none
@@ -596,7 +583,6 @@ void settings_tabs(float scale, float bottom) {
             case TAB_CONTROLS: tab_controls(scale); break;
             case TAB_MENU: tab_menu(scale); break;
             case TAB_ADVANCED: tab_advanced(scale); break;
-            case TAB_HACKS: tab_hacks(scale); break;
             }
             ImGui::EndTabItem();
         }

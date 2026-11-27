@@ -208,6 +208,7 @@ static void handle(const SDL_Event *e) {
 }
 
 void app_icon_set(SDL_Window *w);   // build/obj/rt/app_icon.c, drawn by tools/build/icon.py
+void app_icon_custom(SDL_Window *w);   // ui/launcher/launcher_image.cpp: drapeau.png/.jpg beside the executable, if any
 
 static void window_main(void *arg) {
     (void)arg;
@@ -290,6 +291,7 @@ static void open_window(void *arg) {
         return;
     }
     app_icon_set(g_win);
+    app_icon_custom(g_win);
     set_pixel_size(w, h);   // w x h were window units; the setting is in pixels
     density_update();
     note_applied();
