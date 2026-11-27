@@ -66,7 +66,8 @@ write a short message such as "log up", "c up" or "crash log up". An upload is t
 - To publish: on pmocer-latibro add the version's `CHANGELOG.md` section and `.rc` version, tag `vX.Y.Z`, push it,
   and have the owner test `Build Windows` on the tag (`.../build-windows.yml/dispatches -f ref=vX.Y.Z`). Then replace
   Orbitals-Together's tree with the tag's (`git archive vX.Y.Z`, without `.kiro/` and this file; `README.md` kept as
-  `DEVELOPMENT.md`; its own `README.md`, `README.fr.md` with the new version and file name), commit on `main`, tag
+  `DEVELOPMENT.md`; its own `README.md`, `README.fr.md` with the new version and file name, and its `images/`, the
+  owner's screenshots for the READMEs), commit on `main`, tag
   `vX.Y.Z` there, create the release (`gh api repos/sinedgiveaways/Orbitals-Together/releases -f tag_name=...`) and run
   its **Publish release** workflow (`.../publish.yml/dispatches -f ref=main -f "inputs[tag]=vX.Y.Z"`): it builds the
   zip from the tag and attaches it. The agent cannot upload release files itself (uploads.github.com is not reachable
