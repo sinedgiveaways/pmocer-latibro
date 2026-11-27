@@ -9,9 +9,22 @@ You are continuing work already under way. Do not start over: the state is writt
 3. `AGENTS.md` (hard rules), then `docs/workflow.md` (dumps, the control pipe, tools on the owner's machine).
 4. `git log --oneline -15` on `orbitals-port`: what changed since 6.8 was written.
 
-Then check the `analysis-data` release of `sinedgiveaways/tool` for new uploads:
-`gh api repos/sinedgiveaways/tool/releases/tags/analysis-data --jq '.assets[] | "\(.id) \(.name) \(.size) \(.updated_at)"'`.
-An upload is the owner's answer to the last test asked for: download it, analyse it, delete the asset when done.
+5. `docs/steam-remote-play-status.md` when the work is Steam Remote Play Together or Online Play.
+
+## The exchange repository: logs, captures, videos, dumps
+
+The owner never sends files in the chat. They upload them, usually as a `.7z`, to the release **`analysis-data`** of
+the repository **`sinedgiveaways/tool`** (formerly `Lichii-tool`, an Eden fork used only as a measuring tool), then
+write a short message such as "log up", "c up" or "crash log up". An upload is the answer to the last test asked for.
+
+- List: `gh api repos/sinedgiveaways/tool/releases/tags/analysis-data --jq '.assets[] | "\(.id) \(.name) \(.size) \(.updated_at)"'`
+- Download: `gh api -H "Accept: application/octet-stream" repos/sinedgiveaways/tool/releases/assets/<id> > file.7z`,
+  then extract it (py7zr).
+- Delete each asset once its analysis is finished, without asking:
+  `gh api -X DELETE repos/sinedgiveaways/tool/releases/assets/<id>`
+- What comes there: `orbitals.log`, screenshots (4K), videos, frame dumps (`dump_*` folders, about 1 GB),
+  `frame_report.txt`, `census.txt`. None of it goes into git. The console reference video of the first level
+  ("ORBITALS #01 - LE DÉPART") is in `_work/ref/` when that folder exists.
 
 ## The owner
 

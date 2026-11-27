@@ -33,13 +33,15 @@ shaders are translated to SPIR-V (`sm86/`). The game runs from boot to its first
 
 Read [roadmap 6.8](../docs/roadmap.md) first: it is the current state. In short:
 
-1. **Asteroid stripes** after going back to the main menu and loading the save: fixed in `e30dd58` (a revived texture
-   entry kept its previous life's `gpu_lv`), waiting for the owner's confirmation in game.
-2. **Freeze "GameThread timed out waiting for RenderThread"** (2 runs in 5): our kernel lost no wakeup (`c03f2a0`,
-   logs81); the RenderThread waits without limit for an event nobody triggers. Next: the owner's `frame_report.txt`
-   from `orbitals-frame-report.exe --stack`, to name the frames and the event.
-3. Not studied yet: a bright blue disc above the right player in the colony corridor (intermittent), long grey lines
-   in the corridor (particles?).
+1. **Online Play through Steam Remote Play Together** (current work): the owner chose that the game's Online Play
+   entry opens Steam's invite list, and the friend then plays the local mode for 2 by streaming. Built in `5ba7f29`
+   (run 45919377416) and waiting for the owner's test. Whether Orbitals' Online Play makes either trigger call (nifm's
+   error applet, the account sign-in) is unknown: the log's `online:` lines will say. Details:
+   [steam-remote-play-status.md](../docs/steam-remote-play-status.md).
+2. Remote Play Together itself works with a friend (the owner's test, 27/11/2026).
+3. With build `81c27bf` the owner reports everything fixed: the asteroid stripes (`e30dd58`), the freeze, the blue
+   disc and the grey lines. The freeze came in 2 runs out of 5, so its diagnostic (`81c27bf`: the timeout asked and the
+   waited object at an abort) stays until more runs confirm it.
 
 ## Older task (19/11/2026, kept for history)
 
