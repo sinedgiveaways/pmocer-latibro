@@ -457,6 +457,10 @@ streaming des mips).
   - Octet à 0 : la tâche est finie et le réveil a été manqué (une notification juste avant l'attente).
   - Octet à 1 : la tâche n'a jamais été terminée (file de tâches ou réveil des workers).
 - logs83 (`81c27bf`, environ 4 min, fermeture normale) : pas de gel. Le diagnostic attend le prochain.
+- 27/11/2026 : avec `81c27bf`, le joueur dit que tout est réglé (gel, rond bleu, lignes grises compris) et passe à
+  Steam Remote Play Together ([steam-remote-play-status.md](steam-remote-play-status.md)). Le gel venait 2 parties sur
+  5 : le diagnostic `81c27bf` reste dans le build jusqu'à ce que plusieurs parties sans gel le confirment, ou qu'un gel
+  le fasse parler.
 
 **Constatés, pas encore étudiés**
 

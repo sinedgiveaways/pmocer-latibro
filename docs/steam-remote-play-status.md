@@ -51,6 +51,25 @@ yet.
   typed ones), Invite friends, Copy guest link.
 - **Build.** The Windows build of pull request #2 compiles these files with no warning of their own.
 
+## Update 27/11/2026 (build `81c27bf`, branch `orbitals-port`)
+
+- Orbitals now reaches its first level in split screen with two players, each on a controller (logs83:
+  `input: gamepad "Xbox One Controller" for player 2`, `hid: controllers initialized (... 2 players with a
+  controller)`). Item 1 below is no longer a blocker.
+- The Windows package carries `steam_api64.dll` (checked in `orbitals-recomp-0.2.0-81c27bf-windows-x64.zip`). The
+  `kiro-orbitals-recomp-exe` artifact is the executable alone, without it.
+- With no App ID set, `steam_rpt_start` turns itself off without a log line (logs83 has no `steam:` line). That is
+  intended.
+- With two controllers connected, logs83 has no `hid: controller applet asks for ...` line, so Orbitals did not call
+  `ShowControllerSupport` then. Whether it calls it with only one controller (when the automatic "local players or
+  Remote Play Together" question would appear) is the first thing the real test below shows.
+- **The real test (asked of the owner on 27/11/2026):**
+  - Set up: RetroArch (1118310) in Steam with `"<game folder>\orbitals-recomp.exe" %command%` as its launch options,
+    `[steam] steam_appid = 1118310` in `orbitals.ini`, the second controller unplugged (the guest is player 2;
+    `INPUT_MAX_PLAYERS` is 2), and a start with Play from Steam.
+  - The log lines to look for, in this order: `steam: running as App ID 1118310; Remote Play Together ready`,
+    `steam: ... joined`, `input: gamepad ... for player 2 (... a Remote Play guest's)`.
+
 ## What is missing or unknown
 
 1. **No run with Orbitals.** It does not reach a scene yet ([roadmap.md](roadmap.md)), so none of the above is
