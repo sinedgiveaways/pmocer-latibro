@@ -493,6 +493,13 @@ supposées) ; à rouvrir si elles reviennent.
 le joueur avec le paquet complet du run 45922596808 : tout est bon. La bibliothèque `orbitalgame.dll` est liée au nom de
 l'exe, donc un changement de nom de l'exe demande de refaire le setup. Prochain sujet : le lanceur (vidéo du joueur).
 
+**Lanceur et menu en jeu (27/11/2026, `129cf31` à `3868cc3`, confirmé par le joueur) :** onglet Astuces retiré (lanceur et
+menu F1) avec ses réglages (`ORBITALS_TURBO`, `ORBITALS_TURBO_SPEED`, `ORBITALS_SEED`, `ORBITALS_FREEZE_KEYS` supprimés du
+runtime ; la pause du tube de contrôle reste). Lanceur : fond `background.png` et logo/icône `drapeau.jpg` intégrés à
+l'exe (`runtime/ui/launcher/images/`, libres de droit selon le joueur, exception notée dans AGENTS.md), entrée Mods et
+mention « Votre propre copie du jeu » retirées, « Fichiers du jeu prêts (Orbitals Deluxe Edition 1.0.5) » en bas à
+gauche, au-dessus de la bannière du fond, comme la maquette du joueur. Menu en jeu en bleu au lieu de vert.
+
 **Diagnostics à retirer quand ils ne servent plus :** `ORBITALS_OCCLUSION=visible` (`68d2a22`), le log des écritures
 dans une copie transitoire (`97bc308`), les notes de signal des variables de condition (`c03f2a0`, utile tant que le
 gel n'est pas résolu).
