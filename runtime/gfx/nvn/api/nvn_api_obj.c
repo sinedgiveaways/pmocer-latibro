@@ -649,11 +649,10 @@ NVN_API(nvnWindowSetCrop) {
 }
 
 // ---------- Present pacing
-// The vsync thread ticks at a fixed 60 Hz whatever the monitor does, so one game frame lasts `interval` ticks; the turbo
-// (core/hacks/turbo.c) makes them `turbo_speed` times shorter.
+// The vsync thread ticks at a fixed 60 Hz whatever the monitor does, so one game frame lasts `interval` ticks.
 #define VSYNC_HZ 60ull
 static uint64_t present_period(const win_t *o) {
-    return (o->interval > 0 ? (uint64_t)o->interval : 1ull) * 1000000000ull / VSYNC_HZ / (uint64_t)turbo_speed();
+    return (o->interval > 0 ? (uint64_t)o->interval : 1ull) * 1000000000ull / VSYNC_HZ;
 }
 
 // MacNativeGames nvn_pace.h: the present slot is the previous slot plus one period. Early: wait for the slot. Late by
@@ -771,7 +770,6 @@ NVN_API(nvnQueuePresentTexture) {
     if (o->magic != NVN_WIN_MAGIC || idx < 0 || idx >= o->ntex || idx >= 4 || !o->tex[idx])
         rt_fatal("nvn: QueuePresentTexture of image %d on window %p", idx, (void *)o);
     o->presents++;
-    turbo_poll();
     release_note(o, idx);
     nvn_present_fence_note();   // ORBITALS_TRACE=perf: which frame each blocking SyncWait waits for
     if (rt_trace & RT_TRACE_PERF) nvn_sync_wait_window();

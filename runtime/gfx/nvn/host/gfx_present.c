@@ -155,14 +155,13 @@ static int g_vs_nctr;
 static volatile int64_t g_ticks;
 static int g_vs_started;
 
-// The ticks go `turbo_speed` times faster while the turbo is on (core/hacks/turbo.c): each one is due one period after
-// the previous one's due time, so the rate changes at once without a step.
+// Each tick is due one period after the previous one's due time.
 static void vsync_main(void *arg) {
     (void)arg;
     plat_thread_priority(PLAT_PRIO_HIGHEST);
     uint64_t n = 0, due = kern_now_ns();
     for (;;) {
-        due += VSYNC_NS / VSYNC_HZ / (uint64_t)turbo_speed();
+        due += VSYNC_NS / VSYNC_HZ;
         uint64_t now = kern_now_ns();
         if (now > due + 100000000ull) {                  // the process stalled: restart the schedule, no catch-up burst
             due = now;
@@ -605,7 +604,6 @@ static void present_image(VkImage src, VkImageLayout layout, VkFormat fmt, int w
         if (!wsys_minimized() && !create_swapchain() && !g_sc) goto out;
     }
     if (wsys_minimized() || !g_sc) goto out;
-    if (!g_capture && turbo_drop_present(kern_now_ns())) goto out;   // turbo: the window shows at most 60 a second
 
     unsigned slot = g_frame % g_frames;
     if (vkWaitForFences(c->device, 1, &g_fence[slot], VK_TRUE, 5000000000ull) != VK_SUCCESS) {

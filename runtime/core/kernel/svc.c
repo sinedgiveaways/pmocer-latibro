@@ -198,7 +198,6 @@ static void get_info(Cpu *c, uint64_t pc) {
     case 8: v = 0; break;
     case 10: v = 0; break;
     case 11:
-        if (seed_random(c->x[3], &v)) break;
         if (!plat_random(&v, sizeof v)) rt_fatal("GetInfo 11: no random bytes from the system");
         break;
     case 18: v = rt_game()->port ? rt_game()->port->program_id : PROGRAM_ID; break;

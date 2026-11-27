@@ -9,5 +9,5 @@ Boot, modules, kernel, guest memory, settings and diagnostics. Every subfolder w
 | [kernel/](kernel/README.md) | Horizon kernel: handles, waits, threads, virtual cores, fibers, SVCs |
 | [memory/](memory/README.md) | Guest address space, write tracking, read traps (`ORBITALS_EARLY_READ`) |
 | [base/](base/README.md) | `base/host.h`, settings (`cfg`), `ORBITALS_CTL`, system info, SHA-256, UTF-16 |
-| [hacks/](hacks/README.md) | Shortcuts the console does not have: turbo, skip movies, development helpers |
+| [hacks/](hacks/README.md) | Development helpers the console does not have (the control pipe's freeze) |
 | [diag/](diag/README.md) | Flight recorder, counters, profiling, RenderDoc, `ORBITALS_IMPORT_CENSUS` |

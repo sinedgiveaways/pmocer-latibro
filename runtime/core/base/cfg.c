@@ -52,7 +52,7 @@ static const char *const known[] = {
     "REPLAY_CHECK", "RESOLVE_CHECK", "ROMFS", "RTSTATS", "ROMFS_MODS", "ROMFS_PATCHES",
     "RUMBLE", "RUMBLE_CURVE", "RUMBLE_STRENGTH", "RUMBLE_TRIGGERS",
     "SHADER_MEMO", "SHADERS_AUTO", "SHARED_FONTS", "SHARPNESS", "SHOTS", "SHOTS_DIR", "SHOTS_FULL", "SPARSE_IMAGES", "SPARSE_MIB", "SPARSE_NO_BUFFER", "SPIN", "SPIN_HANDOFF_US", "SPLIT_DRAWS", "SPLIT_US", "STEAM_APPID", "STEAM_APPIDS", "STEAM_INVITE", "STICK_DEADZONE", "SWITCH2", "SWKBD_ANSWER",
-    "SKIP_PROGRAMS", "SWKBD_TEST", "TEX_ALIAS", "TEX_MEMO", "TEX_QUALITY", "TEX_RELEASED_MIB", "TEXEL_VIEWS", "TIMER_1MS", "TRACE", "TRACE_3D", "TRACE_STALE", "TURBO", "TURBO_SPEED", "SEED", "FREEZE_KEYS", "QUALITY", "TRACE_UBO", "TRACE_UBO_OUT", "UBO_SNAPSHOT", "UPSCALER", "VK_DYN_VERTEX", "VK_NO_FLOAT64",
+    "SKIP_PROGRAMS", "SWKBD_TEST", "TEX_ALIAS", "TEX_MEMO", "TEX_QUALITY", "TEX_RELEASED_MIB", "TEXEL_VIEWS", "TIMER_1MS", "TRACE", "TRACE_3D", "TRACE_STALE", "QUALITY", "TRACE_UBO", "TRACE_UBO_OUT", "UBO_SNAPSHOT", "UPSCALER", "VK_DYN_VERTEX", "VK_NO_FLOAT64",
     "VK_PRESENT", "VK_RECORDER", "VK_SSBO_ALIGN", "VK_SUBGROUP", "VK_SUBGROUP_PIN", "VK_TEX_POOL_MIN", "VK_VALIDATION", "VOLUME", "VRAM_HEADROOM", "VRAM_LOG", "VRAM_MARGIN", "VS_OUTS",
     "UPDATE_AS", "VATTR_MAX", "WB_MERGE", "WB_UNSIZED", "SHADOW_CPU_WINS", "PUSH_CS", "UPDATE_CHECK", "UPDATE_REPO", "WINDOW_SIZE",
 };
@@ -81,7 +81,6 @@ static const struct { const char *key, *section; } sections[] = {
     {"PUSH_SKIP", "performance"}, {"SPLIT_DRAWS", "performance"}, {"SPLIT_US", "performance"}, {"VK_VALIDATION", "performance"},
     {"VK_DYN_VERTEX", "performance"}, {"VK_SUBGROUP_PIN", "performance"},
     {"TRACE", "diagnostics"}, {"FLIGHT", "diagnostics"}, {"FLIGHT_SPIKE_MS", "diagnostics"},
-    {"TURBO", "hacks"}, {"TURBO_SPEED", "hacks"}, {"SEED", "hacks"}, {"FREEZE_KEYS", "hacks"},
     {"MODS", "launcher"}, {"MODS_ACK", "launcher"}, {"MODS_PLAYED", "launcher"},
     {"UPDATE_CHECK", "launcher"}, {"GAME_DIR", "launcher"}, {"PLAYER", "launcher"},
     {"STEAM_APPID", "steam"}, {"STEAM_APPIDS", "steam"}, {"STEAM_INVITE", "steam"},
@@ -144,9 +143,6 @@ static const CfgMeta metas[] = {
     {"TRACE", "", NULL, RESTART}, {"FLIGHT", "0", "0|1", RESTART}, {"FLIGHT_SPIKE_MS", "100", "0..60000", RESTART},
     {"INPUT_RECORD", "", NULL, RESTART},
     // Hacks: none of them on the console, all off by default
-    {"TURBO", "off", "off|hold|toggle|on", LIVE}, {"TURBO_SPEED", "4", "2..8", LIVE},
-    {"SEED", "", NULL, RESTART},
-    {"FREEZE_KEYS", "0", "0|1", LIVE},
 };
 
 static int is_known(const char *key) {

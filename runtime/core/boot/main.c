@@ -207,7 +207,7 @@ __attribute__((constructor)) static void tick_scale_init(void) { tick_scale = pl
 
 uint64_t rt_ticks_real(void) { return plat_scaled(tick_scale, plat_counter()); }
 
-uint64_t rt_ticks(void) { return turbo_clock(rt_ticks_real()); }   // core/hacks/turbo.c: faster while the turbo is on
+uint64_t rt_ticks(void) { return rt_ticks_real(); }
 
 // ---- crash reporter
 typedef struct { uintptr_t host; uint64_t guest; } FnRev;

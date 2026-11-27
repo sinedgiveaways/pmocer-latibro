@@ -1,11 +1,10 @@
 # runtime/core/hacks
 
-Shortcuts the console does not have, for playing and above all for developing faster. All off by default, each with
-its `ORBITALS_*` and its row in the "Hacks" tab (`ui/menu/settings_tabs.cpp`).
+Development helpers the console does not have, with no setting for the player. The turbo (`ORBITALS_TURBO`,
+`ORBITALS_TURBO_SPEED`, F2), the fixed seed (`ORBITALS_SEED`) and the freeze keys (`ORBITALS_FREEZE_KEYS`, F3/F4) were
+removed on 27/11/2026 with the "Hacks" tab: they were of no use for Orbitals.
 
 | File | What it is |
 |---|---|
-| `hacks.h` | The hacks' interface |
-| `turbo.c` | Turbo (`ORBITALS_TURBO` off/hold/toggle/on/until, `ORBITALS_TURBO_SPEED`, F2 key): the pacer, the vsync thread and the guest clock (`rt_ticks`) run N times faster; the window shows at most 60 frames per second |
-| `seed.c` | Same randomness (`ORBITALS_SEED=<number>`): the system entropy (svc `GetInfo 11`) and the 21 clock seedings of sead's generator (patch set `seed`) come from that seed: the title screen always shows the same course |
-| `freeze.c` | Freeze (`ORBITALS_FREEZE_KEYS`, F3/F4; `ctl.sh NAME pause`, `step [N]`, `resume`): the game thread waits in its present |
+| `hacks.h` | The helpers' interface |
+| `freeze.c` | Freeze from the control pipe only (`ctl.sh NAME pause`, `step [N]`, `resume`): the game thread waits in its present |

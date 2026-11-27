@@ -718,7 +718,7 @@ static void ov_time_ready(Cpu *c) { ret_x(c, (uint64_t)time_ready); }
 static void ov_current_time(Cpu *c) {
     int64_t *out = arg_p(c, 0);
     if (!out) { ret_x(c, TIME_R_INVALID); return; }
-    if (!seed_time(out)) *out = posix_now();   // core/hacks/seed.c: a fixed date with ORBITALS_SEED
+    *out = posix_now();
     ret_x(c, 0);
 }
 

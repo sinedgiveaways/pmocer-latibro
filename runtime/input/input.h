@@ -62,9 +62,6 @@ int input_capture(int reset, int *id);
 uint32_t input_key_char(int key);
 // F8, the flight recorder's key (no KEY_ id), held while the game window is in front.
 int input_flight_key(void);
-// The hacks' keys (core/hacks/), held while the game window is in front: F2 turbo, F3 freeze, F4 one frame on.
-enum { HACK_KEY_TURBO, HACK_KEY_FREEZE, HACK_KEY_STEP };
-int input_hack_key(int which);
 
 // Mouse camera and cursor (input_sdl.c, window thread). input_cursor_suspend(1) releases the cursor around an F11
 // window change, (0) captures it again once the client area has its new size.

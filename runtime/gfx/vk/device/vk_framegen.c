@@ -326,11 +326,11 @@ int vk_fg_record(VkCommandBuffer cb, VkImage src, int sw, int sh, const int crop
     return made + 1;
 }
 
-// The frames per game frame the setting asks for now: 0 off (also under the turbo, whose frames are dropped anyway),
+// The frames per game frame the setting asks for now: 0 off,
 // else 1..VK_FG_MAX, at most what the swapchain has room for
 static int mult_now(void) {
     const char *v = cfg_value("ORBITALS_FRAMEGEN");
-    if (!strcmp(v, "off") || turbo_speed() > 1) return 0;
+    if (!strcmp(v, "off")) return 0;
     int m;
     if (!strcmp(v, "auto")) {
         // The refreshes of the monitor that fit in one game frame, rounded down: rounded up a quarter early, a game
