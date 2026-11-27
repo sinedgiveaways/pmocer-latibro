@@ -276,8 +276,10 @@ static void update_row(float bw) {
 static void lastrun_row(float bw) {
     LastRun r = lastrun_state();
     if (r.kind == LASTRUN_NONE) return;
+    // Problems are reported where they are fixed, pmocer-latibro (the owner, 27/11/2026); the updates come from the
+    // public Orbitals-Together (update.py). ORBITALS_UPDATE_REPO, set for a test, moves both.
     const char *repo = getenv("ORBITALS_UPDATE_REPO");
-    if (!repo || !*repo) repo = "sinedgiveaways/Orbitals-Together";   // the public repository of the final builds
+    if (!repo || !*repo) repo = "sinedgiveaways/pmocer-latibro";
     char text[700], button[160], url[300];
     url[0] = 0;
     if (r.kind == LASTRUN_KNOWN) {

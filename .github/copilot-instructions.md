@@ -111,4 +111,4 @@ backgrounds.
   zip from the tag and attaches it. The agent cannot upload release files itself (uploads.github.com is not reachable
   through its GitHub access). Put the zip's sha256 from the workflow log in the release notes. 0.3.0 was published so
   on 27/11/2026: https://github.com/sinedgiveaways/Orbitals-Together/releases/tag/v0.3.0. The launcher's update check
-  and bug links point to Orbitals-Together.
+  points to Orbitals-Together; its bug links and the READMEs' issue link go to pmocer-latibro, where fixes are made.
