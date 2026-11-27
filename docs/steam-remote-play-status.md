@@ -103,8 +103,13 @@ layer, both players owning the port).
 - Next: the same test with an executable whose log header says `g5ba7f29` (or `gd116ac3`).
 
 - **Result (27/11/2026, executable of `d116ac3`):** the owner reports that "Partie en ligne" now opens the Steam invite
-  list with the notice and it works. Which of the two triggers fired was not read from a log (none was sent); the
-  `online:` lines of the next log will say.
+  list with the notice and it works.
+- **Log of that run (`0.2.0-gd116ac3`):** the trigger is `nifm::HandleNetworkRequestErrorResult`, called from
+  `main+0x175ac` right after `IsNetworkAvailable` and `SubmitNetworkRequestAndWait` (`main+0x17570`, `main+0x175a0`),
+  at frames 1421, 1864 and 3874 (3 uses of the menu). Each prints `steam: the game asked for online play ...: opening
+  the Remote Play Together invite list`. `account::EnsureNetworkServiceAccountAvailable` never came;
+  `account::IsNetworkServiceAccountAvailable` came once at frame 0 (boot). A friend joined (`steam: ... joined (session
+  2 ... 1 guests)`) after the second use. The 10 s limit let all three through.
 
 ## What is missing or unknown
 

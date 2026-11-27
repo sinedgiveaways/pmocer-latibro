@@ -475,7 +475,7 @@ sans les lignes `online:`; à refaire avec `5ba7f29` ou plus récent. Détails d
 le choix « Joueurs locaux / Steam Remote Play Together ».
 
 **Confirmé en jeu (27/11/2026, `d116ac3`) :** « Partie en ligne » ouvre la liste d'invitation Steam; le joueur dit que ça
-fonctionne. Online Play par Remote Play Together est donc terminé (option 1).
+fonctionne. Online Play par Remote Play Together est donc terminé (option 1). Le log montre que le déclencheur est `nifm::HandleNetworkRequestErrorResult` (appelé depuis `main+0x175ac`); l'appel du compte n'arrive jamais.
 
 **Diagnostics à retirer quand ils ne servent plus :** `ORBITALS_OCCLUSION=visible` (`68d2a22`), le log des écritures
 dans une copie transitoire (`97bc308`), les notes de signal des variables de condition (`c03f2a0`, utile tant que le
