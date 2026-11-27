@@ -488,6 +488,11 @@ probablement le même mécanisme de texture reprise, corrigé par `e30dd58` (non
 **Lignes grises du couloir (27/11/2026) :** le joueur dit qu'elles ont disparu. Cause non établie (particules mal placées
 supposées) ; à rouvrir si elles reviennent.
 
+**Renommage en Orbitals Together 0.1.0 (27/11/2026, `b820b6c`) :** programme `orbitals-together.exe`, version 0.1.0, artefacts
+`kiro-orbitals-together-*`. `orbitals.ini`, `ORBITALS_*` et les dossiers gardent leur nom. Installation propre testée par
+le joueur avec le paquet complet du run 45922596808 : tout est bon. La bibliothèque `orbitalgame.dll` est liée au nom de
+l'exe, donc un changement de nom de l'exe demande de refaire le setup. Prochain sujet : le lanceur (vidéo du joueur).
+
 **Diagnostics à retirer quand ils ne servent plus :** `ORBITALS_OCCLUSION=visible` (`68d2a22`), le log des écritures
 dans une copie transitoire (`97bc308`), les notes de signal des variables de condition (`c03f2a0`, utile tant que le
 gel n'est pas résolu).
