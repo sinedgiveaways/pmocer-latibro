@@ -102,7 +102,13 @@ backgrounds.
   (`orbitals-together-<version>-windows-x64.zip`) as its asset, step-by-step READMEs in English (`README.md`) and
   French (`README.fr.md`) (download, setup, local play, Remote Play Together, forking), and the full source of that tag
   so anyone can fork it (the tag's tree without `.kiro/` and this file; its `README.md` kept as `DEVELOPMENT.md`). Never publish there without the owner saying a build is final.
-- To publish: tag the commit `vX.Y.Z` on pmocer-latibro (add its `CHANGELOG.md` section and the `.rc` version first),
-  push the tag, run `Build Windows` on the tag (`gh api -X POST .../actions/workflows/build-windows.yml/dispatches -f
-  ref=vX.Y.Z`): the package takes the tag's number. Upload that zip to an Obitals-Together release of the same tag and
-  update the README's version and file name. The launcher's update check and bug links point to Obitals-Together.
+- To publish: on pmocer-latibro add the version's `CHANGELOG.md` section and `.rc` version, tag `vX.Y.Z`, push it,
+  and have the owner test `Build Windows` on the tag (`.../build-windows.yml/dispatches -f ref=vX.Y.Z`). Then replace
+  Obitals-Together's tree with the tag's (`git archive vX.Y.Z`, without `.kiro/` and this file; `README.md` kept as
+  `DEVELOPMENT.md`; its own `README.md`, `README.fr.md` with the new version and file name), commit on `main`, tag
+  `vX.Y.Z` there, create the release (`gh api repos/sinedgiveaways/Obitals-Together/releases -f tag_name=...`) and run
+  its **Publish release** workflow (`.../publish.yml/dispatches -f ref=main -f "inputs[tag]=vX.Y.Z"`): it builds the
+  zip from the tag and attaches it. The agent cannot upload release files itself (uploads.github.com is not reachable
+  through its GitHub access). Put the zip's sha256 from the workflow log in the release notes. 0.3.0 was published so
+  on 27/11/2026: https://github.com/sinedgiveaways/Obitals-Together/releases/tag/v0.3.0. The launcher's update check
+  and bug links point to Obitals-Together.

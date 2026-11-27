@@ -513,6 +513,10 @@ locuteurs natifs.
 (`lastrun.py` et `update.py` au démarrage, setup, mods, mise à jour) ouvraient chacun une console. `launcher_process`
 (`launcher_setup.cpp`) les démarre avec `CREATE_NO_WINDOW` sous Windows.
 
+**Version publique 0.3.0 (27/11/2026) :** dépôt public `sinedgiveaways/Obitals-Together` (code du tag `v0.3.0`, README en
+anglais et en français, workflow **Publish release**), release https://github.com/sinedgiveaways/Obitals-Together/releases/tag/v0.3.0.
+Seuls les builds déclarés définitifs par le joueur y sont publiés ; les tests continuent ici.
+
 **Diagnostics à retirer quand ils ne servent plus :** `ORBITALS_OCCLUSION=visible` (`68d2a22`), le log des écritures
 dans une copie transitoire (`97bc308`), les notes de signal des variables de condition (`c03f2a0`, utile tant que le
 gel n'est pas résolu).
