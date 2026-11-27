@@ -509,6 +509,10 @@ manette vue directement, chacune prend maintenant le joueur libre suivant (`inpu
 fichiers du jeu, erreur de version, les deux messages de Partie en ligne) ont été écrits par l'agent, non relus par des
 locuteurs natifs.
 
+**Fenêtres noires au lancement (27/11/2026, `cccc95e`, confirmé par le joueur) :** les outils Python du lanceur
+(`lastrun.py` et `update.py` au démarrage, setup, mods, mise à jour) ouvraient chacun une console. `launcher_process`
+(`launcher_setup.cpp`) les démarre avec `CREATE_NO_WINDOW` sous Windows.
+
 **Diagnostics à retirer quand ils ne servent plus :** `ORBITALS_OCCLUSION=visible` (`68d2a22`), le log des écritures
 dans une copie transitoire (`97bc308`), les notes de signal des variables de condition (`c03f2a0`, utile tant que le
 gel n'est pas résolu).
