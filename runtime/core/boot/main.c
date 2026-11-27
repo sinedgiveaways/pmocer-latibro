@@ -640,15 +640,6 @@ static int want_launcher(int argc, char **argv) {
 
 static int run_launcher(int argc, char **argv) {
     cfg_init();   // orbitals.ini: the settings pages read and write it
-    // the Mods page merges against the same romfs the game will boot: argv wins, else ORBITALS_ROMFS / orbitals.ini,
-    // else the selected installation, else the baked-in default (nup packages cannot merge: no loose files)
-    const char *romfs = NULL;
-    for (int i = 1; i + 1 < argc; i++)
-        if (!strcmp(argv[i], "--romfs") || !strcmp(argv[i], "--nup")) romfs = argv[i + 1];
-    if (!romfs)
-        romfs = portable_path(cfg_game_dir(), "ORBITALS_ROMFS", "romfs", NULL, pp_romfs, sizeof pp_romfs,
-                              rt_default_romfs);
-    if (romfs) launcher_set_romfs(romfs);
     // the players (Profiles page) live in the profile folder the game will use: --profile, else ORBITALS_PROFILE_DIR /
     // orbitals.ini, else profile/ in the selected installation
     const char *profile = NULL;
@@ -660,14 +651,6 @@ static int run_launcher(int argc, char **argv) {
         profile = paths.profile;
     }
     if (profile && *profile) launcher_set_profile(profile);
-    // the same for exefs: an import checks a mod's build id against the game it will run with
-    const char *exefs = NULL;
-    for (int i = 1; i + 1 < argc; i++)
-        if (!strcmp(argv[i], "--exefs")) exefs = argv[i + 1];
-    if (!exefs)
-        exefs = portable_path(cfg_game_dir(), "ORBITALS_EXEFS", "exefs", "main.npdm", pp_exefs, sizeof pp_exefs,
-                              rt_default_exefs);
-    if (exefs) launcher_set_exefs(exefs);
     if (launcher_run() != LAUNCHER_PLAY) return 0;
     plat_setenv("ORBITALS_LAUNCHED", "1");
     plat_reexec();

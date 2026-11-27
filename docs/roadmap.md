@@ -517,6 +517,11 @@ locuteurs natifs.
 anglais et en français, workflow **Publish release**), release https://github.com/sinedgiveaways/Orbitals-Together/releases/tag/v0.3.0.
 Seuls les builds déclarés définitifs par le joueur y sont publiés ; les tests continuent ici.
 
+**Ménage (27/11/2026) :** supprimés à la demande du joueur : restes du retrait de MKW et migration des anciens réglages,
+puis toute la gestion des mods (page Mods du lanceur, `mods.cpp`, `tools/mod/`, superposition des mods dans
+`romfs.c`, réglages `ORBITALS_MODS*`, 34 textes). Le générateur garde `--mods`/`--image` jusqu'au prochain changement
+de `recomp/` (voir recomp/README.md). Gardés : les diagnostics du gel, le code Linux, les outils de rapport.
+
 **Diagnostics à retirer quand ils ne servent plus :** `ORBITALS_OCCLUSION=visible` (`68d2a22`), le log des écritures
 dans une copie transitoire (`97bc308`), les notes de signal des variables de condition (`c03f2a0`, utile tant que le
 gel n'est pas résolu).

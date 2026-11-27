@@ -11,17 +11,11 @@
 // 5173d27, MIT, Copyright (c) 2026 Revivedx and the Savage Wind Recomp contributors).
 //
 // Test hooks: ORBITALS_LAUNCHER_SHOT=<frame>[:<page>[:<tab>[:<scroll 0..1>]]] saves that frame as ORBITALS_LAUNCHER_SHOT_OUT (default
-// launcher.png) and quits; page main, settings (tab 0..5), files, mods or players. The user's input is ignored while it
+// launcher.png) and quits; page main, settings (tab 0..5), files or players. The user's input is ignored while it
 // runs.
 // ORBITALS_LAUNCHER_SETUP=<folder>[:link] starts the setup from that folder at once, on the game files page.
-// ORBITALS_LAUNCHER_MODS_PICK=<zip|folder> picks it on the Mods page, as its dialogs do; ORBITALS_LAUNCHER_MODS_TOGGLE=<mod>
-// toggles that mod once, as its checkbox does; ORBITALS_LAUNCHER_MODS_PICKWINNER=<archive> cycles the first conflict of
-// that archive once, as its winner button does; ORBITALS_LAUNCHER_MODS_DELETE=<mod> deletes it once, as its confirmed
-// modal does; ORBITALS_LAUNCHER_MODS_CONFLICT_OK=1 presses the picker's OK, ORBITALS_LAUNCHER_MODS_MODAL=1 opens it;
-// ORBITALS_LAUNCHER_MODS_IMPORT=1 runs the import of the picked zip or folder; ORBITALS_LAUNCHER_NO_MERGE=1
-// skips the page-entry merge (pre-merged shots).
 // ORBITALS_LAUNCHER_SHORTCUT=1 makes the desktop shortcut at start, as its button does. ORBITALS_LAUNCHER_PLAY=1 presses Play once
-// the game files are there (with ORBITALS_GPU=x the game's process then stops at once: the save copy before mods, alone).
+// the game files are there (with ORBITALS_GPU=x the game's process then stops at once).
 // ORBITALS_LAUNCHER_EXIT_AFTER_SETUP=1 quits when that setup ends, after saving the page as <shot out>-end.png (its result
 // is in the log); ORBITALS_LAUNCHER_SHOT then takes its shot without quitting. During a shot the update check runs only
 // with ORBITALS_UPDATE_AS (tools/prepare/update.py: compare as that version). ORBITALS_LAUNCHER_UPDATE=1 takes the update offered
@@ -45,7 +39,6 @@
 #include "ui/launcher/launcher_setup.h"
 #include "ui/launcher/launcher_lastrun.h"
 #include "ui/launcher/launcher_update.h"
-#include "ui/launcher/mods.h"
 #include "ui/menu/menu_look.h"
 #include "ui/menu/option_rows.h"
 #include "ui/menu/settings_tabs.h"
@@ -60,7 +53,7 @@ extern const char rt_port_version[];
 void app_icon_set(SDL_Window *w);   // build/obj/rt/app_icon.c, drawn by tools/build/icon.py
 }
 
-enum Page { PAGE_MAIN, PAGE_SETTINGS, PAGE_FILES, PAGE_MODS, PAGE_PLAYERS };
+enum Page { PAGE_MAIN, PAGE_SETTINGS, PAGE_FILES, PAGE_PLAYERS };
 
 static struct {
     SDL_Window *win;
@@ -73,7 +66,6 @@ static struct {
     Page page;
     int focus_main;                 // the main page's first button takes the cursor
     int result;                     // LAUNCHER_PLAY or LAUNCHER_QUIT once chosen; -1 running
-    int play_after_setup;           // Play with code mods changed: the setup builds the game code, then the game
     int save_pending;
     // test hook
     long shot_at;
@@ -136,7 +128,6 @@ static void parse_test(void) {
     if (!p) return;
     p++;
     L.shot_page = !strncmp(p, "settings", 8) ? PAGE_SETTINGS : !strncmp(p, "files", 5) ? PAGE_FILES
-                  : !strncmp(p, "mods", 4)                                              ? PAGE_MODS
                   : !strncmp(p, "players", 7)                                           ? PAGE_PLAYERS
                                                                                         : PAGE_MAIN;
     const char *t = strchr(p, ':');
@@ -350,20 +341,7 @@ static void page_main(float w, float h) {
     bool play = play_button(menu_text(UI_LAUNCH_PLAY), ImVec2(cw, play_h), ready);
     if (play || (play_test && ready)) {
         play_test = false;
-        char state[PLAT_PATH_MAX + 32];
-        snprintf(state, sizeof state, "%s/setup-state.json", cfg_game_dir());
-        if (mods_code_changed() && L.tools && plat_file_exists(state)) {   // a set-up folder (not build/orbitals-together)
-            // a code mod changed: the game code is built again first (generate and compile), on the files page
-            L.play_after_setup = 1;
-            L.page = PAGE_FILES;
-            setup_start(L.exe_dir, cfg_game_dir(), nullptr, 0);
-        } else {
-            mods_merge_sync(L.exe_dir);   // a stale .merged must not boot: usually a no-op fresh-check
-            char player[PLAT_PATH_MAX * 2];
-            launcher_player_dir(player, sizeof player);
-            if (player[0]) mods_before_play(player);
-            L.result = LAUNCHER_PLAY;
-        }
+        L.result = LAUNCHER_PLAY;
     }
     intro_apply(dl, v0, intro(1));
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
@@ -682,305 +660,6 @@ static void page_files(float w, float h) {
     else L.result = LAUNCHER_QUIT;
 }
 
-// ---- the Mods page: the player's mods, imported from a zip or a folder, enabled for the next start
-static void SDLCALL pick_zip(void *, const char *const *files, int) {
-    if (files && files[0]) mods_pick(files[0], 1);
-}
-
-static void SDLCALL pick_folder(void *, const char *const *files, int) {
-    if (files && files[0]) mods_pick(files[0], 0);
-}
-
-// import.py's "error <code> <detail>" in the menu language; an unknown code shows the detail alone.
-static void mods_error_text(const ModsState &st, char *out, size_t cap) {
-    static const struct {
-        const char *code;
-        UiTextId text;
-    } kWhy[] = {{"layout", UI_MOD_ERR_LAYOUT}, {"name", UI_MOD_ERR_NAME}, {"io", UI_MOD_ERR_IO},
-                {"notported", UI_MOD_ERR_NOPORT}, {"nogame", UI_MOD_ERR_NOGAME},
-                {"no_setup", UI_SETUP_ERR_NO_SETUP}, {"big", UI_MOD_ERR_BIG}, {"unpack", UI_MOD_ERR_UNPACK}};
-    char why[600];
-    snprintf(why, sizeof why, "%s", st.error);
-    for (const auto &w : kWhy)
-        if (!strcmp(st.code, w.code)) {
-            const char *text = menu_text(w.text);
-            // a text with %s takes the detail as its argument (never printed raw); otherwise the detail
-            // is appended after a colon, so an untranslated format can never reach the player verbatim
-            if (strstr(text, "%s"))
-                snprintf(why, sizeof why, text, st.error);
-            else if (st.error[0])
-                snprintf(why, sizeof why, "%s: %s", text, st.error);
-            else
-                snprintf(why, sizeof why, "%s", text);
-        }
-    snprintf(out, cap, "%s", why);
-}
-
-// One modal OK/Cancel confirmation shared by the page's destructive buttons (delete for now):
-// the caller fills `subject`, opens it with ImGui::OpenPopup(id), and this runs the dialog.
-// Returns true once, on OK. The subject is left for the caller to read (it names what to act on)
-// and cleared here on Cancel; the caller clears it after acting.
-static bool confirm_modal(const char *id, char *subject, size_t cap, UiTextId ask, UiTextId ok) {
-    (void)cap;
-    bool done = false;
-    if (ImGui::BeginPopupModal(id, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-        char text[MOD_NAME_MAX + 32];
-        snprintf(text, sizeof text, menu_text(ask), subject);
-        ImGui::TextWrapped("%s", text);
-        if (ImGui::Button(menu_text(ok))) {
-            done = true;   // the subject still names the item: the caller needs it
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::SameLine();
-        if (ImGui::Button(menu_text(UI_LAUNCH_BACK))) {
-            subject[0] = 0;
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::EndPopup();
-    } else if (subject[0] && !ImGui::IsPopupOpen(id)) {
-        subject[0] = 0;   // the popup never opened (modal already open): drop a stale subject
-    }
-    return done;
-}
-
-static void page_mods(float w, float h) {
-    float bottom = panel_begin("##mods", UI_LAUNCH_MODS, w, h);
-    ImGui::BeginChild("##mods_body", ImVec2(0, -bottom), ImGuiChildFlags_NavFlattened);
-    bool ready = rt_game_present();
-    static char shown[PLAT_PATH_MAX] = "";
-    if (strcmp(shown, L.exe_dir)) {   // entered (buttons and the shot hook both land here)
-        mods_refresh(L.exe_dir);
-        snprintf(shown, sizeof shown, "%s", L.exe_dir);
-        if (!getenv("ORBITALS_LAUNCHER_NO_MERGE")) mods_merge_start(L.exe_dir);   // (test) skip: pre-merged shots
-    }
-    if (const char *t = getenv("ORBITALS_LAUNCHER_MODS_PICK")) {   // (test) the picked zip or folder, as its dialog does
-        if (!mods_has_pick()) {
-            size_t n = strlen(t);
-            mods_pick(t, n > 4 && t[n - 4] == '.' && (t[n - 3] == 'z' || t[n - 3] == 'Z'));
-        }
-    }
-    static int toggled = 0;   // (test) toggle one mod once, as its checkbox does
-    if (!toggled) {
-        if (const char *t = getenv("ORBITALS_LAUNCHER_MODS_TOGGLE")) {
-            toggled = 1;
-            mods_toggle(t, !mods_is_enabled(t));
-        }
-    }
-    static int picked_winner = 0;   // (test) cycle the first conflict of an archive once, as its button does
-    if (!picked_winner) {
-        if (const char *t = getenv("ORBITALS_LAUNCHER_MODS_PICKWINNER")) {
-            for (int i = 0; i < mods_conflict_count(); i++) {
-                const ModConflict *c = mods_conflict_at(i);
-            if (c->resolved) continue;   // picked: it leaves the list until the mods around it change
-                if (!strcmp(c->archive, t)) {
-                    picked_winner = 1;
-                    mods_conflict_pick(c->archive, c->inner);
-                    break;
-                }
-            }
-        }
-    }
-    static int imported_one = 0;   // (test) run the import once, as its Import button does
-    if (!imported_one && getenv("ORBITALS_LAUNCHER_MODS_IMPORT") && mods_has_pick()) {
-        imported_one = 1;
-        mods_import_start(L.exe_dir);
-    }
-    static int deleted_one = 0;   // (test) delete one mod once, as its confirmed modal does
-    if (!deleted_one) {
-        if (const char *t = getenv("ORBITALS_LAUNCHER_MODS_DELETE")) {
-            deleted_one = 1;
-            mods_delete(t);
-        }
-    }
-    static char confirm_delete[MOD_NAME_MAX] = "";
-    static int delete_cooldown = 0;
-    if (delete_cooldown > 0) delete_cooldown--;   // no re-arm on the same double-click: rows shift up under a fast cursor
-    mods_poll();
-    if (mods_count() == 0) {
-        ImGui::TextDisabled("%s", menu_text(UI_LAUNCH_MODS_EMPTY));
-    }
-    for (int i = 0; i < mods_count(); i++) {
-        const Mod *m = mods_at(i);
-        ImGui::PushID(i);   // same labels every row (checkbox title can repeat too): unique IDs per row
-        bool on = m->enabled;
-        if (ImGui::Checkbox(m->title, &on)) mods_toggle(m->name, on);
-        ImGui::SameLine(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(menu_text(UI_MOD_DELETE)).x -
-                        ImGui::GetStyle().FramePadding.x * 2);
-        bool can_delete = !delete_cooldown;
-        if (!can_delete) ImGui::BeginDisabled();
-        if (ImGui::Button(menu_text(UI_MOD_DELETE)))
-            snprintf(confirm_delete, sizeof confirm_delete, "%s", m->name);
-        if (!can_delete) ImGui::EndDisabled();
-        // what the mod ships: romfs files, exefs code sets, or both; a line only for what it has
-        char detail[192] = "";
-        size_t n = 0;
-        if (m->has_romfs && m->romfs_files == 1)
-            n += snprintf(detail + n, sizeof detail - n, "%s", menu_text(UI_MOD_ROMFS_1));
-        else if (m->has_romfs)
-            n += snprintf(detail + n, sizeof detail - n, menu_text(UI_MOD_ROMFS), m->romfs_files);
-        if (m->has_exefs) {
-            if (n) n += snprintf(detail + n, sizeof detail - n, "  -  ");
-            char codebuf[96];
-            const char *code;
-            if (m->nswitches == 1) code = menu_text(UI_MOD_CODE_SWITCH_1);
-            else if (m->nswitches > 1) {
-                snprintf(codebuf, sizeof codebuf, menu_text(UI_MOD_CODE_SWITCHES), m->nswitches);
-                code = codebuf;
-            } else if (m->code) code = menu_text(UI_MOD_CODE_REBUILD);
-            else if (m->exefs_match) code = menu_text(UI_MOD_CODE_PORT);
-            else {
-                snprintf(codebuf, sizeof codebuf, menu_text(UI_MOD_CODE_BUILD), m->exefs_build);
-                code = codebuf;
-            }
-            snprintf(detail + n, sizeof detail - n, "%s", code);
-        }
-        if (n) ImGui::TextDisabled("%s", detail);
-        // files the port treats its own way (import.py): the mod is still installed, the player told what to expect
-        ImGui::PushTextWrapPos(0);
-        if (m->warn_graphics) ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.35f, 1), "%s", menu_text(UI_MOD_WARN_GRAPHICS));
-        if (m->warn_shaders) ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.35f, 1), "%s", menu_text(UI_MOD_WARN_SHADERS));
-        ImGui::PopTextWrapPos();
-        ImGui::Separator();
-        ImGui::PopID();
-    }
-    // opened outside any PushID row, like the modal itself: opening it inside the row's PushID(i)
-    // registers a different popup id than BeginPopupModal looks up, so the dialog never appears
-    if (confirm_delete[0]) ImGui::OpenPopup("##delete_mod");
-    if (confirm_modal("##delete_mod", confirm_delete, sizeof confirm_delete, UI_MOD_CONFIRM, UI_MOD_DELETE)) {
-        mods_delete(confirm_delete);
-        confirm_delete[0] = 0;
-        delete_cooldown = 45;
-    }
-    ImGui::Spacing();
-    ModsState ms = mods_state();
-    if (!L.tools || !ready) {
-        ImGui::TextWrapped("%s", menu_text(!ready ? UI_LAUNCH_FILES_MISSING : UI_LAUNCH_NO_TOOLS));
-    } else if (ms.running) {
-        ImGui::ProgressBar(-1.0f * (float)ImGui::GetTime(), ImVec2(-1, 0), "");
-        ImGui::SameLine();
-        if (ImGui::Button(menu_text(UI_LAUNCH_CANCEL))) mods_cancel();
-    } else if (!mods_has_pick() && !ms.finished) {
-        static const SDL_DialogFileFilter zip_filter = {"Mod (.zip, .rar, .7z)", "zip;rar;7z"};
-        if (ImGui::Button(menu_text(UI_MOD_IMPORT_ZIP)))
-            SDL_ShowOpenFileDialog(pick_zip, nullptr, L.win, &zip_filter, 1, nullptr, false);
-        ImGui::SameLine();
-        if (ImGui::Button(menu_text(UI_MOD_IMPORT_FOLDER)))
-            SDL_ShowOpenFolderDialog(pick_folder, nullptr, L.win, nullptr, false);
-    } else if (ms.finished) {
-        if (ms.finished > 0) {
-            char done[128];
-            snprintf(done, sizeof done, menu_text(UI_MOD_IMPORTED), ms.done);
-            ImGui::TextColored(ImVec4(0.55f, 0.85f, 0.6f, 1), "%s", done);
-        } else if (!strcmp(ms.code, "variants")) {
-            // one button per mod the archive holds (import.py lists their folders, tab-separated)
-            ImGui::TextWrapped("%s", menu_text(UI_MOD_VARIANTS));
-            char list[sizeof ms.error];
-            snprintf(list, sizeof list, "%s", ms.error);
-            int k = 0;
-            for (char *v = strtok(list, "\t"); v; v = strtok(NULL, "\t"), k++) {
-                ImGui::PushID(k);
-                if (ImGui::Button(v)) mods_import_variant(L.exe_dir, v);
-                ImGui::PopID();
-            }
-        } else {
-            char msg[700];
-            mods_error_text(ms, msg, sizeof msg);
-            ImGui::PushTextWrapPos(0);
-            ImGui::TextColored(ImVec4(0.95f, 0.45f, 0.35f, 1), "%s", msg);
-            ImGui::PopTextWrapPos();
-        }
-        if (ImGui::Button(menu_text(UI_LAUNCH_BACK))) mods_clear_pick();
-    } else {
-        ImGui::TextUnformatted(mods_pick_path());
-        ImGui::TextUnformatted(menu_text(UI_MOD_NAME));
-        ImGui::SameLine();
-        ImGui::InputText("##modname", mods_name_buf(), MOD_NAME_MAX);
-        int may = mods_risk_draw();
-        ImGui::BeginDisabled(!may);
-        if (ImGui::Button(menu_text(UI_MOD_IMPORT))) mods_import_start(L.exe_dir);
-        ImGui::EndDisabled();
-        ImGui::SameLine();
-        if (ImGui::Button(menu_text(UI_LAUNCH_BACK))) mods_clear_pick();
-    }
-    // The picker lives in a modal (its own button, so it is not a permanent block on the page). One
-    // heading per archive, then its inner files: the archive is the file the mods ship, the inner file
-    // is what actually clashes.
-    static int ok_forced = 0;   // (test) press the modal's OK once conflicts exist
-    if (!ok_forced && getenv("ORBITALS_LAUNCHER_MODS_CONFLICT_OK") && mods_conflict_unresolved() > 0) {
-        ok_forced = 1;
-        mods_conflict_commit();
-    }
-    static int modal_forced = 0;   // (test) open the picker once conflicts exist, as its button does
-    if (!modal_forced && getenv("ORBITALS_LAUNCHER_MODS_MODAL") && mods_conflict_unresolved() > 0) {
-        modal_forced = 1;
-        ImGui::OpenPopup("##conflicts");
-    }
-    if (mods_conflict_unresolved() > 0) {
-        ImGui::Separator();
-        char label[128];
-        snprintf(label, sizeof label, "%s (%d)", menu_text(UI_MOD_RESOLVE), mods_conflict_unresolved());
-        if (ImGui::Button(label)) ImGui::OpenPopup("##conflicts");
-        ImGui::Separator();
-    }
-    // centred like the page's panels, not wherever the last item left the cursor
-    ImVec2 vp = ImGui::GetMainViewport()->Pos, vs = ImGui::GetMainViewport()->Size;
-    ImGui::SetNextWindowPos(ImVec2(vp.x + vs.x * 0.5f, vp.y + vs.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-    if (ImGui::BeginPopupModal("##conflicts", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::TextDisabled("%s", menu_text(UI_MOD_CONFLICTS));
-        ImGui::BeginChild("##conflict_list", ImVec2(760 * L.scale, 380 * L.scale), ImGuiChildFlags_Borders);
-        const char *shown_archive = nullptr;
-        for (int i = 0; i < mods_conflict_count(); i++) {
-            const ModConflict *c = mods_conflict_at(i);
-            if (!shown_archive || strcmp(shown_archive, c->archive)) {
-                if (shown_archive) ImGui::Spacing();
-                ImGui::TextColored(col4(LOOK_HEADING), "%s", c->archive);
-                shown_archive = c->archive;
-            }
-            ImGui::PushID(1000 + i);   // winners repeat across conflicts: unique IDs per row
-            ImGui::Indent(16.0f);
-            // the path is long: wrapped on its own line, or the radios are pushed out of the panel
-            ImGui::PushTextWrapPos(0.0f);
-            ImGui::TextUnformatted(c->inner);
-            ImGui::PopTextWrapPos();
-            ImGui::Indent(16.0f);
-            for (int k = 0; k <= c->nmods; k++) {
-                const char *name = k < c->nmods ? c->mods[k] : "vanilla";
-                if (k) ImGui::SameLine();
-                bool sel = !strcmp(c->winner, name);
-                if (ImGui::RadioButton(k < c->nmods ? name : menu_text(UI_MOD_VANILLA), sel)) {
-                    mods_conflict_set(c->archive, c->inner, name);
-                    ImGui::CloseCurrentPopup();   // the pick is made: back to the page, not left hanging
-                    break;
-                }
-            }
-            ImGui::Unindent(32.0f);
-            ImGui::Spacing();
-            ImGui::PopID();
-        }
-        ImGui::EndChild();
-        if (ImGui::Button(menu_text(UI_MOD_OK))) {   // keeps what the rows show, defaults included
-            mods_conflict_commit();
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::SameLine();
-        if (ImGui::Button(menu_text(UI_LAUNCH_BACK))) ImGui::CloseCurrentPopup();   // cancel: nothing written
-        ImGui::EndPopup();
-    }
-    // last, so its appearing never pushes the list, the picker button or the import buttons around
-    if (mods_merge_running()) {
-        ImGui::Spacing();
-        ImGui::ProgressBar(-1.0f * (float)ImGui::GetTime(), ImVec2(-1, 0), "");
-        ImGui::SameLine();
-        ImGui::TextDisabled("%s", menu_text(UI_MOD_MERGING));
-    }
-    ImGui::EndChild();
-    bool leave = panel_back_row() || back_pressed();
-    ImGui::End();
-    if (!leave) return;
-    if (mods_merge_running()) mods_merge_cancel();
-    go_main();
-}
-
 // ---- the window
 static bool open_window(void) {
     // ORBITALS_BACKGROUND_WINDOW=1 (agents' shots, never the player's default): the runs' app id, which the KWin rule opens
@@ -1022,8 +701,6 @@ static void save_shot(const char *suffix) {
     SDL_DestroySurface(s);
 }
 
-extern "C" void launcher_set_romfs(const char *romfs) { mods_set_romfs(romfs); }
-extern "C" void launcher_set_exefs(const char *exefs) { mods_set_exefs(exefs); }
 extern "C" void launcher_set_profile(const char *profile) { launcher_players_set_base(profile); }
 
 extern "C" int launcher_run(void) {
@@ -1076,18 +753,6 @@ extern "C" int launcher_run(void) {
     rt_log("launcher: start screen, game files %s, setup tools %s", rt_game_present() ? "ready" : "not set up",
            L.tools ? "present" : "missing");
     for (long frame = 1; L.result < 0; frame++) {
-        if (L.play_after_setup && setup_state().finished) {   // the code mods' build ended: play if it went well
-            L.play_after_setup = 0;
-            if (setup_state().finished > 0) {
-                mods_code_built();
-                mods_merge_sync(L.exe_dir);
-                char player[PLAT_PATH_MAX * 2];
-                launcher_player_dir(player, sizeof player);
-                if (player[0]) mods_before_play(player);
-                L.result = LAUNCHER_PLAY;
-                break;
-            }
-        }
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
             if (e.type == L.picked_event) {
@@ -1134,7 +799,6 @@ extern "C" int launcher_run(void) {
         case PAGE_MAIN: page_main((float)pw, (float)ph); break;
         case PAGE_SETTINGS: page_settings((float)pw, (float)ph); break;
         case PAGE_FILES: page_files((float)pw, (float)ph); break;
-        case PAGE_MODS: page_mods((float)pw, (float)ph); break;
         case PAGE_PLAYERS: page_players((float)pw, (float)ph); break;
         }
         // the page just switched to comes in from its own colour in 0.15 s, over everything drawn this frame

@@ -280,7 +280,7 @@ static void added_init(void) {
         }
     if (!nadded) return;
     qsort(list, nadded, sizeof *list, added_order);
-    // two mods adding one path: the later mod wins, like replacements (the MODS order is the precedence)
+    // two overlays adding one path: the later overlay wins, like replacements (load order is the precedence)
     size_t kept = 0;
     for (size_t k = 0; k < nadded; k++) {
         if (kept && !strcmp(list[k]->name, list[kept - 1]->name)) {
@@ -330,7 +330,7 @@ int romfs_original_sha(const char *rel, char hex[65]) {
 }
 
 static void overlay_init(void) {
-    // ORBITALS_ROMFS_PATCHES (an overlay directory given by hand) goes first, before the mods
+    // ORBITALS_ROMFS_PATCHES (an overlay directory given by hand) goes first
     const char *patches = cfg_get("ORBITALS_ROMFS_PATCHES");
     if (patches && *patches && strcmp(patches, "0")) {
         load_seq++;
@@ -341,41 +341,7 @@ static void overlay_init(void) {
         load_seq++;
         overlay_load(legacy);
     }
-    // the Mods page's enabled mods, in MODS order: later mods win shared files
-    const char *game = cfg_game_dir();
-    char mods[4096], seen[64][64];
-    size_t nseen = 0;
-    const char *list = cfg_get("ORBITALS_MODS");
-    // a bug report's log says which mods were on (tools/github/classify.py mods_enabled asks for a run without them)
-    if (list && *list) rt_log("mods: enabled %s", list);
-    if (list && *list) {
-        snprintf(mods, sizeof mods, "%s", list);
-        for (char *t = strtok(mods, ","); t; t = strtok(NULL, ",")) {
-            while (*t == ' ') t++;
-            char *e = t + strlen(t);
-            while (e > t && (e[-1] == ' ' || e[-1] == '\t')) *--e = 0;
-            if (!*t || strlen(t) >= sizeof seen[0] || nseen >= 64) continue;
-            size_t k = 0;
-            while (k < nseen && strcmp(seen[k], t)) k++;
-            if (k < nseen) continue;
-            snprintf(seen[nseen++], sizeof seen[0], "%s", t);
-            char dir[PLAT_PATH_MAX * 2 + 16];
-            snprintf(dir, sizeof dir, "%s/mods/%s/romfs", game, t);
-            load_seq++;
-            overlay_load(dir);
-        }
-    }
-    // the Mods page's merge of the enabled mods' shared archives (tools/mod/merge.py); missing when
-    // nothing is shared, and then this is a no-op log line like a missing legacy dir. Gated on MODS so a
-    // stale .merged from an earlier enablement never applies after the last mod is toggled off.
-    const char *mods_on = cfg_get("ORBITALS_MODS");
-    if (mods_on && *mods_on) {
-        char merged[PLAT_PATH_MAX * 2 + 16];
-        snprintf(merged, sizeof merged, "%s/mods/.merged/romfs", game);
-        load_seq++;
-        overlay_load(merged);
-    }
-    // the language after the mods: a mod's copy of a text archive would leave a translated menu half in Spanish
+    // the language last, over the hand-given overlays
     const char *lang = lang_overlay();
     if (lang && *lang) {
         load_seq++;

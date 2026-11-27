@@ -410,18 +410,11 @@ static bool validation_layer_present(void) {
     return have != 0;
 }
 
-// Every setting the menu shows back to its default (the environment's keys stay), written to orbitals.ini. The Mods page's
-// keys have rows too but are the player's choices, not settings: a reset left every mod disabled.
+// Every setting the menu shows back to its default (the environment's keys stay), written to orbitals.ini.
 static void reset_all(void) {
-    static const char *const keep[] = {"MODS", "MODS_ACK", "MODS_PLAYED"};
     const char *keys[128];
     int n = 0;
-    for (int i = 0; n < 128 && cfg_meta_at(i); i++) {
-        const char *k = cfg_meta_at(i)->key;
-        bool kept = false;
-        for (const char *x : keep) kept |= !strcmp(k, x);
-        if (!kept) keys[n++] = k;
-    }
+    for (int i = 0; n < 128 && cfg_meta_at(i); i++) keys[n++] = cfg_meta_at(i)->key;
     int done = cfg_reset(keys, n);
     opt_save_soon();
     rt_log("menu: reset %d settings to their defaults", done);

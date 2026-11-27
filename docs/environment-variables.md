@@ -6,12 +6,11 @@ Every `ORBITALS_*` name the runtime reads, where, and the comment next to it. Ge
 
 | Name | Read at | What it does |
 |---|---|---|
-| `ORBITALS_A` | `runtime/ui/launcher/mods.cpp:209` | mod.json's "switches": {"ORBITALS_A": "1", ...} into the mod (our own files: flat, ORBITALS_ keys, short values). |
 | `ORBITALS_AB` | `runtime/core/diag/perf.c:218` |  |
 | `ORBITALS_AB_INVERT` | `runtime/core/diag/perf.c:218` | ORBITALS_AB_INVERT=1 swaps the blocks (B A A B): a race's stretches are not equally heavy (sl-ab1, 06/11/2026: texture queries, which no switch changed, 8 % more in B), so a run and its inverted twin put each stretch onc |
 | `ORBITALS_ACQUIRE_GPU` | `runtime/gfx/nvn/api/nvn_api_obj.c:714` | ORBITALS_ACQUIRE_GPU (default 1; "ab"): 0 paces by time only, as before. |
 | `ORBITALS_ADDR_QUEUES` | `runtime/core/kernel/kernel.c:172` | ORBITALS_ADDR_QUEUES=0 keeps them on G and g_wait as before; read once, since a run cannot switch with threads waiting. |
-| `ORBITALS_ALLOW_PTRACE` | `runtime/core/boot/main.c:688` | ORBITALS_ALLOW_PTRACE=1: let a debugger attach (tools/run/stacks.py) under yama ptrace_scope 1, without root. |
+| `ORBITALS_ALLOW_PTRACE` | `runtime/core/boot/main.c:671` | ORBITALS_ALLOW_PTRACE=1: let a debugger attach (tools/run/stacks.py) under yama ptrace_scope 1, without root. |
 | `ORBITALS_ANISO` | `runtime/gfx/vk/tex/vk_tex_slots.c:345` | "game": 0 |
 | `ORBITALS_APP_POOL` | `runtime/core/memory/memory.c:477` | ORBITALS_APP_POOL. |
 | `ORBITALS_ASSUME_FOCUS` | `runtime/sdk/ov/ov_system.c:206` | ORBITALS_ASSUME_FOCUS=1                GetCurrentFocusState always reports in focus, whatever the window says; the window opens without taking focus (gfx_window_sdl.c), for scripted runs ORBITALS_SHARED_FONTS=<dir>       |
@@ -101,12 +100,12 @@ Every `ORBITALS_*` name the runtime reads, where, and the comment next to it. Ge
 | `ORBITALS_FREE_CORES` | `runtime/core/kernel/kernel_cores.c:27` | "0" keeps the gate, like unset |
 | `ORBITALS_FS_SOLID` | `runtime/gfx/vk/pipe/vk_pipeline.c:721` | ORBITALS_FS_SOLID=<hash>[,<hash>...] (diagnosis): fragment shaders with that SPIR-V hash (the dump's sh_<hash>, FNV-1a of the module's bytes) are replaced by solid.frag, which writes magenta; "all" replaces every fragmen |
 | `ORBITALS_FULLSCREEN` | `runtime/gfx/nvn/host/gfx_present.c:78` | ORBITALS_FULLSCREEN=1: borderless window over the monitor. ORBITALS_WINDOW_SIZE=<w>x<h>: client area of the window (the swapchain follows the window; the game image is scaled to it). |
-| `ORBITALS_GAME_DIR` | `runtime/core/base/cfg.c:669` |  |
+| `ORBITALS_GAME_DIR` | `runtime/core/base/cfg.c:665` |  |
 | `ORBITALS_GEN_WATCH` | `runtime/gfx/nvn/procs/nvn2.c:85` | ORBITALS_GEN_WATCH=1: who writes the generated programs. At the first one, a 32 MiB window around its code is made read-only (committed read-write pages only); each later write there logs the host instruction (addr2line  |
 | `ORBITALS_GLYPH_DUMP` | `runtime/ui/glyphs/glyphs.c:237` | ORBITALS_GLYPH_DUMP=<dir>: every RGBA8 1024x1024 upload is saved as <dir>/glyph_<addr>.rgba (raw rows, as uploaded) with its hash in the log, and the redrawn sheet beside it as glyph_<addr>_<kind>.rgba. |
 | `ORBITALS_GPL` | `runtime/gfx/vk/device/vk_caps.c:46` | ORBITALS_GPL=0 forces it): vk_caps.gpl = 0, the extension stays disabled, and pipelines are built whole. - no 32-lane pin (no subgroupSizeControl, 32 outside min..max, or ORBITALS_VK_SUBGROUP_PIN=0): stages run at the de |
 | `ORBITALS_GPL_DRAW_BUILD` | `runtime/gfx/vk/pipe/vk_pipe_keys.c:538` | ORBITALS_GPL_DRAW_BUILD=0 leaves them to the job. |
-| `ORBITALS_GPU` | `runtime/core/boot/main.c:702` | ORBITALS_GPU=null\|vulkan selects the back end (no mode)         run the game  Also here: the runtime services the generated code calls besides rt_dispatch and rt_svc (rt_brk, rt_udf, |
+| `ORBITALS_GPU` | `runtime/core/boot/main.c:685` | ORBITALS_GPU=null\|vulkan selects the back end (no mode)         run the game  Also here: the runtime services the generated code calls besides rt_dispatch and rt_svc (rt_brk, rt_udf, |
 | `ORBITALS_GPU_CRUMBS` | `runtime/gfx/vk/diag/vk_crumbs.c:49` | ORBITALS_GPU_CRUMBS=0 turns them off. Where the driver has no buffer marker but VK_NV_device_diagnostic_checkpoints (older NVIDIA drivers; current ones have both), the same marks are checkpoints, read from the queue afte |
 | `ORBITALS_GPU_CRUMBS_DRAW` | `runtime/gfx/vk/diag/vk_crumbs.c:50` |  |
 | `ORBITALS_GPU_GUARD` | `runtime/gfx/vk/device/vk_guard.c:33` | ORBITALS_GPU_GUARD=1: checks that stop with rt_fatal, naming the object, before something that would fault on the GPU reaches it (step 00). A GPU page fault resets amdgpu and can take the whole desktop down; a fatal here |
@@ -136,24 +135,16 @@ Every `ORBITALS_*` name the runtime reads, where, and the comment next to it. Ge
 | `ORBITALS_LANG` | `runtime/sdk/ov/ov_system.c:125` | ORBITALS_LANG=<Switch language code>   the game's language as given ("ja", "en-GB", "zh-Hant", ...) ORBITALS_LOCALE=<BCP 47 tag>           else the language for this locale ("pt-BR"), else the Windows user locale; a lang |
 | `ORBITALS_LAN_IP` | `runtime/sdk/ov/ov_lanaddr.c:83` | ORBITALS_LAN_IP, else the best interface that is up with a local network address (lan_only, not loopback), read from the system's interface list (nothing is sent), with its mask. Pia builds its broadcast from both. Best  |
 | `ORBITALS_LAUNCHED` | `runtime/core/boot/main.c:627` | ORBITALS_LAUNCHED=1, so the game claims its address space in a fresh process (and on Windows the window's libraries are gone). Steam launch options `"...\\orbitals-together.exe" %command%` on a Steam game (docs/remote-pl |
-| `ORBITALS_LAUNCHER_EXIT_AFTER_SETUP` | `runtime/ui/launcher/launcher.cpp:1149` | ORBITALS_LAUNCHER_EXIT_AFTER_SETUP=1 quits when that setup ends, after saving the page as <shot out>-end.png (its result is in the log); ORBITALS_LAUNCHER_SHOT then takes its shot without quitting. During a shot the upda |
-| `ORBITALS_LAUNCHER_LASTRUN` | `runtime/ui/launcher/launcher.cpp:1067` | ORBITALS_LAUNCHER_LASTRUN=1. |
-| `ORBITALS_LAUNCHER_MODS_CONFLICT_OK` | `runtime/ui/launcher/launcher.cpp:909` | ORBITALS_LAUNCHER_MODS_CONFLICT_OK=1 presses the picker's OK, ORBITALS_LAUNCHER_MODS_MODAL=1 opens it; ORBITALS_LAUNCHER_MODS_IMPORT=1 runs the import of the picked zip or folder; ORBITALS_LAUNCHER_NO_MERGE=1 skips the p |
-| `ORBITALS_LAUNCHER_MODS_DELETE` | `runtime/ui/launcher/launcher.cpp:790` | ORBITALS_LAUNCHER_MODS_DELETE=<mod> deletes it once, as its confirmed modal does; ORBITALS_LAUNCHER_MODS_CONFLICT_OK=1 presses the picker's OK, ORBITALS_LAUNCHER_MODS_MODAL=1 opens it; ORBITALS_LAUNCHER_MODS_IMPORT=1 run |
-| `ORBITALS_LAUNCHER_MODS_IMPORT` | `runtime/ui/launcher/launcher.cpp:784` | ORBITALS_LAUNCHER_MODS_IMPORT=1 runs the import of the picked zip or folder; ORBITALS_LAUNCHER_NO_MERGE=1 skips the page-entry merge (pre-merged shots). ORBITALS_LAUNCHER_SHORTCUT=1 makes the desktop shortcut at start, a |
-| `ORBITALS_LAUNCHER_MODS_MODAL` | `runtime/ui/launcher/launcher.cpp:914` | ORBITALS_LAUNCHER_MODS_MODAL=1 opens it; ORBITALS_LAUNCHER_MODS_IMPORT=1 runs the import of the picked zip or folder; ORBITALS_LAUNCHER_NO_MERGE=1 skips the page-entry merge (pre-merged shots). ORBITALS_LAUNCHER_SHORTCUT |
-| `ORBITALS_LAUNCHER_MODS_PICK` | `runtime/ui/launcher/launcher.cpp:756` | (test) the picked zip or folder, as its dialog does |
-| `ORBITALS_LAUNCHER_MODS_PICKWINNER` | `runtime/ui/launcher/launcher.cpp:771` | ORBITALS_LAUNCHER_MODS_PICKWINNER=<archive> cycles the first conflict of that archive once, as its winner button does; ORBITALS_LAUNCHER_MODS_DELETE=<mod> deletes it once, as its confirmed modal does; ORBITALS_LAUNCHER_M |
-| `ORBITALS_LAUNCHER_MODS_TOGGLE` | `runtime/ui/launcher/launcher.cpp:764` | ORBITALS_LAUNCHER_MODS_TOGGLE=<mod> toggles that mod once, as its checkbox does; ORBITALS_LAUNCHER_MODS_PICKWINNER=<archive> cycles the first conflict of that archive once, as its winner button does; ORBITALS_LAUNCHER_MO |
-| `ORBITALS_LAUNCHER_NO_MERGE` | `runtime/ui/launcher/launcher.cpp:754` | (test) skip: pre-merged shots |
-| `ORBITALS_LAUNCHER_PLAY` | `runtime/ui/launcher/launcher.cpp:349` | (test) once, as the button does |
+| `ORBITALS_LAUNCHER_EXIT_AFTER_SETUP` | `runtime/ui/launcher/launcher.cpp:813` | ORBITALS_LAUNCHER_EXIT_AFTER_SETUP=1 quits when that setup ends, after saving the page as <shot out>-end.png (its result is in the log); ORBITALS_LAUNCHER_SHOT then takes its shot without quitting. During a shot the upda |
+| `ORBITALS_LAUNCHER_LASTRUN` | `runtime/ui/launcher/launcher.cpp:744` | ORBITALS_LAUNCHER_LASTRUN=1. |
+| `ORBITALS_LAUNCHER_PLAY` | `runtime/ui/launcher/launcher.cpp:340` | (test) once, as the button does |
 | `ORBITALS_LAUNCHER_PLAYER_NEW` | `runtime/ui/launcher/launcher_players.cpp:136` | ORBITALS_LAUNCHER_PLAYER_NEW=<name> makes that player once, as the New profile button does; ORBITALS_LAUNCHER_PLAYER_PICK=<id> picks it once, as its Play as button does. |
 | `ORBITALS_LAUNCHER_PLAYER_PICK` | `runtime/ui/launcher/launcher_players.cpp:140` | ORBITALS_LAUNCHER_PLAYER_PICK=<id> picks it once, as its Play as button does. |
-| `ORBITALS_LAUNCHER_SETUP` | `runtime/ui/launcher/launcher.cpp:1069` | (test) the setup started from that folder, as Set up does |
-| `ORBITALS_LAUNCHER_SHORTCUT` | `runtime/ui/launcher/launcher.cpp:1068` | (test) as the button does |
-| `ORBITALS_LAUNCHER_SHOT` | `runtime/ui/launcher/launcher.cpp:132` | ORBITALS_LAUNCHER_SHOT=<frame>[:<page>[:<tab>[:<scroll 0..1>]]] saves that frame as ORBITALS_LAUNCHER_SHOT_OUT (default launcher.png) and quits; page main, settings (tab 0..5), files, mods or players. The user's input is |
-| `ORBITALS_LAUNCHER_SHOT_OUT` | `runtime/ui/launcher/launcher.cpp:1017` | ORBITALS_LAUNCHER_SHOT_OUT (default launcher.png) and quits; page main, settings (tab 0..5), files, mods or players. The user's input is ignored while it runs. ORBITALS_LAUNCHER_SETUP=<folder>[:link] starts the setup fro |
-| `ORBITALS_LAUNCHER_UPDATE` | `runtime/ui/launcher/launcher.cpp:257` | ORBITALS_LAUNCHER_UPDATE=1 takes the update offered at once, as its button does. The last run's notice (launcher_lastrun.h) is read during a shot only with ORBITALS_LAUNCHER_LASTRUN=1. |
+| `ORBITALS_LAUNCHER_SETUP` | `runtime/ui/launcher/launcher.cpp:746` | (test) the setup started from that folder, as Set up does |
+| `ORBITALS_LAUNCHER_SHORTCUT` | `runtime/ui/launcher/launcher.cpp:745` | (test) as the button does |
+| `ORBITALS_LAUNCHER_SHOT` | `runtime/ui/launcher/launcher.cpp:124` | ORBITALS_LAUNCHER_SHOT=<frame>[:<page>[:<tab>[:<scroll 0..1>]]] saves that frame as ORBITALS_LAUNCHER_SHOT_OUT (default launcher.png) and quits; page main, settings (tab 0..5), files or players. The user's input is ignor |
+| `ORBITALS_LAUNCHER_SHOT_OUT` | `runtime/ui/launcher/launcher.cpp:696` | ORBITALS_LAUNCHER_SHOT_OUT (default launcher.png) and quits; page main, settings (tab 0..5), files or players. The user's input is ignored while it runs. ORBITALS_LAUNCHER_SETUP=<folder>[:link] starts the setup from that |
+| `ORBITALS_LAUNCHER_UPDATE` | `runtime/ui/launcher/launcher.cpp:248` | ORBITALS_LAUNCHER_UPDATE=1 takes the update offered at once, as its button does. The last run's notice (launcher_lastrun.h) is read during a shot only with ORBITALS_LAUNCHER_LASTRUN=1. |
 | `ORBITALS_LAZY_BASE` | `runtime/gfx/vk/mem/vk_mem_lazy.c:61` | ORBITALS_LAZY_BASE) A merge base (vk_mem_merge.c) copied the shadow's bytes of each range a part may write when it was submitted: ~9 MiB a frame of 1-4 MiB ranges neither the CPU nor the GPU changes (wbc2), ~1 ms a frame |
 | `ORBITALS_LAZY_BASE_CHECK` | `runtime/gfx/vk/mem/vk_mem_lazy.c:62` | ORBITALS_LAZY_BASE_CHECK=1 (diagnosis) also copies every lazy base as before, keeps it with base_follow and merge_in, and counts the bytes where the two differ at the write-back: the trap must give the same base (sombra- |
 | `ORBITALS_LAZY_COMMIT` | `runtime/core/memory/memory.c:489` | ORBITALS_LAZY_COMMIT=0 commits as before. |
@@ -173,9 +164,6 @@ Every `ORBITALS_*` name the runtime reads, where, and the comment next to it. Ge
 | `ORBITALS_MIRROR_CPU_GEN` | `runtime/gfx/vk/mem/vk_mem_log.c:224` |  |
 | `ORBITALS_MIRROR_GAP` | `runtime/gfx/vk/mem/vk_mem_log.c:221` |  |
 | `ORBITALS_MIRROR_REUP` | `runtime/gfx/vk/mem/vk_mem_mirror.c:706` | ORBITALS_MIRROR_REUP=1 (diagnosis, replay only): the GPU writes of the last submission, to count the pages the next sync uploads again although only the GPU wrote them since (NX2navi 6c971b7 saved 57 of 60 MiB a frame th |
-| `ORBITALS_MODS` | `runtime/sdk/fs/romfs.c:371` | the Mods page's merge of the enabled mods' shared archives (tools/mod/merge.py); missing when nothing is shared, and then this is a no-op log line like a missing legacy dir. Gated on MODS so a stale .merged from an earli |
-| `ORBITALS_MODS_ACK` | `runtime/ui/launcher/mods.cpp:71` |  |
-| `ORBITALS_MODS_PLAYED` | `runtime/ui/launcher/mods.cpp:122` |  |
 | `ORBITALS_MOTION` | `runtime/input/input.c:737` | ORBITALS_MOTION=0, live), nothing is fed and the six-axis sensor reads at rest. |
 | `ORBITALS_MOUSE_SENS` | `runtime/input/input.c:64` |  |
 | `ORBITALS_NO_LAUNCHER` | `runtime/core/boot/main.c:627` | ORBITALS_NO_LAUNCHER=1 or any other mode skip it; Play runs the process again with ORBITALS_LAUNCHED=1, so the game claims its address space in a fresh process (and on Windows the window's libraries are gone). Steam laun |
@@ -250,10 +238,10 @@ Every `ORBITALS_*` name the runtime reads, where, and the comment next to it. Ge
 | `ORBITALS_RESOLVE_CHECK` | `runtime/gfx/vk/mem/vk_memory.c:275` | ORBITALS_RESOLVE_CHECK=1 compares every hit with the locked lookup and stops on a difference. |
 | `ORBITALS_REUSE` | `runtime/gfx/vk/exec/vk_exec_reuse.c:123` | ORBITALS_REUSE=1\|check\|ab: a draw whose replay state equals the state of a draw recorded in one of the last submissions gets that draw's packets again (vk_rec_reuse.c) instead of being replayed. MKW draws a race frame li |
 | `ORBITALS_REUSE_WHY` | `runtime/gfx/vk/exec/vk_exec_reuse.c:284` | ORBITALS_REUSE_WHY=N (diagnosis): for the first N draws per submission whose key is new but whose program and payload an earlier draw had, which parts of the key differ from that draw's. |
-| `ORBITALS_RFS1` | `runtime/sdk/fs/romfs.c:492` | ORBITALS_RFS1 layout: header, sorted entries, names), built from a walk of the loose directory. |
+| `ORBITALS_RFS1` | `runtime/sdk/fs/romfs.c:458` | ORBITALS_RFS1 layout: header, sorted entries, names), built from a walk of the loose directory. |
 | `ORBITALS_ROMFS` | `runtime/core/boot/main.c:604` | The RomFS: a romfs/ folder of loose files in the selected game folder, as exefs/ (ORBITALS_ROMFS, orbitals.ini's romfs and --romfs may also name a .nup package, romfs.c). |
 | `ORBITALS_ROMFS_MODS` | `runtime/sdk/fs/romfs.c:339` | ORBITALS_ROMFS_MODS; unset or "0" = none; then <game dir>/lang/<code>/ for a language the game does not ship (ov_text_language: its texts rebuilt by the setup, tools/i18n/game_texts.py). A missing path, a size or hash mi |
-| `ORBITALS_ROMFS_PATCHES` | `runtime/sdk/fs/romfs.c:334` | ORBITALS_ROMFS_PATCHES (an overlay directory given by hand) goes first, before the mods |
+| `ORBITALS_ROMFS_PATCHES` | `runtime/sdk/fs/romfs.c:334` | ORBITALS_ROMFS_PATCHES (an overlay directory given by hand) goes first |
 | `ORBITALS_RTSTATS` | `runtime/gfx/vk/diag/vk_rtstats.c:268` | ORBITALS_RTSTATS=<N> (diagnosis, off by default): one frame in N (60 when the value is not a number above 0), every render pass's colour and depth targets and every storage image a dispatch writes are copied into host bu |
 | `ORBITALS_RUMBLE` | `runtime/sdk/ov/ov_input.c:310` | strength 0 keeps the devices (silent), so the menu can turn rumble up again |
 | `ORBITALS_RUMBLE_CURVE` | `runtime/sdk/ov/ov_input.c:274` | ORBITALS_RUMBLE_CURVE (exponent on the amplitude, 0.2..1.5, default 0.6). HD rumble is strong at low amplitude, an ERM motor hardly turns there, so weak values are lifted by the curve (0.1 -> 0.25) and the strength scale |
@@ -327,7 +315,7 @@ Every `ORBITALS_*` name the runtime reads, where, and the comment next to it. Ge
 | `ORBITALS_TEX_UP_LOG` | `runtime/gfx/vk/tex/vk_tex_upload.c:293` | ORBITALS_TEX_UP_LOG=N (diagnosis): the first N uploads from frame ORBITALS_TEX_UP_LOG_AT (2300) on, with how many submits the game had made past the one being recorded: their storage is read now, from guest memory (Hooks |
 | `ORBITALS_TEX_UP_LOG_AT` | `runtime/gfx/vk/tex/vk_tex_upload.c:294` | ORBITALS_TEX_UP_LOG_AT (2300) on, with how many submits the game had made past the one being recorded: their storage is read now, from guest memory (Hookshot: MKW's terrain height tiles, 68x68 RGBA16 at new addresses eve |
 | `ORBITALS_THREADS_AT` | `runtime/sdk/ov/ov_gfx.c:304` | ORBITALS_THREADS_AT=<frame>[,<frame>...] (diagnosis, up to 4): as each of those many frames is presented, every guest thread's wait and call chain go to the log (kern_threads_dump, otherwise written only at a fatal abort |
-| `ORBITALS_TIMER_1MS` | `runtime/core/boot/main.c:700` | Timed guest waits (kernel.c block_inner) sleep in whole milliseconds; at the default 15.6 ms tick a 1 ms wait costs a full tick. ORBITALS_TIMER_1MS=0 keeps the default for comparison. |
+| `ORBITALS_TIMER_1MS` | `runtime/core/boot/main.c:683` | Timed guest waits (kernel.c block_inner) sleep in whole milliseconds; at the default 15.6 ms tick a 1 ms wait costs a full tick. ORBITALS_TIMER_1MS=0 keeps the default for comparison. |
 | `ORBITALS_TRACE` | `runtime/core/boot/main.c:151` | no default: nothing is traced when unset |
 | `ORBITALS_TRACE_3D` | `runtime/gfx/vk/diag/vk_dump.c:710` | ORBITALS_TRACE_3D=1 also logs every upload, clear and copy into a 3D texture (vk_trace_3d_on gates them, at most 4096 lines): Orbitals' light grids (20x20x100 r32ui) read all ones on the GPU while their guest memory is z |
 | `ORBITALS_TRACE_ADDR` | `runtime/gfx/vk/tex/vk_tex_upload.c:136` | ORBITALS_TRACE_ADDR=<hex> (diagnosis): the texture whose storage starts there: its GPU writes (vk_texture_gpu_written), uploads and WriteTexels, the first 64 events. |
@@ -346,9 +334,9 @@ Every `ORBITALS_*` name the runtime reads, where, and the comment next to it. Ge
 | `ORBITALS_UBO_SKIP` | `runtime/gfx/vk/exec/vk_exec_bind.c:1067` | ORBITALS_UBO_SKIP (default 1; "ab"), with ORBITALS_DRAW_CACHE: ubo_rebind below. |
 | `ORBITALS_UBO_SNAPSHOT` | `runtime/gfx/vk/mem/vk_usnap.c:259` | stored +1: 0 is "not read yet" |
 | `ORBITALS_UBO_WATCH` | `runtime/gfx/vk/diag/vk_ubo_watch.c:24` | ORBITALS_UBO_WATCH=<hex address>[,...] (diagnosis): each dispatch or draw that binds a uniform block at one of those addresses logs, once per frame and address, the block's first 0x80 bytes as the replay binds them (the  |
-| `ORBITALS_UPDATE_AS` | `runtime/ui/launcher/launcher.cpp:1064` | ORBITALS_UPDATE_AS (tools/prepare/update.py: compare as that version). ORBITALS_LAUNCHER_UPDATE=1 takes the update offered at once, as its button does. The last run's notice (launcher_lastrun.h) is read during a shot onl |
+| `ORBITALS_UPDATE_AS` | `runtime/ui/launcher/launcher.cpp:741` | ORBITALS_UPDATE_AS (tools/prepare/update.py: compare as that version). ORBITALS_LAUNCHER_UPDATE=1 takes the update offered at once, as its button does. The last run's notice (launcher_lastrun.h) is read during a shot onl |
 | `ORBITALS_UPDATE_CHECK` | `runtime/ui/menu/settings_tabs.cpp:386` | ui/launcher/launcher_update.cpp |
-| `ORBITALS_UPDATE_REPO` | `runtime/ui/launcher/launcher.cpp:281` | Problems are reported where they are fixed, pmocer-latibro (the owner, 27/11/2026); the updates come from the public Orbitals-Together (update.py). ORBITALS_UPDATE_REPO, set for a test, moves both. |
+| `ORBITALS_UPDATE_REPO` | `runtime/ui/launcher/launcher.cpp:272` | Problems are reported where they are fixed, pmocer-latibro (the owner, 27/11/2026); the updates come from the public Orbitals-Together (update.py). ORBITALS_UPDATE_REPO, set for a test, moves both. |
 | `ORBITALS_UPLOAD_TIME` | `runtime/gfx/vk/mem/vk_mem_uptime.c:28` | ORBITALS_UPLOAD_TIME=1 (diagnosis): the GPU time of each upload batch (vk_mem_upload.c), from a timestamp at its start to one at its end, logged with what it held when it took over 50 ms, and the longest so far. Why: the |
 | `ORBITALS_UPSCALER` | `runtime/gfx/vk/device/vk_fsr.c:161` | ORBITALS_UPSCALER=fsr\|bilinear picks it, ORBITALS_SHARPNESS (0..100, 0 = no RCAS pass) sets RCAS; both apply at the next frame.  Per frame: EASU reads the source through a view of its own format (the same colour conversi |
 | `ORBITALS_USNAP_AT_SUBMIT` | `runtime/gfx/vk/mem/vk_usnap_take.c:40` | ORBITALS_USNAP_AT_SUBMIT (default 0; "ab"): the uniform snapshot's bytes taken at the submit, on the game's thread, instead of where the replay starts recording the submission (vk_usnap.c). With the replay ~3 submits beh |

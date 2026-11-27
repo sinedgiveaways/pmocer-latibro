@@ -7,14 +7,8 @@ extern "C" {
 
 enum { LAUNCHER_QUIT = 0, LAUNCHER_PLAY = 1 };
 int launcher_run(void);   // after cfg_init, before mem_init; LAUNCHER_PLAY: start the game, LAUNCHER_QUIT: end
-// The romfs the game will boot (argv, ORBITALS_ROMFS/orbitals.ini, the exe folder or the baked-in default): the Mods page
-// merges and imports against it, so overlays validate against the same originals the game reads.
-void launcher_set_romfs(const char *romfs);
-// The profile folder the game will use: the Profiles page lists and makes its players (core/base/players.h), and a
-// new set of mods backs up the save of the player about to play.
+// The profile folder the game will use: the Profiles page lists and makes its players (core/base/players.h).
 void launcher_set_profile(const char *profile);
-// The exefs the game will boot: an import checks a mod's build id against it.
-void launcher_set_exefs(const char *exefs);
 
 #ifdef __cplusplus
 }

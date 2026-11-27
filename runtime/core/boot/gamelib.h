@@ -29,7 +29,7 @@ typedef struct {
     int on;                  // generated default, for a set without a row in cfg.c
 } RtPatchSet;
 
-// A mod's change to the game's own code (tools/mod/ips.py, from its .ips): the generator lifted the module with these
+// A change to the game's own code (gen.py --image; the Mods page that made them is gone, the count is 0): the generator lifted the module
 // bytes in place, and the loader writes them into the module's .text too, so what the code reads of itself agrees.
 typedef struct {
     const char *module;

@@ -43,7 +43,7 @@ static const char *const known[] = {
     "FLIGHT_THUMBS", "FRAMEGEN", "FREEZE_IDLE", "GLYPH_DUMP", "FREE_CORES", "FULLSCREEN", "GAME_DIR", "GPL", "GPL_DRAW_BUILD", "GPU",
     "GPU_CRUMBS", "GPU_CRUMBS_DRAW", "HDR", "HDR_FAKE", "GPU_INDEX", "GPU_MEM_LIMIT", "GPU_NAME", "INPUT", "INPUT_RECORD", "INPUT_SCRIPT", "LAN", "LAN_IP", "LANG",
     "LOCALE", "MEMORY", "MESH_COMPUTE", "MENU_LANG", "MENU_TEST",
-    "MENU_TEST_DIR", "MENU_TEST_SET", "MINIMAL_LAYOUT", "MIRROR_GAP", "MODS", "MODS_ACK", "MODS_PLAYED", "MOTION",
+    "MENU_TEST_DIR", "MENU_TEST_SET", "MINIMAL_LAYOUT", "MIRROR_GAP", "MOTION",
     "MOUSE_SENS", "OCCLUSION", "PLAYER",   // PLAYER: the launcher's choice (core/base/players.h), no row: Reset all leaves it
     "ONE_PER_CORE", "OPERATION_MODE", "PAD_LAYOUT", "PERF_OVERLAY", "PERF_SLOW_MS", "PICTURE_FIT", "PIPELINE_CACHE", "PIPE_MEMO", "PIPE_PREBUILD", "PIPE_SKIP", "PIPE_STALL", "PIPE_SYNC", "PIPE_TRACE", "PIPE_WAIT", "PIPE_WORKERS",
     "PROFILE", "PROFILE_CHAINS", "PROFILE_DIR", "PROFILE_FRAMES",
@@ -81,7 +81,6 @@ static const struct { const char *key, *section; } sections[] = {
     {"PUSH_SKIP", "performance"}, {"SPLIT_DRAWS", "performance"}, {"SPLIT_US", "performance"}, {"VK_VALIDATION", "performance"},
     {"VK_DYN_VERTEX", "performance"}, {"VK_SUBGROUP_PIN", "performance"},
     {"TRACE", "diagnostics"}, {"FLIGHT", "diagnostics"}, {"FLIGHT_SPIKE_MS", "diagnostics"},
-    {"MODS", "launcher"}, {"MODS_ACK", "launcher"}, {"MODS_PLAYED", "launcher"},
     {"UPDATE_CHECK", "launcher"}, {"GAME_DIR", "launcher"}, {"PLAYER", "launcher"},
     {"STEAM_APPID", "steam"}, {"STEAM_APPIDS", "steam"}, {"STEAM_INVITE", "steam"},
 };
@@ -117,9 +116,6 @@ static const CfgMeta metas[] = {
     {"BUTTON_ICONS", "auto", "auto|nintendo|xbox|playstation|keyboard", LIVE},
     {"MOUSE_SENS", "1", "0..10", LIVE}, {"STICK_DEADZONE", "8", "0..40", LIVE}, {"SWITCH2", "0", "0|1|2", RESTART},
     {"MENU_LANG", "", "en|ja|fr|de|it|es|nl|pt|pt-BR|ru|zh-Hans|zh-Hant|ko|es-419|ca|gl|eu|pl|tr|uk|th", LIVE}, {"UPDATE_CHECK", "1", "0|1", LIVE},
-    {"MODS", "", NULL, RESTART},   // the Mods page's enabled mods, comma-separated in load order; not a menu row
-    {"MODS_ACK", "0", "0|1", LIVE},   // the player ticked the Mods page's "I understand" once
-    {"MODS_PLAYED", "", NULL, LIVE},   // the mods of the last start: a new set backs the save up first (launcher)
     {"GAME_DIR", "", NULL, RESTART},   // unset: beside the executable; the launcher remembers the selection there
     // Advanced: scheduling
     {"ASYNC_PREEMPT", "1", "0|1|2", RESTART}, {"REPLAY_ASYNC", "1", "0|1", RESTART},

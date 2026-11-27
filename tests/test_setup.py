@@ -352,8 +352,8 @@ def test_copy_removes_other_versions_files(tmp_path: Path) -> None:
 
 
 def test_package_has_the_launchers_tools() -> None:
-    # every script the start screen runs (setup_tool(exe_dir, "mod/import.py", ...)) is copied into the package by
-    # tools/build/dist.py's SOURCES: until 13/11/2026 tools/mod was not, and the Mods page said "no setup tools"
+    # every script the start screen runs (setup_tool(exe_dir, "prepare/lastrun.py", ...)) is copied into the package by
+    # tools/build/dist.py's SOURCES: until 13/11/2026 the Mods page's tools were not, and it said "no setup tools"
     import ast
     import re
 
