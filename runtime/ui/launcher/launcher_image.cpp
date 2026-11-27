@@ -11,7 +11,7 @@
 #define STBI_ONLY_JPEG
 #define STBI_NO_STDIO
 #define STBI_MAX_DIMENSIONS (1 << 14)
-#include "stb/stb_image.h"
+#include "stb_image.h"   // runtime/third_party/stb is an include directory (build.py adds each folder with headers)
 
 #include "ui/launcher/launcher_image.h"
 
