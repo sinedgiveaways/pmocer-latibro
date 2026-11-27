@@ -105,6 +105,11 @@ question. `steam_invite` in `orbitals.ini` changes this: `ask` (the default) as 
 asking while no friend has joined yet or controllers are missing; `always` opens it every time; `off` never asks nor
 opens it.
 
+**Picking the game's Online Play** works the same way: the game's online mode needs Nintendo's servers, so the invite
+list opens with a notice instead (once per 10 s). Once your friend has joined and pressed a button, go back and start a
+local game for 2 players. The game itself still sees no network and shows its own "no connection" message, if any.
+Without Steam set up, the notice says why Remote Play Together is off. `steam_invite = off` turns this off too.
+
 When a guest joins, a notice says so. Their controller becomes the next free player (a notice says which). A guest
 without a controller gets a player at the first key they press, and plays with the same keys as you (WASD, Space,
 Shift...; Settings > Controls). While every guest has a controller, guests' keys give no player, so a guest with both

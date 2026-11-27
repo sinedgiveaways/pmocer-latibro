@@ -8,7 +8,9 @@
 #include <string.h>
 
 #include "host.h"
+#include "nvn_api.h"
 #include "ov.h"
+#include "steam_rpt.h"
 
 // nifm results (module 110); the description number is a hypothesis: any failure keeps the game offline.
 #define NIFM_R_NO_NETWORK (110u | (1u << 9))
@@ -17,14 +19,52 @@ static int local_mode;   // SetLocalNetworkMode's last value
 
 static int lan_up(void) { return local_mode && ov_lan(); }
 
+// ---- online play through Steam Remote Play Together (the owner's choice, 27/11/2026)
+// Orbitals' Online Play needs Nintendo's servers. Which calls its menu entry makes was not seen yet, so each online
+// call is logged (the first 4 per kind, then every 100th: IsNetworkAvailable may be polled every frame) with the frame
+// and the game's code that made it; the next run's log gives the sequence. The calls a console answers with a screen
+// for the player (the network error applet, the network account's sign-in) only follow a player's action: those send
+// the player to Remote Play Together (steam_rpt_online), and the game still gets "no network" and takes its offline
+// path, where the local mode for 2 is.
+void ov_online_call(Cpu *c, const char *what, int ask) {
+    static struct { const char *what; volatile int32_t n; } seen[24];
+    int32_t n = 0;
+    for (int i = 0; i < 24; i++) {
+        const char *w = __atomic_load_n(&seen[i].what, __ATOMIC_ACQUIRE);
+        if (!w) {
+            const char *none = NULL;
+            if (!__atomic_compare_exchange_n(&seen[i].what, &none, what, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE) &&
+                none != what)
+                continue;
+            w = what;
+        }
+        if (w == what) { n = __atomic_add_fetch(&seen[i].n, 1, __ATOMIC_RELAXED); break; }
+    }
+    if (!n || n <= 4 || n % 100 == 0) {
+        char lr[160];
+        rt_log("online: %s (call %d, frame %llu) from %s%s", what, n,
+               (unsigned long long)__atomic_load_n(&gfx_counters.frames, __ATOMIC_RELAXED),
+               ldr_describe(c->x[30] - 4, lr, sizeof lr), ask ? ": a player's request" : "");
+    }
+    if (ask && !lan_up()) steam_rpt_online(what);
+}
+
 static void ov_ok(Cpu *c) { ret_x(c, 0); }
 static void ov_nothing(Cpu *c) { (void)c; }
 // void SetLocalNetworkMode(bool)
 static void ov_local_mode(Cpu *c) { local_mode = (int)(arg_x(c, 0) & 1); }
 // bool IsNetworkAvailable()
-static void ov_network_available(Cpu *c) { ret_x(c, (uint64_t)lan_up()); }
-// Result HandleNetworkRequestErrorResult()
-static void ov_request_result(Cpu *c) { ret_x(c, lan_up() ? 0 : NIFM_R_NO_NETWORK); }
+static void ov_network_available(Cpu *c) {
+    ov_online_call(c, "nifm::IsNetworkAvailable", 0);
+    ret_x(c, (uint64_t)lan_up());
+}
+// void SubmitNetworkRequestAndWait(): the request "completes" without a connection
+static void ov_submit_request(Cpu *c) { ov_online_call(c, "nifm::SubmitNetworkRequestAndWait", 0); }
+// Result HandleNetworkRequestErrorResult(): on a console, the network error applet for the player
+static void ov_request_result(Cpu *c) {
+    ov_online_call(c, "nifm::HandleNetworkRequestErrorResult", 1);
+    ret_x(c, lan_up() ? 0 : NIFM_R_NO_NETWORK);
+}
 static void ov_no_network(Cpu *c) { ret_x(c, NIFM_R_NO_NETWORK); }
 // Result GetCurrentIpConfigInfo(in_addr *ip, in_addr *mask, in_addr *gateway, in_addr *dns1, in_addr *dns2)
 static void ov_ip_config(Cpu *c) {
@@ -48,7 +88,7 @@ HOST_OVERRIDE("_ZN2nn4nifm10InitializeEv", ov_ok);
 HOST_OVERRIDE("_ZN2nn4nifm18IsNetworkAvailableEv", ov_network_available);
 HOST_OVERRIDE("_ZN2nn4nifm19SetLocalNetworkModeEb", ov_local_mode);
 HOST_OVERRIDE("_ZN2nn4nifm20CancelNetworkRequestEv", ov_nothing);
-HOST_OVERRIDE("_ZN2nn4nifm27SubmitNetworkRequestAndWaitEv", ov_nothing);
+HOST_OVERRIDE("_ZN2nn4nifm27SubmitNetworkRequestAndWaitEv", ov_submit_request);
 HOST_OVERRIDE("_ZN2nn4nifm31HandleNetworkRequestErrorResultEv", ov_request_result);
 HOST_OVERRIDE("_ZN2nn4nifm22GetCurrentIpConfigInfoEP7in_addrS2_S2_S2_S2_", ov_ip_config);
 HOST_OVERRIDE("_ZN2nn4nifm22GetCurrentProxySettingEPNS0_12ProxySettingE", ov_no_network);

@@ -2173,6 +2173,19 @@ msgstr ""
 "La superposición de Steam no se abrió: inicia el juego desde Steam o envía un enlace de invitado "
 "(menú > Juego)."
 
+msgctxt "UI_NOTICE_RPT_ONLINE"
+msgid ""
+"Online play goes through Steam Remote Play Together: invite your friend from the list that just "
+"opened. Once they have joined and pressed a button, start a local game for 2 players."
+msgstr ""
+
+#. printf format: keep every %... conversion, in the same order.
+msgctxt "UI_NOTICE_RPT_ONLINE_OFF"
+msgid ""
+"Online play goes through Steam Remote Play Together, which is off: %s. Set it up in menu > Game "
+"(docs/remote-play.md)."
+msgstr ""
+
 #. printf format: keep every %... conversion, in the same order.
 msgctxt "UI_MENU_RPT_CHOICE"
 msgid "Local multiplayer for %d players: %d controllers connected. How do the other players join?"

@@ -217,6 +217,32 @@ int steam_rpt_multiplayer(int need, int have) {
     return 1;
 }
 
+// Online play (sdk/ov/ov_net.c, ov_system.c): the game asked for an online service on the player's behalf. Nintendo's
+// servers are not reachable, so the friend joins through Remote Play Together and the two play the local mode (the
+// owner's choice, 27/11/2026: option 1 of docs/steam-remote-play-status.md). One invite list and one notice for a burst
+// of such calls (the game makes several in a row: network request, account, token).
+int steam_rpt_online(const char *what) {
+    const char *mode = cfg_get("ORBITALS_STEAM_INVITE");
+    if (mode && !strcmp(mode, "off")) return 0;
+    static volatile int32_t last_s;
+    int32_t now_s = (int32_t)(plat_now_ns() / 1000000000ull), was = plat_cas32(&last_s, 0, 0);
+    if (was && now_s - was < 10) return 1;
+    plat_xchg32(&last_s, now_s ? now_s : 1);
+    char text[384];
+    if (steam_rpt_state() == STEAM_RPT_READY) {
+        rt_log("steam: the game asked for online play (%s): opening the Remote Play Together invite list", what);
+        steam_rpt_invite();
+        snprintf(text, sizeof text, "%s", menu_text(UI_NOTICE_RPT_ONLINE));
+        menu_notice(text, 14);
+        return 1;
+    }
+    const char *why = steam_rpt_state() == STEAM_RPT_FAILED ? steam_rpt_reason() : menu_text(UI_MENU_RPT_NEED_APPID);
+    rt_log("steam: the game asked for online play (%s); Remote Play Together is not ready: %s", what, why);
+    snprintf(text, sizeof text, menu_text(UI_NOTICE_RPT_ONLINE_OFF), why);
+    menu_notice(text, 14);
+    return 1;
+}
+
 int steam_rpt_take_link(char *out, size_t cap) {
     int32_t s = plat_cas32(&link_state, 0, 0);
     if (s == LINK_REFUSED) { plat_cas32(&link_state, LINK_NONE, LINK_REFUSED); return -1; }

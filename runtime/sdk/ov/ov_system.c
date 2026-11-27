@@ -545,6 +545,7 @@ static void ov_pop_open_users(Cpu *c) {
 
 // Result IsNetworkServiceAccountAvailable(bool *out, const UserHandle &): never, offline.
 static void ov_nsa_available(Cpu *c) {
+    ov_online_call(c, "account::IsNetworkServiceAccountAvailable", 0);
     uint8_t *out = arg_p(c, 0);
     if (out) *out = 0;
     ret_x(c, out ? 0 : ACCOUNT_R_INVALID);
@@ -552,8 +553,25 @@ static void ov_nsa_available(Cpu *c) {
 
 // The network service account calls fail: the game only makes them after IsNetworkServiceAccountAvailable said yes.
 // (nn::account::ResultNetworkServiceAccountUnavailable is module 124; this description number is a hypothesis.)
+// EnsureNetworkServiceAccountAvailable is the sign-in screen on a console, so a player's request for online play: it
+// sends them to Remote Play Together (ov_online_call); the others are only logged.
 #define ACCOUNT_R_NSA_UNAVAILABLE (124u | (280u << 9))
-static void ov_nsa_unavailable(Cpu *c) { ret_x(c, ACCOUNT_R_NSA_UNAVAILABLE); }
+static void ov_nsa_ensure(Cpu *c) {
+    ov_online_call(c, "account::EnsureNetworkServiceAccountAvailable", 1);
+    ret_x(c, ACCOUNT_R_NSA_UNAVAILABLE);
+}
+static void ov_nsa_id(Cpu *c) {
+    ov_online_call(c, "account::GetNetworkServiceAccountId", 0);
+    ret_x(c, ACCOUNT_R_NSA_UNAVAILABLE);
+}
+static void ov_nsa_token(Cpu *c) {
+    ov_online_call(c, "account::LoadNetworkServiceAccountIdTokenCache", 0);
+    ret_x(c, ACCOUNT_R_NSA_UNAVAILABLE);
+}
+static void ov_nsa_token_async(Cpu *c) {
+    ov_online_call(c, "account::EnsureNetworkServiceAccountIdTokenCacheAsync", 0);
+    ret_x(c, ACCOUNT_R_NSA_UNAVAILABLE);
+}
 
 // Result GetUserExistence(bool *out, const Uid &)
 static void ov_user_existence(Cpu *c) {
@@ -936,10 +954,10 @@ HOST_OVERRIDE("_ZN2nn7account13PushOpenUsersEv", ov_push_open_users);
 HOST_OVERRIDE("_ZN2nn7account12PopOpenUsersEPiPNS0_10UserHandleEi", ov_pop_open_users);
 HOST_OVERRIDE("_ZN2nn7account8OpenUserEPNS0_10UserHandleERKNS0_3UidE", ov_open_user_by_uid);
 HOST_OVERRIDE("_ZN2nn7account32IsNetworkServiceAccountAvailableEPbRKNS0_10UserHandleE", ov_nsa_available);
-HOST_OVERRIDE("_ZN2nn7account36EnsureNetworkServiceAccountAvailableERKNS0_10UserHandleE", ov_nsa_unavailable);
-HOST_OVERRIDE("_ZN2nn7account26GetNetworkServiceAccountIdEPNS0_23NetworkServiceAccountIdERKNS0_10UserHandleE", ov_nsa_unavailable);
-HOST_OVERRIDE("_ZN2nn7account37LoadNetworkServiceAccountIdTokenCacheEPmPcmRKNS0_10UserHandleE", ov_nsa_unavailable);
-HOST_OVERRIDE("_ZN2nn7account44EnsureNetworkServiceAccountIdTokenCacheAsyncEPNS0_12AsyncContextERKNS0_10UserHandleE", ov_nsa_unavailable);
+HOST_OVERRIDE("_ZN2nn7account36EnsureNetworkServiceAccountAvailableERKNS0_10UserHandleE", ov_nsa_ensure);
+HOST_OVERRIDE("_ZN2nn7account26GetNetworkServiceAccountIdEPNS0_23NetworkServiceAccountIdERKNS0_10UserHandleE", ov_nsa_id);
+HOST_OVERRIDE("_ZN2nn7account37LoadNetworkServiceAccountIdTokenCacheEPmPcmRKNS0_10UserHandleE", ov_nsa_token);
+HOST_OVERRIDE("_ZN2nn7account44EnsureNetworkServiceAccountIdTokenCacheAsyncEPNS0_12AsyncContextERKNS0_10UserHandleE", ov_nsa_token_async);
 HOST_OVERRIDE("_ZN2nn7account16GetUserExistenceEPbRKNS0_3UidE", ov_user_existence);
 HOST_OVERRIDE("_ZN2nn7account11GetNicknameEPNS0_8NicknameERKNS0_3UidE", ov_nickname);
 

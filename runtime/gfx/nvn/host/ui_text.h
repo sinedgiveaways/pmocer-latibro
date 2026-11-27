@@ -219,6 +219,9 @@ typedef enum {
     // local multiplayer with too few controllers and Steam ready: INVITE "%d ... %d" (players, controllers) as
     // UI_NOTICE_PADS_MISSING, saying the invite list opened; NO_OVERLAY when the overlay could not open
     UI_NOTICE_RPT_INVITE, UI_NOTICE_RPT_NO_OVERLAY,
+    // the game asked for online play (steam_rpt_online): ONLINE with Steam ready, the invite list opened;
+    // ONLINE_OFF "%s" (why Remote Play Together is off)
+    UI_NOTICE_RPT_ONLINE, UI_NOTICE_RPT_ONLINE_OFF,
     // local multiplayer with too few controllers and Steam ready (steam_invite = ask, menu_choice): the question
     // CHOICE "%d ... %d" (players, controllers) and its two buttons
     UI_MENU_RPT_CHOICE, UI_MENU_RPT_CHOICE_LOCAL, UI_MENU_RPT_CHOICE_STEAM,

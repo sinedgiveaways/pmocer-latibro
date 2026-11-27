@@ -70,6 +70,28 @@ yet.
   - The log lines to look for, in this order: `steam: running as App ID 1118310; Remote Play Together ready`,
     `steam: ... joined`, `input: gamepad ... for player 2 (... a Remote Play guest's)`.
 
+- **Result (27/11/2026):** the owner ran it with a friend: it works.
+
+## Online Play through Remote Play Together (27/11/2026)
+
+The owner asked that the game's own Online Play entry work too, and chose option 1: Online Play goes through Remote Play
+Together rather than a real online mode between two copies of the port (option 2, weeks of work on Nintendo's online
+layer, both players owning the port).
+
+- `steam_rpt_online(what)` (`steam_rpt.c`): with Steam ready it opens the invite list and shows
+  `UI_NOTICE_RPT_ONLINE` (start a local game for 2 once the friend is in). Without Steam it shows
+  `UI_NOTICE_RPT_ONLINE_OFF` with the reason. At most once per 10 s; `steam_invite = off` turns it off.
+- Its triggers are the calls a console answers with a screen for the player, which only follow a player's action:
+  `nn::nifm::HandleNetworkRequestErrorResult` (the network error applet, `ov_net.c`) and
+  `nn::account::EnsureNetworkServiceAccountAvailable` (the account sign-in, `ov_system.c`). Every other online call
+  (`IsNetworkAvailable`, `SubmitNetworkRequestAndWait`, `IsNetworkServiceAccountAvailable`, the account id and token
+  calls) is only logged.
+- Every online call is logged as `online: <call> (call N, frame F) from <caller>` (the first 4 per kind, then every
+  100th), with ": a player's request" on the triggers. The game still gets "no network" and takes its offline path.
+- **Not known yet:** whether Orbitals' Online Play makes either trigger call. Its main imports 13 account, 10 friends
+  and 43 `nn::async` functions the runtime does not override (logs83's imports line). The test log of Online Play
+  shows which calls come: if neither trigger comes, the hook moves to the one that does.
+
 ## What is missing or unknown
 
 1. **No run with Orbitals.** It does not reach a scene yet ([roadmap.md](roadmap.md)), so none of the above is
