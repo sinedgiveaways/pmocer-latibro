@@ -93,3 +93,15 @@ backgrounds.
 - Comments say why, with the measurement or source; cite code taken from other projects (MIT/BSD/Apache/GPL-compatible
   only) in the code and in `docs/research.md`.
 - Keep `docs/roadmap.md` and `docs/shaders.md` current when something is found or fixed.
+
+## Public releases (the owner's order, 27/11/2026)
+
+- Development and every test build stay on `sinedgiveaways/pmocer-latibro` (`orbitals-port`, artifacts `kiro-...`).
+- Only builds the owner calls final are published, on the public repository **`sinedgiveaways/Obitals-Together`**
+  (spelled so by the owner): a release per version tag (`v0.3.0` first), with the full Windows package
+  (`orbitals-together-<version>-windows-x64.zip`) as its asset and a French step-by-step README (download, setup,
+  local play, Remote Play Together). Never publish there without the owner saying a build is final.
+- To publish: tag the commit `vX.Y.Z` on pmocer-latibro (add its `CHANGELOG.md` section and the `.rc` version first),
+  push the tag, run `Build Windows` on the tag (`gh api -X POST .../actions/workflows/build-windows.yml/dispatches -f
+  ref=vX.Y.Z`): the package takes the tag's number. Upload that zip to an Obitals-Together release of the same tag and
+  update the README's version and file name. The launcher's update check and bug links point to Obitals-Together.
