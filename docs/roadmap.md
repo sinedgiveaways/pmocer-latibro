@@ -413,8 +413,9 @@ streaming des mips).
 - logs81 (build `e30dd58`) : la correction se déclenche (lignes `taken back at its address; the levels its last
   life's copies wrote (...) are the storage's again`, dont une texture 512x512 à 10 niveaux). Le joueur n'a pas encore
   dit si les rayures ont disparu.
-- **Test à faire :** astéroïde, menu principal, Continuer, de nouveau l'astéroïde. Si les rayures restent : capture
-  et log sans dump. Puis décider de garder ou non `6c1523e` (gardé : la course qu'il traite existe dans le code).
+- **Confirmé en jeu (logs83, build `81c27bf`, 27/11/2026) :** le joueur ne voit « aucun problème ». La correction se
+  déclenche 8 fois (des mip chains de 128x128 à 1024x1024, niveaux `0x1fc` à `0x7fe`). `6c1523e` est gardé : la course
+  qu'il traite existe dans le code, et `e30dd58` s'appuie sur sa règle des niveaux du stockage.
 
 **Gel « GameThread timed out waiting for RenderThread » (2 parties sur 5 ; logs75, logs78, logs81)**
 
@@ -455,6 +456,7 @@ streaming des mips).
   - Pas de délai : le jeu attend sans limite.
   - Octet à 0 : la tâche est finie et le réveil a été manqué (une notification juste avant l'attente).
   - Octet à 1 : la tâche n'a jamais été terminée (file de tâches ou réveil des workers).
+- logs83 (`81c27bf`, environ 4 min, fermeture normale) : pas de gel. Le diagnostic attend le prochain.
 
 **Constatés, pas encore étudiés**
 
