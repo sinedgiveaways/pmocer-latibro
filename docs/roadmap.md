@@ -485,6 +485,9 @@ prochaines parties, il peut être retiré avec `c03f2a0`.
 **Rond bleu (27/11/2026) :** le joueur dit qu'il a disparu. Il était intermittent et absent du dump de la même partie ;
 probablement le même mécanisme de texture reprise, corrigé par `e30dd58` (non prouvé). À rouvrir s'il revient.
 
+**Lignes grises du couloir (27/11/2026) :** le joueur dit qu'elles ont disparu. Cause non établie (particules mal placées
+supposées) ; à rouvrir si elles reviennent.
+
 **Diagnostics à retirer quand ils ne servent plus :** `ORBITALS_OCCLUSION=visible` (`68d2a22`), le log des écritures
 dans une copie transitoire (`97bc308`), les notes de signal des variables de condition (`c03f2a0`, utile tant que le
 gel n'est pas résolu).
