@@ -48,6 +48,22 @@ For repository conventions and development guidelines, see:
 - `CONTRIBUTING.md`
 - `docs/roadmap.md`
 
+## Tools for developers
+
+Windows executables built by the workflows of `.github/workflows/`, so a tester or another developer can answer a
+question without installing Python or uv (Actions tab > the workflow > Run workflow, then the run's artifacts). Each
+one reads the player's own files on their machine and writes a text report; nothing of the game goes in.
+
+| Tool | Workflow | What it answers |
+|---|---|---|
+| `orbitals-frame-report.exe` | `frame_report.yml` | Names the game's functions from your own `exefs/` (no game code in the repo): `--stack` turns the thread dump of an abort in `orbitals.log` into named frames. How the freeze of November 2026 was read |
+| `shader_analyzer.exe` | `log-analyzer.yml` | A report of a whole `orbitals.log`: how the run ended, key threads, missing shaders, NVN sync call sites ([docs/log-analyzer.md](docs/log-analyzer.md)) |
+| `port_check.exe` | `port_check.yml` | The feasibility report of a game dump against the runtime: which SDK functions it imports that the runtime does not replace, module sizes, build ids (a new game version starts here) |
+| `romfs_check.exe` | `romfs_check.yml` | What a `.nup`'s RomFS holds, from its table of contents only |
+
+The Python originals are in `tools/analisis/` and `tools/run/`; `tools/README.md` lists the rest (replays, A/B
+measurements, shader tools).
+
 ## Documentation
 
 - `docs/README.md` — documentation index
