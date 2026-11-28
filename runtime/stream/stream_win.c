@@ -26,6 +26,7 @@
 #include <vpx/vp8cx.h>
 #include <vpx/vpx_encoder.h>
 
+#include "cfg.h"
 #include "host.h"
 #include "input.h"
 #include "platform/platform.h"
@@ -200,7 +201,7 @@ static const char k_page[] =
 "#tBtns{position:absolute;right:20px;bottom:20px;width:152px;height:152px;pointer-events:none}"
 ".tb{position:absolute;width:50px;height:50px;border-radius:50%;background:rgba(30,41,59,.68);border:2px solid rgba(255,255,255,.42);color:#fff;font-weight:700;font-size:16px;display:flex;align-items:center;justify-content:center;pointer-events:auto;touch-action:none}"
 ".tb.on,.tsys.on{background:rgba(59,130,246,.85);border-color:#fff}"
-"#tbX{left:51px;top:0}#tbY{left:0;top:51px}#tbA{right:0;top:51px}#tbB{left:51px;bottom:0}"
+"#tbY{left:51px;top:0}#tbX{left:0;top:51px}#tbB{right:0;top:51px}#tbA{left:51px;bottom:0}"
 ".tsys{position:absolute;top:14px;height:34px;min-width:48px;padding:0 12px;border-radius:17px;background:rgba(30,41,59,.65);border:1.5px solid rgba(255,255,255,.35);color:#fff;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;pointer-events:auto;touch-action:none}"
 "#tbL{left:22px}#tbR{right:22px}#tbMin{left:50%;transform:translateX(-58px)}#tbPlus{left:50%;transform:translateX(10px)}"
 "</style></head><body>"
@@ -217,7 +218,9 @@ static const char k_page[] =
 "<div id='tbMin' class='tsys' data-bit='11'>-</div><div id='tbPlus' class='tsys' data-bit='10'>+</div></div></div>"
 "<script>"
 "const statEl=document.getElementById('stat'),cv=document.getElementById('cv'),ctx=cv.getContext('2d',{alpha:false,desynchronized:true});"
-"let ws=null,vdec=null,adec=null,actx=null,audioOn=false,nextPlay=0,needKf=true;const keys={};"
+"let ws=null,vdec=null,adec=null,actx=null,audioOn=false,nextPlay=0,needKf=true,hostLayout=0;const keys={};"
+"const XB=[0,1,2,3,10,11,4,5,6,7,9,8,14,12,15,13],NIN=[1,0,3,2,10,11,4,5,6,7,9,8,14,12,15,13];"
+"function padMap(gp){return hostLayout===1||(hostLayout===0&&/057e|nintendo|pro controller|joy-con/i.test(gp.id))?NIN:XB;}"
 "addEventListener('keydown',e=>{keys[e.code]=1;if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();});"
 "addEventListener('keyup',e=>{keys[e.code]=0;});"
 "document.getElementById('btnFs').onclick=()=>{const st=document.getElementById('stage');"
@@ -240,7 +243,7 @@ static const char k_page[] =
 "if(t===1){const kf=(u[1]&1)===1,ts=dv.getUint32(6,true)*1000;if(!vdec||vdec.state!=='configured')return;"
 "if(needKf&&!kf)return;needKf=false;vdec.decode(new EncodedVideoChunk({type:kf?'key':'delta',timestamp:ts,data:u.subarray(10)}));}"
 "else if(t===2&&adec&&adec.state==='configured'&&audioOn){adec.decode(new EncodedAudioChunk({type:'key',timestamp:dv.getUint32(4,true)*1000,data:u.subarray(8)}));}"
-"else if(t===3){statEl.textContent='Connected as player '+(u[1]+1);}"
+"else if(t===3){hostLayout=u[2];statEl.textContent='Connected as player '+(u[1]+1);}"
 "else if(t===4){statEl.textContent='The game has no free player: the host must unplug their second controller';}}"
 "function connect(){if(ws){ws.close();ws=null;}"
 "if(!('VideoDecoder'in window)){statEl.textContent='This browser cannot decode the stream: use Chrome, Edge or Firefox';return;}"
@@ -254,6 +257,7 @@ static const char k_page[] =
 "const coarse=matchMedia('(pointer:coarse)').matches;let showTouch=coarse;"
 "function syncTouch(){touchEl.style.display=showTouch?'block':'none';hintEl.style.display=coarse?'none':'block';btnT.textContent='Touch controls: '+(showTouch?'on':'off');}"
 "btnT.onclick=()=>{showTouch=!showTouch;syncTouch();};syncTouch();addEventListener('contextmenu',e=>e.preventDefault());"
+"addEventListener('gamepadconnected',()=>{if(showTouch){showTouch=false;syncTouch();}});"
 "function updStick(cx,cy){const r=stickEl.getBoundingClientRect(),mx=r.left+r.width/2,my=r.top+r.height/2,rad=r.width*0.42;"
 "let dx=cx-mx,dy=cy-my,d=Math.hypot(dx,dy);if(d>rad){dx=dx*rad/d;dy=dy*rad/d;}knob.style.transform='translate('+dx+'px,'+dy+'px)';"
 "tLx=(dx/rad*32767)|0;tLy=(-dy/rad*32767)|0;}"
@@ -271,7 +275,7 @@ static const char k_page[] =
 "if(keys.KeyA)lx=-32767;if(keys.KeyD)lx=32767;if(keys.KeyW)ly=32767;if(keys.KeyS)ly=-32767;"
 "if(keys.ArrowLeft)rx=-32767;if(keys.ArrowRight)rx=32767;if(keys.ArrowUp)ry=32767;if(keys.ArrowDown)ry=-32767;"
 "for(const gp of(navigator.getGamepads?navigator.getGamepads():[])){if(!gp)continue;"
-"const map=[1,0,3,2,10,11,4,5,6,7,9,8,14,12,15,13];"
+"const map=padMap(gp);"
 "for(let i=0;i<map.length;i++)if(gp.buttons[map[i]]&&gp.buttons[map[i]].pressed)b|=1<<i;"
 "if(gp.axes.length>=2){const x=gp.axes[0],y=-gp.axes[1];if(Math.abs(x)>0.08)lx=(x*32767)|0;if(Math.abs(y)>0.08)ly=(y*32767)|0;}"
 "if(gp.axes.length>=4){const x=gp.axes[2],y=-gp.axes[3];if(Math.abs(x)>0.08)rx=(x*32767)|0;if(Math.abs(y)>0.08)ry=(y*32767)|0;}break;}"
@@ -309,7 +313,10 @@ static void apply_input(const uint8_t *buf, size_t len) {
 static void client_main(void *arg) {
     (void)arg;
     SOCKET s = C.sock;
-    uint8_t hello[3] = {3, (uint8_t)C.player, 0};
+    // the host's layout (F1 > Controls > Button layout): 1 Nintendo, 2 Xbox, 0 automatic (the page reads the pad's
+    // name: Nintendo's controllers by position, every other one by label, as input.c does for local pads)
+    const char *lay = cfg_value("ORBITALS_PAD_LAYOUT");
+    uint8_t hello[3] = {3, (uint8_t)C.player, (uint8_t)(!strcmp(lay, "nintendo") ? 1 : !strcmp(lay, "xbox") ? 2 : 0)};
     ws_send(0x2, hello, sizeof hello, 0);
     uint8_t *buf = malloc(8192);
     while (buf && g_running && C.active) {
