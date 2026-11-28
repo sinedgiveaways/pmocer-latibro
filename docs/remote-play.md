@@ -145,7 +145,8 @@ browser through Cloudflare (`runtime/stream/`). Steam Remote Play Together, abov
 2. A few seconds later a notice says the link is copied: an address `https://<words>.trycloudflare.com`. Send it to
    your friend (chat, Discord...). Nothing else to set up: no Steam, no port to open.
 3. Your friend opens it in Chrome, Edge or Firefox and presses **Sound: on**. Their gamepad, their keyboard (WASD,
-   J/K/U/I, Q/E, Enter, Backspace) or, on a phone, the touch controls are player 2.
+   J/K/U/I, Q/E, Enter, Backspace) or, on a phone, the touch controls are player 2. Their gamepad follows your F1 > Controls >
+   Button layout: in Automatic an Xbox or PlayStation pad goes by its labels, a Nintendo one by position.
 4. Start a **Local Play** game for 2 players.
 
 Limits: one friend (the game has 2 players; with a second controller plugged in on your side there is no free
