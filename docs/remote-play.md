@@ -134,6 +134,24 @@ per player.
 - A device loss with "instruction pointer invalid" in the log on NVIDIA cards is the port's known issue #22, with or
   without Steam; `skip_programs` in `orbitals.ini` helps find its cause (CHANGELOG, 0.1.10).
 
+## Online play in a browser
+
+Since 27/11/2026 the game's **Online Play** no longer opens Steam's invite list: it streams the game to a friend's
+browser through Cloudflare (`runtime/stream/`). Steam Remote Play Together, above, stays for **Local Play**.
+
+1. In the game's menu, choose **Online Play** (or F1 > Game > Online play in a browser > **Start and copy the link**).
+   The first time, `cloudflared.exe` (55 MB, Cloudflare's own, checked by sha256) is downloaded next to
+   `orbitals-together.exe`.
+2. A few seconds later a notice says the link is copied: an address `https://<words>.trycloudflare.com`. Send it to
+   your friend (chat, Discord...). Nothing else to set up: no Steam, no port to open.
+3. Your friend opens it in Chrome, Edge or Firefox and presses **Sound: on**. Their gamepad, their keyboard (WASD,
+   J/K/U/I, Q/E, Enter, Backspace) or, on a phone, the touch controls are player 2.
+4. Start a **Local Play** game for 2 players.
+
+Limits: one friend (the game has 2 players; with a second controller plugged in on your side there is no free
+player). Picture 1280 x 720 at up to 30 frames a second, about 4.5 Mb/s of upload. Anyone with the link can join
+while the stream runs: F1 > Game > **Stop** ends it, and quitting the game too. Windows only for now.
+
 ## Tested
 
 Against Valve's SDK 1.65 library and a mock of Steam built from Valve's headers, with SDL virtual gamepads standing in

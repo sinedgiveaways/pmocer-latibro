@@ -1890,21 +1890,80 @@ msgid ""
 "The Steam overlay did not open: start the game from Steam, or send a guest link (menu > Game)."
 msgstr "Steam 오버레이가 열리지 않았습니다. Steam에서 게임을 시작하거나 게스트 링크를 보내세요 (메뉴 > 게임)."
 
-msgctxt "UI_NOTICE_RPT_ONLINE"
-msgid ""
-"Online play goes through Steam Remote Play Together: invite your friend from the list that just "
-"opened. Once they have joined and pressed a button, start a local game for 2 players."
-msgstr ""
-"온라인 플레이는 Steam Remote Play Together로 진행됩니다. 방금 열린 목록에서 친구를 초대하세요. 친구가 참가하고 버튼을 누르면 2인 로컬 게임을 "
-"시작하세요."
+msgctxt "UI_NOTICE_STREAM_STARTING"
+msgid "Online play: making a link for your friend (Cloudflare)…"
+msgstr "온라인 플레이: 친구용 링크를 만드는 중(Cloudflare)…"
 
+#. %s: the link (https://...trycloudflare.com)
 #. printf format: keep every %... conversion, in the same order.
-msgctxt "UI_NOTICE_RPT_ONLINE_OFF"
+msgctxt "UI_NOTICE_STREAM_LINK"
 msgid ""
-"Online play goes through Steam Remote Play Together, which is off: %s. Set it up in menu > Game "
-"(docs/remote-play.md)."
+"Online play: link copied, send it to your friend: %s. Once they have joined, start a Local Play "
+"game for 2 players."
+msgstr "온라인 플레이: 링크를 복사했습니다. 친구에게 보내세요: %s. 친구가 참가하면 2인 로컬 플레이를 시작하세요."
+
+msgctxt "UI_NOTICE_STREAM_JOINED"
+msgid "Your friend joined from their browser as player 2."
+msgstr "친구가 브라우저에서 플레이어 2로 참가했습니다."
+
+msgctxt "UI_NOTICE_STREAM_LEFT"
+msgid "Your friend left the browser stream."
+msgstr "친구가 브라우저 스트림에서 나갔습니다."
+
+msgctxt "UI_NOTICE_STREAM_FULL"
+msgid "Your friend could not join: player 2 already has a controller. Unplug the second controller."
+msgstr "친구가 참가하지 못했습니다: 플레이어 2에 이미 컨트롤러가 있습니다. 두 번째 컨트롤러를 분리하세요."
+
+#. %s: why, in English
+#. printf format: keep every %... conversion, in the same order.
+msgctxt "UI_NOTICE_STREAM_FAILED"
+msgid "Online play is not available: %s."
+msgstr "온라인 플레이를 사용할 수 없습니다: %s."
+
+msgctxt "UI_MENU_GROUP_STREAM"
+msgid "Online play in a browser (Cloudflare)"
+msgstr "브라우저 온라인 플레이(Cloudflare)"
+
+msgctxt "UI_MENU_STREAM_START"
+msgid "Start and copy the link"
+msgstr "시작하고 링크 복사"
+
+msgctxt "UI_MENU_STREAM_START_DESC"
+msgid ""
+"Streams the game to a friend's browser through a Cloudflare link, copied to the clipboard; their "
+"gamepad or keyboard is player 2. The game's Online Play does the same. The first start downloads "
+"cloudflared (55 MB)."
 msgstr ""
-"온라인 플레이는 Steam Remote Play Together로 진행되지만 꺼져 있습니다: %s. 메뉴 > 게임에서 설정하세요(docs/remote-play.md)."
+"클립보드에 복사되는 Cloudflare 링크로 게임을 친구의 브라우저에 스트리밍합니다. 친구의 컨트롤러나 키보드가 플레이어 2입니다. 게임의 온라인 플레이도 같은 일을 "
+"합니다. 처음 시작할 때 cloudflared(55 MB)를 다운로드합니다."
+
+msgctxt "UI_MENU_STREAM_STOP"
+msgid "Stop"
+msgstr "중지"
+
+msgctxt "UI_MENU_STREAM_STOP_DESC"
+msgid "Ends the stream and its link: your friend is disconnected."
+msgstr "스트림과 링크를 끝냅니다: 친구의 연결이 끊깁니다."
+
+msgctxt "UI_MENU_STREAM_OFF"
+msgid "off"
+msgstr "꺼짐"
+
+msgctxt "UI_MENU_STREAM_STARTING"
+msgid "starting…"
+msgstr "시작 중…"
+
+msgctxt "UI_MENU_STREAM_READY"
+msgid "link ready"
+msgstr "링크 준비됨"
+
+msgctxt "UI_MENU_STREAM_PLAYING"
+msgid "friend connected"
+msgstr "친구 연결됨"
+
+msgctxt "UI_MENU_STREAM_FAILED"
+msgid "failed (see the log)"
+msgstr "실패(로그 참조)"
 
 #. printf format: keep every %... conversion, in the same order.
 msgctxt "UI_MENU_RPT_CHOICE"

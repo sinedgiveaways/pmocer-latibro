@@ -26,6 +26,10 @@ int input_remote_attach(void);
 int input_guest_pads(void);
 void input_remote_detach(int player);
 void input_remote_key(int player, int key, int down);
+// A remote player's gamepad (stream/stream_win.c: the browser's): buttons in input_map.h's B_A..B_DOWN order and the
+// two sticks (-32767..32767, up positive), held until the next call; after 500 ms without one it reads as released
+// (a dropped connection leaves nothing held). Only for a player input_remote_attach gave. Any thread.
+void input_remote_pad(int player, uint32_t buttons, int lx, int ly, int rx, int ry);
 // The key id (input_map.h KEY_*) of a USB HID keyboard usage (page 7: SDL scancodes, Steam Remote Play's scancodes);
 // 0 for a usage without one. Any thread.
 int input_key_of_usb(int usage);

@@ -522,6 +522,13 @@ puis toute la gestion des mods (page Mods du lanceur, `mods.cpp`, `tools/mod/`, 
 `romfs.c`, réglages `ORBITALS_MODS*`, 34 textes). Le générateur garde `--mods`/`--image` jusqu'au prochain changement
 de `recomp/` (voir recomp/README.md). Gardés : les diagnostics du gel, le code Linux, les outils de rapport.
 
+**Partie en ligne par navigateur (27/11/2026, à tester) :** choix du joueur : Steam Remote Play Together reste pour la
+Partie locale, la Partie en ligne lance un stream vers le navigateur de l'ami par un tunnel Cloudflare
+(`runtime/stream/`, adapté de MTF Recomp, MIT) : VP8 + Opus, manette/clavier/tactile de l'ami en joueur 2.
+`cloudflared` 2026.11.2 est téléchargé au premier lancement (sha256 vérifié). À valider : lien copié, image, son,
+manette de l'ami, latence. Les README d'Orbitals-Together disent encore que Partie en ligne ouvre Steam : à corriger à
+la prochaine publication.
+
 **Diagnostics à retirer quand ils ne servent plus :** `ORBITALS_OCCLUSION=visible` (`68d2a22`), le log des écritures
 dans une copie transitoire (`97bc308`), les notes de signal des variables de condition (`c03f2a0`, utile tant que le
 gel n'est pas résolu).

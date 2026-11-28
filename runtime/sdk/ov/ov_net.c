@@ -10,7 +10,7 @@
 #include "host.h"
 #include "nvn_api.h"
 #include "ov.h"
-#include "steam_rpt.h"
+#include "stream/stream.h"
 
 // nifm results (module 110); the description number is a hypothesis: any failure keeps the game offline.
 #define NIFM_R_NO_NETWORK (110u | (1u << 9))
@@ -19,13 +19,14 @@ static int local_mode;   // SetLocalNetworkMode's last value
 
 static int lan_up(void) { return local_mode && ov_lan(); }
 
-// ---- online play through Steam Remote Play Together (the owner's choice, 27/11/2026)
-// Orbitals' Online Play needs Nintendo's servers. Which calls its menu entry makes was not seen yet, so each online
-// call is logged (the first 4 per kind, then every 100th: IsNetworkAvailable may be polled every frame) with the frame
-// and the game's code that made it; the next run's log gives the sequence. The calls a console answers with a screen
-// for the player (the network error applet, the network account's sign-in) only follow a player's action: those send
-// the player to Remote Play Together (steam_rpt_online), and the game still gets "no network" and takes its offline
-// path, where the local mode for 2 is.
+// ---- online play in a browser (the owner's choice, 27/11/2026: Steam Remote Play Together for Local Play,
+// Cloudflare for Online Play)
+// Orbitals' Online Play needs Nintendo's servers. Each online call is logged (the first 4 per kind, then every 100th:
+// IsNetworkAvailable may be polled every frame) with the frame and the game's code that made it. The calls a console
+// answers with a screen for the player only follow a player's action: Online Play makes
+// nifm::HandleNetworkRequestErrorResult (from main+0x175ac, the owner's log of 27/11/2026). Those start the browser
+// stream (stream/stream.h: a link for the friend, copied), and the game still gets "no network" and goes back to its
+// menu, where the local mode for 2 is.
 void ov_online_call(Cpu *c, const char *what, int ask) {
     static struct { const char *what; volatile int32_t n; } seen[24];
     int32_t n = 0;
@@ -46,7 +47,7 @@ void ov_online_call(Cpu *c, const char *what, int ask) {
                (unsigned long long)__atomic_load_n(&gfx_counters.frames, __ATOMIC_RELAXED),
                ldr_describe(c->x[30] - 4, lr, sizeof lr), ask ? ": a player's request" : "");
     }
-    if (ask && !lan_up()) steam_rpt_online(what);
+    if (ask && !lan_up()) stream_online(what);
 }
 
 static void ov_ok(Cpu *c) { ret_x(c, 0); }

@@ -1946,22 +1946,83 @@ msgid ""
 msgstr ""
 "Steam arayüzü açılmadı: oyunu Steam'den başlat veya bir misafir bağlantısı gönder (menü > Oyun)."
 
-msgctxt "UI_NOTICE_RPT_ONLINE"
-msgid ""
-"Online play goes through Steam Remote Play Together: invite your friend from the list that just "
-"opened. Once they have joined and pressed a button, start a local game for 2 players."
-msgstr ""
-"Çevrimiçi oyun Steam Remote Play Together üzerinden olur: arkadaşınızı az önce açılan listeden "
-"davet edin. Katılıp bir tuşa bastığında 2 oyunculu yerel bir oyun başlatın."
+msgctxt "UI_NOTICE_STREAM_STARTING"
+msgid "Online play: making a link for your friend (Cloudflare)…"
+msgstr "Çevrimiçi oyun: arkadaşın için bağlantı oluşturuluyor (Cloudflare)…"
 
+#. %s: the link (https://...trycloudflare.com)
 #. printf format: keep every %... conversion, in the same order.
-msgctxt "UI_NOTICE_RPT_ONLINE_OFF"
+msgctxt "UI_NOTICE_STREAM_LINK"
 msgid ""
-"Online play goes through Steam Remote Play Together, which is off: %s. Set it up in menu > Game "
-"(docs/remote-play.md)."
+"Online play: link copied, send it to your friend: %s. Once they have joined, start a Local Play "
+"game for 2 players."
 msgstr ""
-"Çevrimiçi oyun Steam Remote Play Together üzerinden olur, ancak kapalı: %s. Menü > Oyun "
-"bölümünden ayarlayın (docs/remote-play.md)."
+"Çevrimiçi oyun: bağlantı kopyalandı, arkadaşına gönder: %s. Katıldığında 2 oyunculu yerel bir "
+"oyun başlat."
+
+msgctxt "UI_NOTICE_STREAM_JOINED"
+msgid "Your friend joined from their browser as player 2."
+msgstr "Arkadaşın tarayıcısından 2. oyuncu olarak katıldı."
+
+msgctxt "UI_NOTICE_STREAM_LEFT"
+msgid "Your friend left the browser stream."
+msgstr "Arkadaşın tarayıcı yayınından ayrıldı."
+
+msgctxt "UI_NOTICE_STREAM_FULL"
+msgid "Your friend could not join: player 2 already has a controller. Unplug the second controller."
+msgstr "Arkadaşın katılamadı: 2. oyuncunun zaten bir kumandası var. İkinci kumandayı çıkar."
+
+#. %s: why, in English
+#. printf format: keep every %... conversion, in the same order.
+msgctxt "UI_NOTICE_STREAM_FAILED"
+msgid "Online play is not available: %s."
+msgstr "Çevrimiçi oyun kullanılamıyor: %s."
+
+msgctxt "UI_MENU_GROUP_STREAM"
+msgid "Online play in a browser (Cloudflare)"
+msgstr "Tarayıcıda çevrimiçi oyun (Cloudflare)"
+
+msgctxt "UI_MENU_STREAM_START"
+msgid "Start and copy the link"
+msgstr "Başlat ve bağlantıyı kopyala"
+
+msgctxt "UI_MENU_STREAM_START_DESC"
+msgid ""
+"Streams the game to a friend's browser through a Cloudflare link, copied to the clipboard; their "
+"gamepad or keyboard is player 2. The game's Online Play does the same. The first start downloads "
+"cloudflared (55 MB)."
+msgstr ""
+"Oyunu, panoya kopyalanan bir Cloudflare bağlantısıyla bir arkadaşının tarayıcısına aktarır; onun "
+"kumandası veya klavyesi 2. oyuncudur. Oyunun çevrimiçi oyunu da aynısını yapar. İlk başlatma "
+"cloudflared'ı indirir (55 MB)."
+
+msgctxt "UI_MENU_STREAM_STOP"
+msgid "Stop"
+msgstr "Durdur"
+
+msgctxt "UI_MENU_STREAM_STOP_DESC"
+msgid "Ends the stream and its link: your friend is disconnected."
+msgstr "Yayını ve bağlantısını sonlandırır: arkadaşının bağlantısı kesilir."
+
+msgctxt "UI_MENU_STREAM_OFF"
+msgid "off"
+msgstr "kapalı"
+
+msgctxt "UI_MENU_STREAM_STARTING"
+msgid "starting…"
+msgstr "başlatılıyor…"
+
+msgctxt "UI_MENU_STREAM_READY"
+msgid "link ready"
+msgstr "bağlantı hazır"
+
+msgctxt "UI_MENU_STREAM_PLAYING"
+msgid "friend connected"
+msgstr "arkadaş bağlandı"
+
+msgctxt "UI_MENU_STREAM_FAILED"
+msgid "failed (see the log)"
+msgstr "başarısız (günlüğe bak)"
 
 #. printf format: keep every %... conversion, in the same order.
 msgctxt "UI_MENU_RPT_CHOICE"

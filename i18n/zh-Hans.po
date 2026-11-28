@@ -1869,18 +1869,79 @@ msgid ""
 "The Steam overlay did not open: start the game from Steam, or send a guest link (menu > Game)."
 msgstr "Steam 界面未能打开：请从 Steam 启动游戏，或发送访客链接（菜单 > 游戏）。"
 
-msgctxt "UI_NOTICE_RPT_ONLINE"
-msgid ""
-"Online play goes through Steam Remote Play Together: invite your friend from the list that just "
-"opened. Once they have joined and pressed a button, start a local game for 2 players."
-msgstr "在线游戏通过 Steam 远程同乐进行：从刚打开的列表中邀请你的好友。好友加入并按下一个按钮后，开始一局 2 人本地游戏。"
+msgctxt "UI_NOTICE_STREAM_STARTING"
+msgid "Online play: making a link for your friend (Cloudflare)…"
+msgstr "在线游戏：正在为好友创建链接（Cloudflare）…"
 
+#. %s: the link (https://...trycloudflare.com)
 #. printf format: keep every %... conversion, in the same order.
-msgctxt "UI_NOTICE_RPT_ONLINE_OFF"
+msgctxt "UI_NOTICE_STREAM_LINK"
 msgid ""
-"Online play goes through Steam Remote Play Together, which is off: %s. Set it up in menu > Game "
-"(docs/remote-play.md)."
-msgstr "在线游戏通过 Steam 远程同乐进行，但它已关闭：%s。请在 菜单 > 游戏 中设置（docs/remote-play.md）。"
+"Online play: link copied, send it to your friend: %s. Once they have joined, start a Local Play "
+"game for 2 players."
+msgstr "在线游戏：链接已复制，发给你的好友：%s。好友加入后，开始一局 2 人本地游戏。"
+
+msgctxt "UI_NOTICE_STREAM_JOINED"
+msgid "Your friend joined from their browser as player 2."
+msgstr "你的好友已从浏览器以玩家 2 加入。"
+
+msgctxt "UI_NOTICE_STREAM_LEFT"
+msgid "Your friend left the browser stream."
+msgstr "你的好友已离开浏览器串流。"
+
+msgctxt "UI_NOTICE_STREAM_FULL"
+msgid "Your friend could not join: player 2 already has a controller. Unplug the second controller."
+msgstr "好友无法加入：玩家 2 已有手柄。请拔下第二个手柄。"
+
+#. %s: why, in English
+#. printf format: keep every %... conversion, in the same order.
+msgctxt "UI_NOTICE_STREAM_FAILED"
+msgid "Online play is not available: %s."
+msgstr "在线游戏不可用：%s。"
+
+msgctxt "UI_MENU_GROUP_STREAM"
+msgid "Online play in a browser (Cloudflare)"
+msgstr "浏览器在线游戏（Cloudflare）"
+
+msgctxt "UI_MENU_STREAM_START"
+msgid "Start and copy the link"
+msgstr "开始并复制链接"
+
+msgctxt "UI_MENU_STREAM_START_DESC"
+msgid ""
+"Streams the game to a friend's browser through a Cloudflare link, copied to the clipboard; their "
+"gamepad or keyboard is player 2. The game's Online Play does the same. The first start downloads "
+"cloudflared (55 MB)."
+msgstr ""
+"通过复制到剪贴板的 Cloudflare 链接，把游戏串流到好友的浏览器；好友的手柄或键盘是玩家 2。游戏自身的在线游戏也会这样做。首次开始会下载 cloudflared（55 MB）。"
+
+msgctxt "UI_MENU_STREAM_STOP"
+msgid "Stop"
+msgstr "停止"
+
+msgctxt "UI_MENU_STREAM_STOP_DESC"
+msgid "Ends the stream and its link: your friend is disconnected."
+msgstr "结束串流及其链接：好友会断开连接。"
+
+msgctxt "UI_MENU_STREAM_OFF"
+msgid "off"
+msgstr "关闭"
+
+msgctxt "UI_MENU_STREAM_STARTING"
+msgid "starting…"
+msgstr "正在开始…"
+
+msgctxt "UI_MENU_STREAM_READY"
+msgid "link ready"
+msgstr "链接已就绪"
+
+msgctxt "UI_MENU_STREAM_PLAYING"
+msgid "friend connected"
+msgstr "好友已连接"
+
+msgctxt "UI_MENU_STREAM_FAILED"
+msgid "failed (see the log)"
+msgstr "失败（见日志）"
 
 #. printf format: keep every %... conversion, in the same order.
 msgctxt "UI_MENU_RPT_CHOICE"

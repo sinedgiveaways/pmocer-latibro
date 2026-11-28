@@ -19,8 +19,8 @@ uint64_t ov_bfttf_size(const uint8_t *p, uint64_t len); // decoded font size of 
 // ---- ov_socket.c
 int ov_lan(void);                                    // ORBITALS_LAN set: sockets and nifm's local mode are live
 // An online-service call of the game (ov_net.c): logged with its frame and caller (the first 4 of each, then every
-// 100th), and with ask set (a call a console answers with a screen for the player) online play goes to Steam Remote
-// Play Together (steam_rpt_online).
+// 100th), and with ask set (a call a console answers with a screen for the player) online play starts the browser
+// stream (stream/stream.h).
 struct Cpu;
 void ov_online_call(struct Cpu *c, const char *what, int ask);
 int ov_lan_only(uint32_t host_order);   // 1 for an IPv4 address that never leaves a local network (ov_socket.c)

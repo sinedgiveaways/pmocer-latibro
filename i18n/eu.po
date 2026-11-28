@@ -1965,22 +1965,85 @@ msgstr ""
 "Steam-en geruza ez da ireki: abiarazi jokoa Steam-etik edo bidali gonbidatu-esteka bat (menua > "
 "Jokoa)."
 
-msgctxt "UI_NOTICE_RPT_ONLINE"
-msgid ""
-"Online play goes through Steam Remote Play Together: invite your friend from the list that just "
-"opened. Once they have joined and pressed a button, start a local game for 2 players."
-msgstr ""
-"Lineako jokoa Steam Remote Play Together bidez doa: gonbidatu zure laguna ireki berri den "
-"zerrendatik. Sartu eta botoi bat sakatu ondoren, hasi 2 jokalarirentzako partida lokal bat."
+msgctxt "UI_NOTICE_STREAM_STARTING"
+msgid "Online play: making a link for your friend (Cloudflare)…"
+msgstr "Lineako jokoa: zure lagunarentzako esteka sortzen (Cloudflare)…"
 
+#. %s: the link (https://...trycloudflare.com)
 #. printf format: keep every %... conversion, in the same order.
-msgctxt "UI_NOTICE_RPT_ONLINE_OFF"
+msgctxt "UI_NOTICE_STREAM_LINK"
 msgid ""
-"Online play goes through Steam Remote Play Together, which is off: %s. Set it up in menu > Game "
-"(docs/remote-play.md)."
+"Online play: link copied, send it to your friend: %s. Once they have joined, start a Local Play "
+"game for 2 players."
 msgstr ""
-"Lineako jokoa Steam Remote Play Together bidez doa, baina desaktibatuta dago: %s. Konfiguratu "
-"menua > Jokoa atalean (docs/remote-play.md)."
+"Lineako jokoa: esteka kopiatuta, bidali zure lagunari: %s. Sartu ondoren, hasi 2 jokalarirentzako "
+"partida lokal bat."
+
+msgctxt "UI_NOTICE_STREAM_JOINED"
+msgid "Your friend joined from their browser as player 2."
+msgstr "Zure laguna nabigatzailetik sartu da 2. jokalari gisa."
+
+msgctxt "UI_NOTICE_STREAM_LEFT"
+msgid "Your friend left the browser stream."
+msgstr "Zure lagunak nabigatzaileko streama utzi du."
+
+msgctxt "UI_NOTICE_STREAM_FULL"
+msgid "Your friend could not join: player 2 already has a controller. Unplug the second controller."
+msgstr ""
+"Zure laguna ezin izan da sartu: 2. jokalariak badu kontrolagailu bat. Deskonektatu bigarren "
+"kontrolagailua."
+
+#. %s: why, in English
+#. printf format: keep every %... conversion, in the same order.
+msgctxt "UI_NOTICE_STREAM_FAILED"
+msgid "Online play is not available: %s."
+msgstr "Lineako jokoa ez dago erabilgarri: %s."
+
+msgctxt "UI_MENU_GROUP_STREAM"
+msgid "Online play in a browser (Cloudflare)"
+msgstr "Lineako jokoa nabigatzailean (Cloudflare)"
+
+msgctxt "UI_MENU_STREAM_START"
+msgid "Start and copy the link"
+msgstr "Hasi eta kopiatu esteka"
+
+msgctxt "UI_MENU_STREAM_START_DESC"
+msgid ""
+"Streams the game to a friend's browser through a Cloudflare link, copied to the clipboard; their "
+"gamepad or keyboard is player 2. The game's Online Play does the same. The first start downloads "
+"cloudflared (55 MB)."
+msgstr ""
+"Jokoa lagun baten nabigatzailera transmititzen du Cloudflare esteka baten bidez, arbelera "
+"kopiatuta; haren kontrolagailua edo teklatua 2. jokalaria da. Jokoaren lineako jokoak gauza bera "
+"egiten du. Lehen abiarazteak cloudflared deskargatzen du (55 MB)."
+
+msgctxt "UI_MENU_STREAM_STOP"
+msgid "Stop"
+msgstr "Gelditu"
+
+msgctxt "UI_MENU_STREAM_STOP_DESC"
+msgid "Ends the stream and its link: your friend is disconnected."
+msgstr "Streama eta bere esteka amaitzen ditu: zure laguna deskonektatzen da."
+
+msgctxt "UI_MENU_STREAM_OFF"
+msgid "off"
+msgstr "desaktibatuta"
+
+msgctxt "UI_MENU_STREAM_STARTING"
+msgid "starting…"
+msgstr "abiarazten…"
+
+msgctxt "UI_MENU_STREAM_READY"
+msgid "link ready"
+msgstr "esteka prest"
+
+msgctxt "UI_MENU_STREAM_PLAYING"
+msgid "friend connected"
+msgstr "laguna konektatuta"
+
+msgctxt "UI_MENU_STREAM_FAILED"
+msgid "failed (see the log)"
+msgstr "huts egin du (ikusi erregistroa)"
 
 #. printf format: keep every %... conversion, in the same order.
 msgctxt "UI_MENU_RPT_CHOICE"

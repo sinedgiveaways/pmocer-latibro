@@ -1957,23 +1957,85 @@ msgstr ""
 "La superposició de Steam no s'ha obert: inicia el joc des de Steam o envia un enllaç de convidat "
 "(menú > Joc)."
 
-msgctxt "UI_NOTICE_RPT_ONLINE"
-msgid ""
-"Online play goes through Steam Remote Play Together: invite your friend from the list that just "
-"opened. Once they have joined and pressed a button, start a local game for 2 players."
-msgstr ""
-"El joc en línia passa per Steam Remote Play Together: convida el teu amic des de la llista que "
-"s'acaba d'obrir. Quan s'hi hagi unit i hagi premut un botó, comença una partida local per a 2 "
-"jugadors."
+msgctxt "UI_NOTICE_STREAM_STARTING"
+msgid "Online play: making a link for your friend (Cloudflare)…"
+msgstr "Joc en línia: creant un enllaç per al teu amic (Cloudflare)…"
 
+#. %s: the link (https://...trycloudflare.com)
 #. printf format: keep every %... conversion, in the same order.
-msgctxt "UI_NOTICE_RPT_ONLINE_OFF"
+msgctxt "UI_NOTICE_STREAM_LINK"
 msgid ""
-"Online play goes through Steam Remote Play Together, which is off: %s. Set it up in menu > Game "
-"(docs/remote-play.md)."
+"Online play: link copied, send it to your friend: %s. Once they have joined, start a Local Play "
+"game for 2 players."
 msgstr ""
-"El joc en línia passa per Steam Remote Play Together, que està desactivat: %s. Configura'l a menú "
-"> Joc (docs/remote-play.md)."
+"Joc en línia: enllaç copiat, envia'l al teu amic: %s. Quan s'hi hagi unit, comença una partida "
+"local per a 2 jugadors."
+
+msgctxt "UI_NOTICE_STREAM_JOINED"
+msgid "Your friend joined from their browser as player 2."
+msgstr "El teu amic s'ha unit des del navegador com a jugador 2."
+
+msgctxt "UI_NOTICE_STREAM_LEFT"
+msgid "Your friend left the browser stream."
+msgstr "El teu amic ha sortit del stream del navegador."
+
+msgctxt "UI_NOTICE_STREAM_FULL"
+msgid "Your friend could not join: player 2 already has a controller. Unplug the second controller."
+msgstr ""
+"El teu amic no s'ha pogut unir: el jugador 2 ja té un comandament. Desconnecta el segon "
+"comandament."
+
+#. %s: why, in English
+#. printf format: keep every %... conversion, in the same order.
+msgctxt "UI_NOTICE_STREAM_FAILED"
+msgid "Online play is not available: %s."
+msgstr "El joc en línia no està disponible: %s."
+
+msgctxt "UI_MENU_GROUP_STREAM"
+msgid "Online play in a browser (Cloudflare)"
+msgstr "Joc en línia en un navegador (Cloudflare)"
+
+msgctxt "UI_MENU_STREAM_START"
+msgid "Start and copy the link"
+msgstr "Inicia i copia l'enllaç"
+
+msgctxt "UI_MENU_STREAM_START_DESC"
+msgid ""
+"Streams the game to a friend's browser through a Cloudflare link, copied to the clipboard; their "
+"gamepad or keyboard is player 2. The game's Online Play does the same. The first start downloads "
+"cloudflared (55 MB)."
+msgstr ""
+"Transmet el joc al navegador d'un amic mitjançant un enllaç de Cloudflare, copiat al "
+"porta-retalls; el seu comandament o el seu teclat és el jugador 2. El joc en línia del joc fa el "
+"mateix. El primer inici baixa cloudflared (55 MB)."
+
+msgctxt "UI_MENU_STREAM_STOP"
+msgid "Stop"
+msgstr "Atura"
+
+msgctxt "UI_MENU_STREAM_STOP_DESC"
+msgid "Ends the stream and its link: your friend is disconnected."
+msgstr "Atura el stream i el seu enllaç: el teu amic es desconnecta."
+
+msgctxt "UI_MENU_STREAM_OFF"
+msgid "off"
+msgstr "desactivat"
+
+msgctxt "UI_MENU_STREAM_STARTING"
+msgid "starting…"
+msgstr "iniciant…"
+
+msgctxt "UI_MENU_STREAM_READY"
+msgid "link ready"
+msgstr "enllaç a punt"
+
+msgctxt "UI_MENU_STREAM_PLAYING"
+msgid "friend connected"
+msgstr "amic connectat"
+
+msgctxt "UI_MENU_STREAM_FAILED"
+msgid "failed (see the log)"
+msgstr "error (mira el registre)"
 
 #. printf format: keep every %... conversion, in the same order.
 msgctxt "UI_MENU_RPT_CHOICE"

@@ -19,6 +19,7 @@ extern "C" {
 #include "input_map.h"
 #include "platform/platform.h"
 #include "steam_rpt.h"
+#include "stream/stream.h"
 #include "sysinfo.h"
 #include "ui/menu/menu.h"
 #include "ui_text.h"
@@ -311,11 +312,29 @@ static void rows_remote_play(void) {
     }
 }
 
+// Online play in a browser (stream/stream.h): the game's Online Play starts it too. Start copies the link again once
+// it is known; its value says where the stream is.
+static void rows_stream(void) {
+    opt_group(UI_MENU_GROUP_STREAM);
+    int st = stream_state();
+    static char value[96];
+    const char *v = st == STREAM_STARTING ? menu_text(UI_MENU_STREAM_STARTING)
+                  : st == STREAM_FAILED   ? menu_text(UI_MENU_STREAM_FAILED)
+                  : st == STREAM_READY && stream_clients() ? menu_text(UI_MENU_STREAM_PLAYING)
+                  : st == STREAM_READY    ? menu_text(UI_MENU_STREAM_READY)
+                                          : menu_text(UI_MENU_STREAM_OFF);
+    snprintf(value, sizeof value, "%s", v);
+    if (opt_button("##stream_start", UI_MENU_STREAM_START, UI_MENU_STREAM_START_DESC, value)) stream_start();
+    if (st == STREAM_OFF) opt_disable_next(UI_MENU_STREAM_OFF);
+    if (opt_button("##stream_stop", UI_MENU_STREAM_STOP, UI_MENU_STREAM_STOP_DESC, "") && st != STREAM_OFF) stream_stop();
+}
+
 static void tab_game(float scale) {
     opt_begin("##game", scale);
     row_game_lang();
     opt_toggle("ORBITALS_LAN", UI_MENU_LAN, UI_MENU_LAN_DESC);   // sdk/ov/ov_net.c and ov_socket.c
     rows_remote_play();
+    rows_stream();
     opt_end();
 }
 

@@ -1958,23 +1958,84 @@ msgid ""
 msgstr ""
 "De Steam-overlay ging niet open: start het spel vanuit Steam of stuur een gastlink (menu > Spel)."
 
-msgctxt "UI_NOTICE_RPT_ONLINE"
-msgid ""
-"Online play goes through Steam Remote Play Together: invite your friend from the list that just "
-"opened. Once they have joined and pressed a button, start a local game for 2 players."
-msgstr ""
-"Online spelen gaat via Steam Remote Play Together: nodig je vriend uit vanuit de lijst die net is "
-"geopend. Zodra hij is toegetreden en op een knop heeft gedrukt, start je een lokaal spel voor 2 "
-"spelers."
+msgctxt "UI_NOTICE_STREAM_STARTING"
+msgid "Online play: making a link for your friend (Cloudflare)…"
+msgstr "Online spelen: link voor je vriend wordt gemaakt (Cloudflare)…"
 
+#. %s: the link (https://...trycloudflare.com)
 #. printf format: keep every %... conversion, in the same order.
-msgctxt "UI_NOTICE_RPT_ONLINE_OFF"
+msgctxt "UI_NOTICE_STREAM_LINK"
 msgid ""
-"Online play goes through Steam Remote Play Together, which is off: %s. Set it up in menu > Game "
-"(docs/remote-play.md)."
+"Online play: link copied, send it to your friend: %s. Once they have joined, start a Local Play "
+"game for 2 players."
 msgstr ""
-"Online spelen gaat via Steam Remote Play Together, dat uit staat: %s. Stel het in via menu > Spel "
-"(docs/remote-play.md)."
+"Online spelen: link gekopieerd, stuur hem naar je vriend: %s. Start, zodra hij erbij is, een "
+"lokaal spel voor 2 spelers."
+
+msgctxt "UI_NOTICE_STREAM_JOINED"
+msgid "Your friend joined from their browser as player 2."
+msgstr "Je vriend doet mee vanuit zijn browser als speler 2."
+
+msgctxt "UI_NOTICE_STREAM_LEFT"
+msgid "Your friend left the browser stream."
+msgstr "Je vriend heeft de browserstream verlaten."
+
+msgctxt "UI_NOTICE_STREAM_FULL"
+msgid "Your friend could not join: player 2 already has a controller. Unplug the second controller."
+msgstr ""
+"Je vriend kon niet meedoen: speler 2 heeft al een controller. Koppel de tweede controller los."
+
+#. %s: why, in English
+#. printf format: keep every %... conversion, in the same order.
+msgctxt "UI_NOTICE_STREAM_FAILED"
+msgid "Online play is not available: %s."
+msgstr "Online spelen is niet beschikbaar: %s."
+
+msgctxt "UI_MENU_GROUP_STREAM"
+msgid "Online play in a browser (Cloudflare)"
+msgstr "Online spelen in een browser (Cloudflare)"
+
+msgctxt "UI_MENU_STREAM_START"
+msgid "Start and copy the link"
+msgstr "Starten en link kopiëren"
+
+msgctxt "UI_MENU_STREAM_START_DESC"
+msgid ""
+"Streams the game to a friend's browser through a Cloudflare link, copied to the clipboard; their "
+"gamepad or keyboard is player 2. The game's Online Play does the same. The first start downloads "
+"cloudflared (55 MB)."
+msgstr ""
+"Streamt het spel naar de browser van een vriend via een Cloudflare-link, gekopieerd naar het "
+"klembord; zijn controller of toetsenbord is speler 2. Online spelen in het spel doet hetzelfde. "
+"De eerste start downloadt cloudflared (55 MB)."
+
+msgctxt "UI_MENU_STREAM_STOP"
+msgid "Stop"
+msgstr "Stoppen"
+
+msgctxt "UI_MENU_STREAM_STOP_DESC"
+msgid "Ends the stream and its link: your friend is disconnected."
+msgstr "Stopt de stream en de link: je vriend wordt losgekoppeld."
+
+msgctxt "UI_MENU_STREAM_OFF"
+msgid "off"
+msgstr "uit"
+
+msgctxt "UI_MENU_STREAM_STARTING"
+msgid "starting…"
+msgstr "starten…"
+
+msgctxt "UI_MENU_STREAM_READY"
+msgid "link ready"
+msgstr "link klaar"
+
+msgctxt "UI_MENU_STREAM_PLAYING"
+msgid "friend connected"
+msgstr "vriend verbonden"
+
+msgctxt "UI_MENU_STREAM_FAILED"
+msgid "failed (see the log)"
+msgstr "mislukt (zie het logboek)"
 
 #. printf format: keep every %... conversion, in the same order.
 msgctxt "UI_MENU_RPT_CHOICE"

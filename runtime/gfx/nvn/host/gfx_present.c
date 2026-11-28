@@ -25,6 +25,7 @@
 #include "hacks.h"
 #include "host.h"
 #include "nvn_api.h"
+#include "stream/stream.h"
 #include "ui/menu/menu.h"
 #include "vk.h"
 #include "platform/platform.h"
@@ -505,6 +506,94 @@ static void record_thumb(VkCommandBuffer cb, VkImage dst, unsigned fence_slot) {
     g_th_frame = 0;
 }
 
+// ---- the browser stream's picture (stream/stream.h; g_pl): while a browser is connected, each present also blits the
+// swapchain image down to the stream's size into the slot of its fence, read once that fence has signalled. Allocated
+// at the first such present, freed with the swapchain. In the swapchain's own format (a blit to another 8-bit format
+// would decode sRGB without encoding it again); an HDR10 swapchain goes to R8G8B8A8_UNORM as the thumbnails do, so the
+// friend sees its PQ-encoded colours, paler. From MTF Recomp's gfx_present.c (b5ff778, MIT; stream_win.c).
+static int g_st_w, g_st_h, g_st_rgba, g_st_failed;
+static VkDeviceSize g_st_bytes;
+static VkImage g_st_img;
+static VmaAllocation g_st_img_alloc;
+static VkFormat g_st_fmt;
+static VkBuffer g_st_buf;
+static VmaAllocation g_st_alloc;
+static uint8_t *g_st_ptr;
+static uint8_t g_st_pending[FRAMES];
+
+static void free_stream_cap(void) {
+    VkCtx *c = vk_ctx();
+    if (g_st_img && c) vmaDestroyImage(c->vma, g_st_img, g_st_img_alloc);
+    if (g_st_buf && c) vmaDestroyBuffer(c->vma, g_st_buf, g_st_alloc);
+    g_st_img = VK_NULL_HANDLE, g_st_buf = VK_NULL_HANDLE, g_st_ptr = NULL, g_st_w = g_st_h = 0, g_st_bytes = 0;
+    memset(g_st_pending, 0, sizeof g_st_pending);
+}
+
+static int ensure_stream_cap(void) {
+    int tw, th;
+    if (g_st_failed || !stream_video_wanted(&tw, &th)) return 0;
+    VkCtx *c = vk_ctx();
+    // the size is fixed (stream_win.c VIDEO_W x VIDEO_H): the buffer is made once
+    if (!g_st_buf) {
+        g_st_bytes = (VkDeviceSize)tw * th * 4;
+        VkBufferCreateInfo bi = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, .size = g_st_bytes * FRAMES,
+                                 .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT};
+        VmaAllocationCreateInfo ai = {.usage = VMA_MEMORY_USAGE_AUTO,
+                                      .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT};
+        VmaAllocationInfo info = {0};
+        if (vmaCreateBuffer(c->vma, &bi, &ai, &g_st_buf, &g_st_alloc, &info) != VK_SUCCESS || !info.pMappedData) {
+            if (g_st_buf) vmaDestroyBuffer(c->vma, g_st_buf, g_st_alloc);
+            g_st_buf = VK_NULL_HANDLE, g_st_failed = 1;
+            rt_log("gfx: no readback buffer for the browser stream: it gets no picture");
+            return 0;
+        }
+        g_st_ptr = info.pMappedData, g_st_w = tw, g_st_h = th;
+    }
+    VkFormat f = g_sc_hdr ? VK_FORMAT_R8G8B8A8_UNORM : g_sc_fmt;
+    if (f != VK_FORMAT_B8G8R8A8_UNORM && f != VK_FORMAT_B8G8R8A8_SRGB && f != VK_FORMAT_R8G8B8A8_SRGB)
+        f = VK_FORMAT_R8G8B8A8_UNORM;
+    if (g_st_img && g_st_fmt != f) vmaDestroyImage(c->vma, g_st_img, g_st_img_alloc), g_st_img = VK_NULL_HANDLE;
+    if (!g_st_img) {
+        VkImageCreateInfo ci = {.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, .imageType = VK_IMAGE_TYPE_2D, .format = f,
+                                .extent = {(uint32_t)g_st_w, (uint32_t)g_st_h, 1}, .mipLevels = 1, .arrayLayers = 1,
+                                .samples = VK_SAMPLE_COUNT_1_BIT, .tiling = VK_IMAGE_TILING_OPTIMAL,
+                                .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+        VmaAllocationCreateInfo ai = {.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE};
+        if (vmaCreateImage(c->vma, &ci, &ai, &g_st_img, &g_st_img_alloc, NULL) != VK_SUCCESS) {
+            g_st_img = VK_NULL_HANDLE, g_st_failed = 1;
+            rt_log("gfx: no image for the browser stream: it gets no picture");
+            return 0;
+        }
+        g_st_fmt = f;
+        g_st_rgba = f == VK_FORMAT_R8G8B8A8_UNORM || f == VK_FORMAT_R8G8B8A8_SRGB;
+    }
+    return 1;
+}
+
+// dst (TRANSFER_SRC, the swapchain image just written) -> the stream's image -> the fence slot's part of the buffer.
+static void record_stream_cap(VkCommandBuffer cb, VkImage dst, unsigned fence_slot) {
+    sync_barrier(cb, g_st_img, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                 0, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT);
+    VkImageBlit region = {
+        .srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, .srcOffsets = {{0, 0, 0}, {(int)g_sc_ext.width, (int)g_sc_ext.height, 1}},
+        .dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, .dstOffsets = {{0, 0, 0}, {g_st_w, g_st_h, 1}}};
+    vkCmdBlitImage(cb, dst, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, g_st_img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region,
+                   VK_FILTER_LINEAR);
+    sync_barrier(cb, g_st_img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                 VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                 VK_ACCESS_2_TRANSFER_READ_BIT);
+    VkBufferImageCopy bc = {.bufferOffset = g_st_bytes * fence_slot, .imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+                            .imageExtent = {(uint32_t)g_st_w, (uint32_t)g_st_h, 1}};
+    vkCmdCopyImageToBuffer(cb, g_st_img, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, g_st_buf, 1, &bc);
+    VkMemoryBarrier2 mb = {.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2, .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                           .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT, .dstStageMask = VK_PIPELINE_STAGE_2_HOST_BIT,
+                           .dstAccessMask = VK_ACCESS_2_HOST_READ_BIT};
+    VkDependencyInfo d = {.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO, .memoryBarrierCount = 1, .pMemoryBarriers = &mb};
+    vkCmdPipelineBarrier2(cb, &d);
+    g_st_pending[fence_slot] = 1;
+}
+
 int vk_thumbs_read(uint64_t frame, uint8_t *rgba) {
     int ok = 0;
     plat_rmutex_lock(&g_pl);
@@ -632,6 +721,13 @@ static void present_image(VkImage src, VkImageLayout layout, VkFormat fmt, int w
         g_th_tag[g_th_pending[slot] % (uint64_t)g_th_n] = g_th_pending[slot];
         g_th_pending[slot] = 0;
     }
+    if (g_st_pending[slot]) {   // and the stream's picture: handed to stream_win.c's encoder thread, a copy here
+        g_st_pending[slot] = 0;
+        if (g_st_ptr) {
+            vmaInvalidateAllocation(c->vma, g_st_alloc, g_st_bytes * slot, g_st_bytes);
+            stream_push_video(g_st_ptr + g_st_bytes * slot, g_st_w, g_st_h, g_st_w * 4, g_st_rgba);
+        }
+    }
 
     int cx = 0, cy = 0, cw = w, ch = h;
     if (crop && crop[2] > 0 && crop[3] > 0) { cx = crop[0]; cy = crop[1]; cw = crop[2]; ch = crop[3]; }
@@ -653,6 +749,7 @@ static void present_image(VkImage src, VkImageLayout layout, VkFormat fmt, int w
     if (!menu_shot && __atomic_exchange_n(&g_screen_on, 0, __ATOMIC_ACQ_REL)) menu_shot = g_screen_path;
     int cap = src && (g_capture || menu_shot) && ensure_capture_buffer();
     int thumb = src && g_th_n && ensure_thumbs();
+    int stream_cap = src && ensure_stream_cap();
 
     VkCommandBuffer cb = g_cb[slot];
     vkResetCommandBuffer(cb, 0);
@@ -741,6 +838,15 @@ static void present_image(VkImage src, VkImageLayout layout, VkFormat fmt, int w
         last_stage = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
         last_write = 0;
         record_thumb(cb, dst, slot);
+    }
+    if (stream_cap) {
+        if (last != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+            sync_barrier(cb, dst, last, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, last_stage, last_write,
+                         VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_READ_BIT);
+        last = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        last_stage = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+        last_write = 0;
+        record_stream_cap(cb, dst, slot);
     }
     vk_crumb_end(cb, VK_CRUMB_OP, tail);
     sync_barrier(cb, dst, last, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, last_stage, last_write, VK_PIPELINE_STAGE_2_NONE, 0);
@@ -837,6 +943,7 @@ void gfx_window_release_vk(void) {
         vk_fg_release();
         free_capture();
         free_thumbs();
+        free_stream_cap();
         for (int i = 0; i < FRAMES; i++) {
             vkDestroySemaphore(c->device, g_acquire[i], NULL);
             vkDestroyFence(c->device, g_fence[i], NULL);

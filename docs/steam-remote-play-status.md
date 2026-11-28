@@ -127,6 +127,13 @@ layer, both players owning the port).
   friend's controller working, with RetroArch's launch options set to the exe and `steam_appid = 1118310`. The public
   READMEs say both starts work, with the launch options required.
 
+### Online Play moved to a browser stream (27/11/2026)
+
+- The owner's decision: Steam Remote Play Together stays for **Local Play** (the controller applet's choice, guests'
+  controllers, F1 > Game rows); the game's **Online Play** now starts the Cloudflare browser stream
+  (`runtime/stream/`, [remote-play.md](remote-play.md#online-play-in-a-browser)) instead of the Steam invite list.
+  `steam_rpt_online` and its two notices were removed. Not tested in game yet.
+
 ## What is missing or unknown
 
 1. **No run with Orbitals.** It does not reach a scene yet ([roadmap.md](roadmap.md)), so none of the above is

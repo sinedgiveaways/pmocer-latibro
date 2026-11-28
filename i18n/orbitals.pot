@@ -1865,17 +1865,77 @@ msgid ""
 "The Steam overlay did not open: start the game from Steam, or send a guest link (menu > Game)."
 msgstr ""
 
-msgctxt "UI_NOTICE_RPT_ONLINE"
-msgid ""
-"Online play goes through Steam Remote Play Together: invite your friend from the list that just "
-"opened. Once they have joined and pressed a button, start a local game for 2 players."
+msgctxt "UI_NOTICE_STREAM_STARTING"
+msgid "Online play: making a link for your friend (Cloudflare)…"
 msgstr ""
 
+#. %s: the link (https://...trycloudflare.com)
 #. printf format: keep every %... conversion, in the same order.
-msgctxt "UI_NOTICE_RPT_ONLINE_OFF"
+msgctxt "UI_NOTICE_STREAM_LINK"
 msgid ""
-"Online play goes through Steam Remote Play Together, which is off: %s. Set it up in menu > Game "
-"(docs/remote-play.md)."
+"Online play: link copied, send it to your friend: %s. Once they have joined, start a Local Play "
+"game for 2 players."
+msgstr ""
+
+msgctxt "UI_NOTICE_STREAM_JOINED"
+msgid "Your friend joined from their browser as player 2."
+msgstr ""
+
+msgctxt "UI_NOTICE_STREAM_LEFT"
+msgid "Your friend left the browser stream."
+msgstr ""
+
+msgctxt "UI_NOTICE_STREAM_FULL"
+msgid "Your friend could not join: player 2 already has a controller. Unplug the second controller."
+msgstr ""
+
+#. %s: why, in English
+#. printf format: keep every %... conversion, in the same order.
+msgctxt "UI_NOTICE_STREAM_FAILED"
+msgid "Online play is not available: %s."
+msgstr ""
+
+msgctxt "UI_MENU_GROUP_STREAM"
+msgid "Online play in a browser (Cloudflare)"
+msgstr ""
+
+msgctxt "UI_MENU_STREAM_START"
+msgid "Start and copy the link"
+msgstr ""
+
+msgctxt "UI_MENU_STREAM_START_DESC"
+msgid ""
+"Streams the game to a friend's browser through a Cloudflare link, copied to the clipboard; their "
+"gamepad or keyboard is player 2. The game's Online Play does the same. The first start downloads "
+"cloudflared (55 MB)."
+msgstr ""
+
+msgctxt "UI_MENU_STREAM_STOP"
+msgid "Stop"
+msgstr ""
+
+msgctxt "UI_MENU_STREAM_STOP_DESC"
+msgid "Ends the stream and its link: your friend is disconnected."
+msgstr ""
+
+msgctxt "UI_MENU_STREAM_OFF"
+msgid "off"
+msgstr ""
+
+msgctxt "UI_MENU_STREAM_STARTING"
+msgid "starting…"
+msgstr ""
+
+msgctxt "UI_MENU_STREAM_READY"
+msgid "link ready"
+msgstr ""
+
+msgctxt "UI_MENU_STREAM_PLAYING"
+msgid "friend connected"
+msgstr ""
+
+msgctxt "UI_MENU_STREAM_FAILED"
+msgid "failed (see the log)"
 msgstr ""
 
 #. printf format: keep every %... conversion, in the same order.
@@ -1897,10 +1957,10 @@ msgstr ""
 
 msgctxt "UI_MENU_RPT_APPID_DESC"
 msgid ""
-"The Steam game orbitals-together runs as for Remote Play Together. Automatic: the game whose launch "
-"options start orbitals-together (\"C:\\...\\orbitals-together.exe\" %command%), so any Steam game you "
-"own with Remote Play Together works. Another number: steam_appid in orbitals.ini. Takes effect at "
-"the next start."
+"The Steam game orbitals-together runs as for Remote Play Together. Automatic: the game whose "
+"launch options start orbitals-together (\"C:\\...\\orbitals-together.exe\" %command%), so any "
+"Steam game you own with Remote Play Together works. Another number: steam_appid in orbitals.ini. "
+"Takes effect at the next start."
 msgstr ""
 
 msgctxt "UI_MENU_RPT_APPID_OFF"
@@ -1924,8 +1984,8 @@ msgctxt "UI_MENU_RPT_APPID_ADD_DESC"
 msgid ""
 "Type the App ID of a Steam game you own that has Remote Play Together, with the keyboard's number "
 "keys (it is the number in the game's store address, store.steampowered.com/app/<number>/), then "
-"press Enter or A. orbitals-together runs as that game from the next start, and the Steam App ID row "
-"above keeps it in its list (steam_appids in orbitals.ini). Backspace deletes a digit."
+"press Enter or A. orbitals-together runs as that game from the next start, and the Steam App ID "
+"row above keeps it in its list (steam_appids in orbitals.ini). Backspace deletes a digit."
 msgstr ""
 
 msgctxt "UI_MENU_RPT_APPID_ADD_HINT"

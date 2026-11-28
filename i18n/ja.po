@@ -1879,21 +1879,80 @@ msgid ""
 "The Steam overlay did not open: start the game from Steam, or send a guest link (menu > Game)."
 msgstr "Steamオーバーレイが開きませんでした。Steamからゲームを起動するか、ゲストリンクを送ってください（メニュー > ゲーム）。"
 
-msgctxt "UI_NOTICE_RPT_ONLINE"
-msgid ""
-"Online play goes through Steam Remote Play Together: invite your friend from the list that just "
-"opened. Once they have joined and pressed a button, start a local game for 2 players."
-msgstr ""
-"オンラインプレイはSteam Remote Play "
-"Togetherを使います。いま開いたリストからフレンドを招待してください。フレンドが参加してボタンを押したら、2人用のローカルゲームを始めてください。"
+msgctxt "UI_NOTICE_STREAM_STARTING"
+msgid "Online play: making a link for your friend (Cloudflare)…"
+msgstr "オンラインプレイ：フレンド用のリンクを作成中（Cloudflare）…"
 
+#. %s: the link (https://...trycloudflare.com)
 #. printf format: keep every %... conversion, in the same order.
-msgctxt "UI_NOTICE_RPT_ONLINE_OFF"
+msgctxt "UI_NOTICE_STREAM_LINK"
 msgid ""
-"Online play goes through Steam Remote Play Together, which is off: %s. Set it up in menu > Game "
-"(docs/remote-play.md)."
+"Online play: link copied, send it to your friend: %s. Once they have joined, start a Local Play "
+"game for 2 players."
+msgstr "オンラインプレイ：リンクをコピーしました。フレンドに送ってください：%s。参加したら、2人用のローカルプレイを始めてください。"
+
+msgctxt "UI_NOTICE_STREAM_JOINED"
+msgid "Your friend joined from their browser as player 2."
+msgstr "フレンドがブラウザからプレイヤー2として参加しました。"
+
+msgctxt "UI_NOTICE_STREAM_LEFT"
+msgid "Your friend left the browser stream."
+msgstr "フレンドがブラウザ配信から退出しました。"
+
+msgctxt "UI_NOTICE_STREAM_FULL"
+msgid "Your friend could not join: player 2 already has a controller. Unplug the second controller."
+msgstr "フレンドは参加できませんでした：プレイヤー2にはすでにコントローラーがあります。2台目のコントローラーを外してください。"
+
+#. %s: why, in English
+#. printf format: keep every %... conversion, in the same order.
+msgctxt "UI_NOTICE_STREAM_FAILED"
+msgid "Online play is not available: %s."
+msgstr "オンラインプレイは利用できません：%s。"
+
+msgctxt "UI_MENU_GROUP_STREAM"
+msgid "Online play in a browser (Cloudflare)"
+msgstr "ブラウザでのオンラインプレイ（Cloudflare）"
+
+msgctxt "UI_MENU_STREAM_START"
+msgid "Start and copy the link"
+msgstr "開始してリンクをコピー"
+
+msgctxt "UI_MENU_STREAM_START_DESC"
+msgid ""
+"Streams the game to a friend's browser through a Cloudflare link, copied to the clipboard; their "
+"gamepad or keyboard is player 2. The game's Online Play does the same. The first start downloads "
+"cloudflared (55 MB)."
 msgstr ""
-"オンラインプレイはSteam Remote Play Togetherを使いますが、現在オフです：%s。メニュー > ゲームで設定してください（docs/remote-play.md）。"
+"Cloudflareのリンク（クリップボードにコピー）でゲームをフレンドのブラウザに配信します。フレンドのコントローラーまたはキーボードがプレイヤー2になります。ゲームのオンラインプレイも同じ動作です。初回はcloudflared（55 "
+"MB）をダウンロードします。"
+
+msgctxt "UI_MENU_STREAM_STOP"
+msgid "Stop"
+msgstr "停止"
+
+msgctxt "UI_MENU_STREAM_STOP_DESC"
+msgid "Ends the stream and its link: your friend is disconnected."
+msgstr "配信とリンクを終了します：フレンドは切断されます。"
+
+msgctxt "UI_MENU_STREAM_OFF"
+msgid "off"
+msgstr "オフ"
+
+msgctxt "UI_MENU_STREAM_STARTING"
+msgid "starting…"
+msgstr "開始中…"
+
+msgctxt "UI_MENU_STREAM_READY"
+msgid "link ready"
+msgstr "リンク準備完了"
+
+msgctxt "UI_MENU_STREAM_PLAYING"
+msgid "friend connected"
+msgstr "フレンド接続中"
+
+msgctxt "UI_MENU_STREAM_FAILED"
+msgid "failed (see the log)"
+msgstr "失敗（ログを参照）"
 
 #. printf format: keep every %... conversion, in the same order.
 msgctxt "UI_MENU_RPT_CHOICE"

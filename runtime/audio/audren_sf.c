@@ -17,6 +17,7 @@
 
 #include <SDL3/SDL.h>
 
+#include "stream/stream.h"
 #include "audren.h"
 #include "cfg.h"
 #include "gfx.h"
@@ -284,6 +285,7 @@ typedef struct {
     SDL_AudioStream *sdl;          // NULL: no device, consumed in real time
     uint64_t written, consumed;    // frames, since the open (real-time model only)
     uint64_t last_ns;              // when consumed was last brought up to date (game clock)
+    SDL_AudioFormat fmt;           // the samples' format: only float goes to the browser stream
 } OutStream;
 static OutStream streams[MAX_STREAMS];
 static PlatMutex stream_lock = PLAT_MUTEX_INIT;
@@ -362,7 +364,7 @@ static void stream_open(Cpu *c, uint64_t type, uint64_t ev, uint64_t format, int
     if (st) stream_close_device(st);   // opened again without a close
     for (int i = 0; !st && i < MAX_STREAMS; i++)
         if (!streams[i].type) st = &streams[i];
-    if (st) *st = (OutStream){type, rate, capacity, channels, channels * bytes, 0, 1.0f, sdl, 0, 0, stream_now_ns()};
+    if (st) *st = (OutStream){type, rate, capacity, channels, channels * bytes, 0, 1.0f, sdl, 0, 0, stream_now_ns(), fmt};
     plat_mutex_unlock(&stream_lock);
     if (!st) rt_fatal("audio: more than %d output streams", MAX_STREAMS);
     ST64(type, type + 8);
@@ -434,6 +436,10 @@ static void write_stream(Cpu *c) {   // int WriteOutputStream(OutputStreamType *
             SDL_SetAudioStreamGain(st->sdl, st->gain * audio_device_volume() * audio_output_gain());
             if (!SDL_PutAudioStreamData(st->sdl, src, (int)(took * st->frame_bytes))) took = 0;
         }
+        // the browser stream's sound (stream/stream_win.c): a copy into its ring, encoded on its own thread
+        if (took && st->fmt == SDL_AUDIO_F32LE && stream_audio_wanted())
+            stream_push_audio(audren_guest(arg_x(c, 1), (uint64_t)took * st->frame_bytes), took, (int)st->channels,
+                              (int)st->rate);
         st->written += took;
     }
     plat_mutex_unlock(&stream_lock);

@@ -49,12 +49,6 @@ int steam_rpt_invite_failed(void);
 // such request, off never. Returns 1 when it asked or showed its notice (the caller shows none of its own). Any thread.
 int steam_rpt_multiplayer(int need, int have);
 
-// Online play (sdk/ov: the calls a console answers with a screen for the player, such as the network account's
-// sign-in): Nintendo's servers are out of reach, so with Steam ready the overlay's invite list opens and a notice says
-// to start the local mode for 2 once the friend is in; without Steam the notice says why Remote Play is off. what
-// names the call, for the log. At most one invite and notice per 10 s; steam_invite = off turns it off. Returns 1 when
-// it showed (or recently showed) its notice. Any thread.
-int steam_rpt_online(const char *what);
 
 // Steam Input's virtual gamepad (Valve's USB vendor id and the virtual pad's product id, as SDL's
 // SDL_IsJoystickSteamVirtualGamepad tests them on Linux and Windows): what a guest's controller is on the host.

@@ -133,6 +133,8 @@ static uint8_t extra_guest[INPUT_MAX_PLAYERS];
 // the keys each one holds. Under lock.
 static uint8_t remote_on[INPUT_MAX_PLAYERS];
 static uint8_t remote_keys[INPUT_MAX_PLAYERS][KEY_COUNT];
+// and a remote player's gamepad (input_remote_pad: the browser stream's), with when it last came. Under lock.
+static struct { uint32_t b; int32_t l[2], r[2]; uint64_t at_ns; } remote_pad[INPUT_MAX_PLAYERS];
 
 static int pad_is_open(SDL_JoystickID id) {
     if (pad && SDL_GetGamepadID(pad) == id) return 1;
@@ -556,6 +558,11 @@ void input_poll_player(int player, uint64_t *buttons, int32_t *lx, int32_t *ly, 
         pick(&sl[0], &sl[1], k[0], k[1]);
         input_map_stick(down, 1, k);
         pick(&sr[0], &sr[1], k[0], k[1]);
+        if (plat_now_ns() - remote_pad[player].at_ns < 500000000ull) {
+            b |= remote_pad[player].b;
+            pick(&sl[0], &sl[1], remote_pad[player].l[0], remote_pad[player].l[1]);
+            pick(&sr[0], &sr[1], remote_pad[player].r[0], remote_pad[player].r[1]);
+        }
     }
     plat_mutex_unlock(&lock);
     script_apply(&b, sl, sr, player);
@@ -584,7 +591,7 @@ int input_remote_attach(void) {
     }
     plat_mutex_unlock(&lock);
     if (p == INPUT_MAX_PLAYERS) return -1;
-    rt_log("input: remote keyboard for player %d", p + 1);
+    rt_log("input: remote player %d (a Remote Play guest's keyboard or the browser stream)", p + 1);
     return p;
 }
 
@@ -594,8 +601,18 @@ void input_remote_detach(int player) {
     int was = remote_on[player];
     remote_on[player] = 0;
     memset(remote_keys[player], 0, sizeof remote_keys[player]);
+    memset(&remote_pad[player], 0, sizeof remote_pad[player]);
     plat_mutex_unlock(&lock);
-    if (was) rt_log("input: remote keyboard of player %d gone", player + 1);
+    if (was) rt_log("input: remote player %d gone", player + 1);
+}
+
+void input_remote_pad(int player, uint32_t buttons, int lx, int ly, int rx, int ry) {
+    if (player <= 0 || player >= INPUT_MAX_PLAYERS) return;
+    plat_mutex_lock(&lock);
+    if (remote_on[player])
+        remote_pad[player].b = buttons & 0xffffu, remote_pad[player].l[0] = lx, remote_pad[player].l[1] = ly,
+        remote_pad[player].r[0] = rx, remote_pad[player].r[1] = ry, remote_pad[player].at_ns = plat_now_ns();
+    plat_mutex_unlock(&lock);
 }
 
 void input_remote_key(int player, int key, int down) {

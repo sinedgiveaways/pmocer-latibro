@@ -205,9 +205,12 @@ typedef enum {
     // local multiplayer with too few controllers and Steam ready: INVITE "%d ... %d" (players, controllers) as
     // UI_NOTICE_PADS_MISSING, saying the invite list opened; NO_OVERLAY when the overlay could not open
     UI_NOTICE_RPT_INVITE, UI_NOTICE_RPT_NO_OVERLAY,
-    // the game asked for online play (steam_rpt_online): ONLINE with Steam ready, the invite list opened;
-    // ONLINE_OFF "%s" (why Remote Play Together is off)
-    UI_NOTICE_RPT_ONLINE, UI_NOTICE_RPT_ONLINE_OFF,
+    // online play in a browser (stream/stream_win.c): LINK "%s" (the address, copied), FAILED "%s" (why, English)
+    UI_NOTICE_STREAM_STARTING, UI_NOTICE_STREAM_LINK, UI_NOTICE_STREAM_JOINED, UI_NOTICE_STREAM_LEFT,
+    UI_NOTICE_STREAM_FULL, UI_NOTICE_STREAM_FAILED,
+    // its rows in the Game tab: the group, Start / copy the link with its state, Stop
+    UI_MENU_GROUP_STREAM, UI_MENU_STREAM_START, UI_MENU_STREAM_START_DESC, UI_MENU_STREAM_STOP, UI_MENU_STREAM_STOP_DESC,
+    UI_MENU_STREAM_OFF, UI_MENU_STREAM_STARTING, UI_MENU_STREAM_READY, UI_MENU_STREAM_PLAYING, UI_MENU_STREAM_FAILED,
     // local multiplayer with too few controllers and Steam ready (steam_invite = ask, menu_choice): the question
     // CHOICE "%d ... %d" (players, controllers) and its two buttons
     UI_MENU_RPT_CHOICE, UI_MENU_RPT_CHOICE_LOCAL, UI_MENU_RPT_CHOICE_STEAM,

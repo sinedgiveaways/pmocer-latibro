@@ -1925,22 +1925,83 @@ msgid ""
 "The Steam overlay did not open: start the game from Steam, or send a guest link (menu > Game)."
 msgstr "โอเวอร์เลย์ Steam ไม่เปิด: เริ่มเกมจาก Steam หรือส่งลิงก์ผู้เยี่ยมชม (เมนู > เกม)"
 
-msgctxt "UI_NOTICE_RPT_ONLINE"
-msgid ""
-"Online play goes through Steam Remote Play Together: invite your friend from the list that just "
-"opened. Once they have joined and pressed a button, start a local game for 2 players."
-msgstr ""
-"การเล่นออนไลน์ใช้ Steam Remote Play Together: เชิญเพื่อนจากรายการที่เพิ่งเปิดขึ้น "
-"เมื่อเพื่อนเข้าร่วมและกดปุ่มแล้ว ให้เริ่มเกมแบบเล่นในเครื่อง 2 คน"
+msgctxt "UI_NOTICE_STREAM_STARTING"
+msgid "Online play: making a link for your friend (Cloudflare)…"
+msgstr "เล่นออนไลน์: กำลังสร้างลิงก์ให้เพื่อน (Cloudflare)…"
 
+#. %s: the link (https://...trycloudflare.com)
 #. printf format: keep every %... conversion, in the same order.
-msgctxt "UI_NOTICE_RPT_ONLINE_OFF"
+msgctxt "UI_NOTICE_STREAM_LINK"
 msgid ""
-"Online play goes through Steam Remote Play Together, which is off: %s. Set it up in menu > Game "
-"(docs/remote-play.md)."
+"Online play: link copied, send it to your friend: %s. Once they have joined, start a Local Play "
+"game for 2 players."
 msgstr ""
-"การเล่นออนไลน์ใช้ Steam Remote Play Together แต่ปิดอยู่: %s ตั้งค่าได้ที่ เมนู > เกม "
-"(docs/remote-play.md)"
+"เล่นออนไลน์: คัดลอกลิงก์แล้ว ส่งให้เพื่อน: %s เมื่อเพื่อนเข้าร่วมแล้ว "
+"ให้เริ่มเกมเล่นในเครื่องสำหรับ 2 คน"
+
+msgctxt "UI_NOTICE_STREAM_JOINED"
+msgid "Your friend joined from their browser as player 2."
+msgstr "เพื่อนของคุณเข้าร่วมจากเบราว์เซอร์เป็นผู้เล่น 2"
+
+msgctxt "UI_NOTICE_STREAM_LEFT"
+msgid "Your friend left the browser stream."
+msgstr "เพื่อนของคุณออกจากสตรีมในเบราว์เซอร์แล้ว"
+
+msgctxt "UI_NOTICE_STREAM_FULL"
+msgid "Your friend could not join: player 2 already has a controller. Unplug the second controller."
+msgstr "เพื่อนเข้าร่วมไม่ได้: ผู้เล่น 2 มีคอนโทรลเลอร์อยู่แล้ว ถอดคอนโทรลเลอร์ตัวที่สองออก"
+
+#. %s: why, in English
+#. printf format: keep every %... conversion, in the same order.
+msgctxt "UI_NOTICE_STREAM_FAILED"
+msgid "Online play is not available: %s."
+msgstr "เล่นออนไลน์ไม่ได้: %s"
+
+msgctxt "UI_MENU_GROUP_STREAM"
+msgid "Online play in a browser (Cloudflare)"
+msgstr "เล่นออนไลน์ในเบราว์เซอร์ (Cloudflare)"
+
+msgctxt "UI_MENU_STREAM_START"
+msgid "Start and copy the link"
+msgstr "เริ่มและคัดลอกลิงก์"
+
+msgctxt "UI_MENU_STREAM_START_DESC"
+msgid ""
+"Streams the game to a friend's browser through a Cloudflare link, copied to the clipboard; their "
+"gamepad or keyboard is player 2. The game's Online Play does the same. The first start downloads "
+"cloudflared (55 MB)."
+msgstr ""
+"สตรีมเกมไปยังเบราว์เซอร์ของเพื่อนผ่านลิงก์ Cloudflare ที่คัดลอกไว้ในคลิปบอร์ด "
+"คอนโทรลเลอร์หรือคีย์บอร์ดของเพื่อนคือผู้เล่น 2 การเล่นออนไลน์ของเกมก็ทำเช่นเดียวกัน "
+"การเริ่มครั้งแรกจะดาวน์โหลด cloudflared (55 MB)"
+
+msgctxt "UI_MENU_STREAM_STOP"
+msgid "Stop"
+msgstr "หยุด"
+
+msgctxt "UI_MENU_STREAM_STOP_DESC"
+msgid "Ends the stream and its link: your friend is disconnected."
+msgstr "หยุดสตรีมและลิงก์: เพื่อนจะถูกตัดการเชื่อมต่อ"
+
+msgctxt "UI_MENU_STREAM_OFF"
+msgid "off"
+msgstr "ปิด"
+
+msgctxt "UI_MENU_STREAM_STARTING"
+msgid "starting…"
+msgstr "กำลังเริ่ม…"
+
+msgctxt "UI_MENU_STREAM_READY"
+msgid "link ready"
+msgstr "ลิงก์พร้อมแล้ว"
+
+msgctxt "UI_MENU_STREAM_PLAYING"
+msgid "friend connected"
+msgstr "เพื่อนเชื่อมต่อแล้ว"
+
+msgctxt "UI_MENU_STREAM_FAILED"
+msgid "failed (see the log)"
+msgstr "ล้มเหลว (ดูบันทึก)"
 
 #. printf format: keep every %... conversion, in the same order.
 msgctxt "UI_MENU_RPT_CHOICE"
