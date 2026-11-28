@@ -9,17 +9,17 @@ nothing set up: the first start downloads `cloudflared` next to the executable. 
 
 | File | What it is |
 |---|---|
-| `stream.h` | The interface: start, stop, state and link for the menu; the hand-over of frames (gfx_present.c) and samples (audren_sf.c) |
+| `stream.h` | The interface (`webplay_*`, apart from the audio output streams' own `stream_*`): start, stop, state and link for the menu; the hand-over of frames (gfx_present.c) and samples (audren_sf.c) |
 | `stream_win.c` | Windows: HTTP and WebSocket server on 127.0.0.1, `cloudflared` (pinned 2026.11.2, sha256 checked) and its `trycloudflare.com` address, VP8 (libvpx) and Opus on a thread of their own, the browser page and its input as player 2 (`input_remote_pad`). Adapted from MTF Recomp (MIT) |
 | `linux_stream.c` | Linux: Online Play says the browser stream is Windows only |
 
 How it flows:
 
-- Online Play calls `nifm::HandleNetworkRequestErrorResult` (sdk/ov/ov_net.c): `stream_online` starts the stream
+- Online Play calls `nifm::HandleNetworkRequestErrorResult` (sdk/ov/ov_net.c): `webplay_online` starts the stream
   once per burst. When `cloudflared` prints its address, the link goes to the clipboard and a notice shows it.
 - The friend opens the link: the page connects back over a WebSocket; `input_remote_attach` gives them player 2,
   or the notice says a second controller already has it.
 - While the browser is connected, each present blits the swapchain image to 1280 x 720 and reads it back
-  (`gfx_present.c`); `stream_push_video` copies the newest one for the encoder thread (30 per second at most). The
-  game's output stream hands its float samples over (`stream_push_audio`). VP8 at 4.5 Mb/s, Opus 20 ms frames.
+  (`gfx_present.c`); `webplay_push_video` copies the newest one for the encoder thread (30 per second at most). The
+  game's output stream hands its float samples over (`webplay_push_audio`). VP8 at 4.5 Mb/s, Opus 20 ms frames.
 - The address is the room's secret: anyone with it can join as player 2 while the stream runs. Stop ends it.

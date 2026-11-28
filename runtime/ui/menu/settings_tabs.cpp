@@ -316,17 +316,17 @@ static void rows_remote_play(void) {
 // it is known; its value says where the stream is.
 static void rows_stream(void) {
     opt_group(UI_MENU_GROUP_STREAM);
-    int st = stream_state();
+    int st = webplay_state();
     static char value[96];
-    const char *v = st == STREAM_STARTING ? menu_text(UI_MENU_STREAM_STARTING)
-                  : st == STREAM_FAILED   ? menu_text(UI_MENU_STREAM_FAILED)
-                  : st == STREAM_READY && stream_clients() ? menu_text(UI_MENU_STREAM_PLAYING)
-                  : st == STREAM_READY    ? menu_text(UI_MENU_STREAM_READY)
+    const char *v = st == WEBPLAY_STARTING ? menu_text(UI_MENU_STREAM_STARTING)
+                  : st == WEBPLAY_FAILED   ? menu_text(UI_MENU_STREAM_FAILED)
+                  : st == WEBPLAY_READY && webplay_clients() ? menu_text(UI_MENU_STREAM_PLAYING)
+                  : st == WEBPLAY_READY    ? menu_text(UI_MENU_STREAM_READY)
                                           : menu_text(UI_MENU_STREAM_OFF);
     snprintf(value, sizeof value, "%s", v);
-    if (opt_button("##stream_start", UI_MENU_STREAM_START, UI_MENU_STREAM_START_DESC, value)) stream_start();
-    if (st == STREAM_OFF) opt_disable_next(UI_MENU_STREAM_OFF);
-    if (opt_button("##stream_stop", UI_MENU_STREAM_STOP, UI_MENU_STREAM_STOP_DESC, "") && st != STREAM_OFF) stream_stop();
+    if (opt_button("##webplay_start", UI_MENU_STREAM_START, UI_MENU_STREAM_START_DESC, value)) webplay_start();
+    if (st == WEBPLAY_OFF) opt_disable_next(UI_MENU_STREAM_OFF);
+    if (opt_button("##webplay_stop", UI_MENU_STREAM_STOP, UI_MENU_STREAM_STOP_DESC, "") && st != WEBPLAY_OFF) webplay_stop();
 }
 
 static void tab_game(float scale) {

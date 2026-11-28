@@ -531,7 +531,7 @@ static void free_stream_cap(void) {
 
 static int ensure_stream_cap(void) {
     int tw, th;
-    if (g_st_failed || !stream_video_wanted(&tw, &th)) return 0;
+    if (g_st_failed || !webplay_video_wanted(&tw, &th)) return 0;
     VkCtx *c = vk_ctx();
     // the size is fixed (stream_win.c VIDEO_W x VIDEO_H): the buffer is made once
     if (!g_st_buf) {
@@ -725,7 +725,7 @@ static void present_image(VkImage src, VkImageLayout layout, VkFormat fmt, int w
         g_st_pending[slot] = 0;
         if (g_st_ptr) {
             vmaInvalidateAllocation(c->vma, g_st_alloc, g_st_bytes * slot, g_st_bytes);
-            stream_push_video(g_st_ptr + g_st_bytes * slot, g_st_w, g_st_h, g_st_w * 4, g_st_rgba);
+            webplay_push_video(g_st_ptr + g_st_bytes * slot, g_st_w, g_st_h, g_st_w * 4, g_st_rgba);
         }
     }
 

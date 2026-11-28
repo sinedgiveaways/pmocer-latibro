@@ -437,8 +437,8 @@ static void write_stream(Cpu *c) {   // int WriteOutputStream(OutputStreamType *
             if (!SDL_PutAudioStreamData(st->sdl, src, (int)(took * st->frame_bytes))) took = 0;
         }
         // the browser stream's sound (stream/stream_win.c): a copy into its ring, encoded on its own thread
-        if (took && st->fmt == SDL_AUDIO_F32LE && stream_audio_wanted())
-            stream_push_audio(audren_guest(arg_x(c, 1), (uint64_t)took * st->frame_bytes), took, (int)st->channels,
+        if (took && st->fmt == SDL_AUDIO_F32LE && webplay_audio_wanted())
+            webplay_push_audio(audren_guest(arg_x(c, 1), (uint64_t)took * st->frame_bytes), took, (int)st->channels,
                               (int)st->rate);
         st->written += took;
     }

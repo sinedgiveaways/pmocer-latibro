@@ -46,7 +46,7 @@
 
 static PlatMutex g_lock = PLAT_MUTEX_INIT;       // state, link, client
 static PlatMutex g_send_lock = PLAT_MUTEX_INIT;  // writes to the client's socket
-static volatile int g_state = STREAM_OFF;
+static volatile int g_state = WEBPLAY_OFF;
 static char g_link[256], g_reason[200];
 static int g_announce;   // copy the link and say so once it is known
 
@@ -90,7 +90,7 @@ static void notice_text(UiTextId id, const char *arg, int secs) {
 
 static void fail(const char *why) {
     rt_log("stream: %s", why);
-    set_state(STREAM_FAILED, why);
+    set_state(WEBPLAY_FAILED, why);
     notice_text(UI_NOTICE_STREAM_FAILED, why, 12);
 }
 
@@ -557,13 +557,13 @@ static void encoder_main(void *arg) {
     if (opus) opus_encoder_destroy(opus);
 }
 
-int stream_video_wanted(int *w, int *h) {
+int webplay_video_wanted(int *w, int *h) {
     if (!g_running || !C.active) return 0;
     *w = VIDEO_W, *h = VIDEO_H;
     return 1;
 }
 
-void stream_push_video(const uint8_t *px, int w, int h, int stride, int rgba) {
+void webplay_push_video(const uint8_t *px, int w, int h, int stride, int rgba) {
     if (!g_running || !C.active || !px || w <= 0 || h <= 0) return;
     uint64_t now = plat_now_ns();
     if (now - g_last_vid_ns < VIDEO_MIN_NS) return;
@@ -583,9 +583,9 @@ void stream_push_video(const uint8_t *px, int w, int h, int stride, int rgba) {
     plat_event_set(&g_wake);
 }
 
-int stream_audio_wanted(void) { return g_running && C.active; }
+int webplay_audio_wanted(void) { return g_running && C.active; }
 
-void stream_push_audio(const float *pcm, uint32_t frames, int channels, int rate) {
+void webplay_push_audio(const float *pcm, uint32_t frames, int channels, int rate) {
     if (!g_running || !C.active || !pcm || channels < 1 || rate != 48000) return;
     plat_mutex_lock(&g_in_lock);
     if (g_awr - g_ard + (uint64_t)frames * 2 > AUDIO_RING) g_ard = g_awr;   // the encoder fell behind: start over
@@ -688,7 +688,7 @@ static void tunnel_reader(void *arg) {
             plat_mutex_lock(&g_lock);
             int first = !g_link[0];
             snprintf(g_link, sizeof g_link, "%.*s", (int)(e + 18 - u), u);
-            g_state = STREAM_READY;
+            g_state = WEBPLAY_READY;
             g_reason[0] = 0;
             int announce = first && g_announce;
             char link[256];
@@ -770,19 +770,19 @@ static void start_main(void *arg) {
     rt_log("stream: server on 127.0.0.1:%d, waiting for the Cloudflare link", g_port);
 }
 
-int stream_start(void) {
+int webplay_start(void) {
     plat_mutex_lock(&g_lock);
     int s = g_state;
     char link[256];
     snprintf(link, sizeof link, "%s", g_link);
-    if (s == STREAM_STARTING) { plat_mutex_unlock(&g_lock); return 1; }
-    if (s == STREAM_READY) {
+    if (s == WEBPLAY_STARTING) { plat_mutex_unlock(&g_lock); return 1; }
+    if (s == WEBPLAY_READY) {
         plat_mutex_unlock(&g_lock);
         plat_clipboard_set(link);
         notice_text(UI_NOTICE_STREAM_LINK, link, 20);
         return 1;
     }
-    g_state = STREAM_STARTING, g_reason[0] = 0, g_link[0] = 0, g_announce = 1, g_gen++;
+    g_state = WEBPLAY_STARTING, g_reason[0] = 0, g_link[0] = 0, g_announce = 1, g_gen++;
     if (!g_wake_init) plat_event_init(&g_wake, 0, 0), g_wake_init = 1;
     plat_mutex_unlock(&g_lock);
     notice_text(UI_NOTICE_STREAM_STARTING, NULL, 8);
@@ -790,8 +790,8 @@ int stream_start(void) {
     return 1;
 }
 
-void stream_stop(void) {
-    if (g_state == STREAM_OFF) return;
+void webplay_stop(void) {
+    if (g_state == WEBPLAY_OFF) return;
     g_running = 0;
     if (g_listen != INVALID_SOCKET) closesocket(g_listen), g_listen = INVALID_SOCKET;
     plat_mutex_lock(&g_send_lock);
@@ -801,7 +801,7 @@ void stream_stop(void) {
     if (g_cf_job) CloseHandle(g_cf_job), g_cf_job = NULL;
     if (g_cf_pipe) CloseHandle(g_cf_pipe), g_cf_pipe = NULL;
     if (g_wake_init) plat_event_set(&g_wake);
-    set_state(STREAM_OFF, NULL);
+    set_state(WEBPLAY_OFF, NULL);
     plat_mutex_lock(&g_lock);
     g_link[0] = 0;
     plat_mutex_unlock(&g_lock);
@@ -809,22 +809,22 @@ void stream_stop(void) {
 }
 
 // One start, or one copy of the link, per burst of online calls: the game makes several in a row.
-void stream_online(const char *what) {
+void webplay_online(const char *what) {
     static volatile int32_t last_s;
     int32_t now_s = (int32_t)(plat_now_ns() / 1000000000ull), was = plat_cas32(&last_s, 0, 0);
     if (was && now_s - was < 10) return;
     plat_xchg32(&last_s, now_s ? now_s : 1);
     rt_log("stream: the game asked for online play (%s): the browser stream", what);
-    stream_start();
+    webplay_start();
 }
 
-int stream_state(void) { return g_state; }
-int stream_clients(void) { return g_running && C.active ? 1 : 0; }
+int webplay_state(void) { return g_state; }
+int webplay_clients(void) { return g_running && C.active ? 1 : 0; }
 
-void stream_link(char *out, size_t cap) {
+void webplay_link(char *out, size_t cap) {
     plat_mutex_lock(&g_lock);
     snprintf(out, cap, "%s", g_link);
     plat_mutex_unlock(&g_lock);
 }
 
-const char *stream_reason(void) { return g_reason; }
+const char *webplay_reason(void) { return g_reason; }

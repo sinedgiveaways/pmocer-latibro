@@ -47,7 +47,7 @@ void ov_online_call(Cpu *c, const char *what, int ask) {
                (unsigned long long)__atomic_load_n(&gfx_counters.frames, __ATOMIC_RELAXED),
                ldr_describe(c->x[30] - 4, lr, sizeof lr), ask ? ": a player's request" : "");
     }
-    if (ask && !lan_up()) stream_online(what);
+    if (ask && !lan_up()) webplay_online(what);
 }
 
 static void ov_ok(Cpu *c) { ret_x(c, 0); }
