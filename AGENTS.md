@@ -50,7 +50,11 @@ A game run takes minutes; most changes can be checked in seconds:
   broken loop can hang the GPU of the whole desktop. `tools/shaders/glsl_hash.py` proves a refactor changes no output.
 - **Runtime pieces**: `build/orbitals-together --selftest` and the `--probe-*` options ([runtime/probes](runtime/probes/README.md)).
 - **CPU lifter**: `uv run --with unicorn tools/cpu/lift_diff.py` compares translated instructions with Unicorn.
-- **Comments and docs only**: no rebuild needed; a comment in `runtime/cpu` rebuilds the whole game.
+- **Comments and docs only**: no rebuild needed; a comment in `runtime/cpu` rebuilds the whole game. Any byte changed in
+  `runtime/cpu/*.h` or `runtime/core/boot/gamelib.h`, a comment included, changes `RT_GAME_ID` (`tools/build/build.py`
+  `game_id`): a new executable then refuses the player's `orbitalgame.dll` ("game files not set up") until the setup runs
+  again with the new package (27/11/2026: a comment in gamelib.h did it). Leave those files alone unless the game code
+  must be rebuilt anyway.
 
 ## When you do run the game
 
