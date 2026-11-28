@@ -132,7 +132,8 @@ layer, both players owning the port).
 - The owner's decision: Steam Remote Play Together stays for **Local Play** (the controller applet's choice, guests'
   controllers, F1 > Game rows); the game's **Online Play** now starts the Cloudflare browser stream
   (`runtime/stream/`, [remote-play.md](remote-play.md#online-play-in-a-browser)) instead of the Steam invite list.
-  `steam_rpt_online` and its two notices were removed. Not tested in game yet.
+  `steam_rpt_online` and its two notices were removed. Confirmed in game by the owner with build `2017775`
+  ("everything works"); no log was sent, so latency and bit rate are not measured.
 
 ## What is missing or unknown
 

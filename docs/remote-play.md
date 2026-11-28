@@ -150,7 +150,8 @@ browser through Cloudflare (`runtime/stream/`). Steam Remote Play Together, abov
 
 Limits: one friend (the game has 2 players; with a second controller plugged in on your side there is no free
 player). Picture 1280 x 720 at up to 30 frames a second, about 4.5 Mb/s of upload. Anyone with the link can join
-while the stream runs: F1 > Game > **Stop** ends it, and quitting the game too. Windows only for now.
+while the stream runs: F1 > Game > **Stop** ends it, and quitting the game too. Windows only for now. Tried by the owner with a
+friend on 27/11/2026 (build `2017775`): it works.
 
 ## Tested
 
