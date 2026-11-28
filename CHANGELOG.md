@@ -5,6 +5,26 @@ updating, known issues, reporting) for the GitHub release. A section is headed `
 summary paragraph, `### Changes`, `### Tested` (what was run before publishing) and optionally `### Known issues`.
 The releases of the project this one was forked from (0.1.0 to 0.1.12) are in git history, not here.
 
+## [0.4.0] - 2026-11-28
+
+Online Play in a browser: the game's Online Play streams the game to a friend's browser through a Cloudflare link,
+and their gamepad, keyboard or touch controls are player 2. Steam Remote Play Together stays for Local Play. Runs on
+0.3.0's prepared game files: no new setup.
+
+### Changes
+
+- Online Play (and F1 > Game > Online play in a browser) starts a stream through a Cloudflare quick tunnel: the link
+  is copied to the clipboard; the friend opens it in Chrome, Edge or Firefox. Picture 1280x720 up to 30 fps (VP8),
+  sound (Opus). `cloudflared` is downloaded at the first start and checked by sha256. Windows only.
+- The friend's gamepad follows the host's Button layout: an Xbox pad's A is A.
+- The Mods page and its tools are removed.
+- The start screen's bug report button opens pmocer-latibro's issues, where the fixes are made.
+
+### Tested
+
+- Played by the owner with a friend over the browser stream, his Xbox controller as player 2 (28/11/2026), on the
+  build before this tag; the build ran on 0.3.0's game files with only the executable replaced.
+
 ## [0.3.0] - 2026-11-27
 
 First public build of Orbitals Together, published on
