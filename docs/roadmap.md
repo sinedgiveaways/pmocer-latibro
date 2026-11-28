@@ -528,6 +528,8 @@ Partie locale, la Partie en ligne lance un stream vers le navigateur de l'ami pa
 `cloudflared` 2026.11.2 est téléchargé au premier lancement (sha256 vérifié). À valider : lien copié, image, son,
 manette de l'ami, latence. Les README d'Orbitals-Together disent encore que Partie en ligne ouvre Steam : à corriger à
 la prochaine publication.
+Build `2017775` : le lanceur accepte de nouveau l'`orbitalgame.dll` de la 0.3.0 (un commentaire de `gamelib.h` avait
+changé `RT_GAME_ID` dans `d22d99d`) ; le joueur confirme qu'il fonctionne avec le seul exe remplacé.
 
 **Diagnostics à retirer quand ils ne servent plus :** `ORBITALS_OCCLUSION=visible` (`68d2a22`), le log des écritures
 dans une copie transitoire (`97bc308`), les notes de signal des variables de condition (`c03f2a0`, utile tant que le
