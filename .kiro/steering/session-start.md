@@ -68,9 +68,9 @@ write a short message such as "log up", "c up" or "crash log up". An upload is t
   Orbitals-Together's tree with the tag's (`git archive vX.Y.Z`, without `.kiro/` and this file; `README.md` kept as
   `DEVELOPMENT.md`; its own `README.md`, `README.fr.md` with the new version and file name, and its `images/`, the
   owner's screenshots for the READMEs), commit on `main`, tag
-  `vX.Y.Z` there, create the release (`gh api repos/sinedgiveaways/Orbitals-Together/releases -f tag_name=...`) and run
-  its **Publish release** workflow (`.../publish.yml/dispatches -f ref=main -f "inputs[tag]=vX.Y.Z"`): it builds the
-  zip from the tag and attaches it. The agent cannot upload release files itself (uploads.github.com is not reachable
+  `vX.Y.Z` there, create the release (`gh api repos/sinedgiveaways/Orbitals-Together/releases -f tag_name=...`) and push
+  the tag there: its **Publish release** workflow starts on the tag (do not dispatch it again: two runs race) and
+  builds the zip from the tag and attaches it. The agent cannot upload release files itself (uploads.github.com is not reachable
   through its GitHub access). Put the zip's sha256 from the workflow log in the release notes. 0.3.0 was published so
   on 27/11/2026: https://github.com/sinedgiveaways/Orbitals-Together/releases/tag/v0.3.0. The launcher's update check
   points to Orbitals-Together; its bug links and the READMEs' issue link go to pmocer-latibro, where fixes are made.

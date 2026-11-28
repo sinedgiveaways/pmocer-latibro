@@ -533,6 +533,11 @@ changé `RT_GAME_ID` dans `d22d99d`) ; le joueur confirme qu'il fonctionne avec 
 Build `4758633` (confirmé) : la manette Xbox de l'ami fait A avec A (la page mappait toutes les manettes par
 position, à la Nintendo) ; elle suit le réglage « Disposition des boutons » de l'hôte, boutons tactiles en positions Xbox.
 
+**Version publique 0.4.0 (28/11/2026) :** publiée sur Orbitals-Together (tag `v0.4.0` ici, `704c61e`) :
+https://github.com/sinedgiveaways/Orbitals-Together/releases/tag/v0.4.0. Partie en ligne par navigateur, manette de
+l'ami selon la disposition de l'hôte, mods retirés. Fonctionne sur les fichiers préparés par la 0.3.0. Note : pousser
+un tag `v*` sur Orbitals-Together lance déjà **Publish release** ; ne pas le relancer à la main.
+
 **Diagnostics à retirer quand ils ne servent plus :** `ORBITALS_OCCLUSION=visible` (`68d2a22`), le log des écritures
 dans une copie transitoire (`97bc308`), les notes de signal des variables de condition (`c03f2a0`, utile tant que le
 gel n'est pas résolu).
